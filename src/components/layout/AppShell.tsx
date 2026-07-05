@@ -26,14 +26,14 @@ export function AppShell({ page, setPage, children }: { page: AppPage; setPage: 
               key={item.id}
               onClick={() => setPage(item.id)}
               className={cn(
-                "relative cursor-pointer whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold text-slate-600 transition duration-200 hover:bg-blue-50 hover:text-[#1E3A8A]",
+                "relative cursor-pointer whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold text-[#475569] transition duration-200 hover:bg-[#E0E7FF] hover:text-[#1E3A8A]",
                 page === item.id && "text-white"
               )}
             >
               {page === item.id && (
                 <motion.span layoutId="activeTab" className="absolute inset-0 rounded-full bg-[#1E3A8A]" transition={{ type: "spring", bounce: 0.18, duration: 0.45 }} />
               )}
-              <span className="relative">{item.label}</span>
+              <span className="relative z-10">{item.label}</span>
             </button>
           ))}
         </nav>

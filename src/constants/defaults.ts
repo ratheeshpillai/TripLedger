@@ -13,7 +13,14 @@ export const DEFAULT_SETTINGS: AppSettings = {
   businessName: "Your Business Name"
 };
 
+export function todayInputDate(date = new Date()): string {
+  const timezoneOffset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 10);
+}
+
 export function createEmptyBillDraft(settings: AppSettings = DEFAULT_SETTINGS): BillDraft {
+  const today = todayInputDate();
+
   return {
     companyId: undefined,
     userId: undefined,
@@ -25,10 +32,10 @@ export function createEmptyBillDraft(settings: AppSettings = DEFAULT_SETTINGS): 
     vehicleNumber: "",
     guestName: "",
     reportingPlace: "",
-    tripDate: "",
+    tripDate: today,
     reportingTime: "",
     garageTime: "",
-    closingDate: "",
+    closingDate: today,
     closingTime: "",
     basePackage: settings.defaultBasePackage,
     baseHours: settings.defaultBaseHours,

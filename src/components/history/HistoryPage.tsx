@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { todayInputDate } from "../../constants/defaults";
 import type { Bill } from "../../types/bill";
 import type { AppSettings } from "../../types/settings";
 import { calculateCombinedSummary } from "../../utils/calculations";
@@ -26,11 +27,17 @@ type Props = {
   onCopy: (text: string) => void;
 };
 
+const outlineActionClass = "inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl border border-[#1E3A8A] bg-white px-4 py-2 text-sm font-semibold text-[#1E3A8A] transition duration-200 hover:bg-[#1E3A8A] hover:text-white";
+
 export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, onSelectAll, onClearSelection, onEdit, onDuplicate, onDelete, onCopy }: Props) {
+  const today = todayInputDate();
   const [guestSearch, setGuestSearch] = useState("");
-  const [tripDate, setTripDate] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [tripDate, setTripDate] = useState(today);
+  const [fromDate, setFromDate] = useState(today);
+  const [toDate, setToDate] = useState(today);
+  const [tripDateActive, setTripDateActive] = useState(false);
+  const [fromDateActive, setFromDateActive] = useState(false);
+  const [toDateActive, setToDateActive] = useState(false);
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [previewBill, setPreviewBill] = useState<Bill | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -40,11 +47,11 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
   const filtered = useMemo(() => {
     return bills
       .filter((bill) => bill.guestName.toLowerCase().includes(guestSearch.toLowerCase()))
-      .filter((bill) => !tripDate || bill.tripDate === tripDate)
-      .filter((bill) => !fromDate || bill.tripDate >= fromDate)
-      .filter((bill) => !toDate || bill.tripDate <= toDate)
+      .filter((bill) => !tripDateActive || bill.tripDate === tripDate)
+      .filter((bill) => !fromDateActive || bill.tripDate >= fromDate)
+      .filter((bill) => !toDateActive || bill.tripDate <= toDate)
       .sort((a, b) => sort === "newest" ? b.tripDate.localeCompare(a.tripDate) : a.tripDate.localeCompare(b.tripDate));
-  }, [bills, fromDate, guestSearch, sort, toDate, tripDate]);
+  }, [bills, fromDate, fromDateActive, guestSearch, sort, toDate, toDateActive, tripDate, tripDateActive]);
 
   const selectedBills = useMemo(() => bills.filter((bill) => selectedIds.includes(bill.id)), [bills, selectedIds]);
   const summaryBills = selectedBills;
@@ -64,9 +71,18 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-5">
             <label className="field-label">Search by Guest Name<Input placeholder="e.g. Mr. X" value={guestSearch} onChange={(e) => setGuestSearch(e.target.value)} /></label>
-            <label className="field-label">Trip Date<Input type="date" value={tripDate} onChange={(e) => setTripDate(e.target.value)} /></label>
-            <label className="field-label">From Date<Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></label>
-            <label className="field-label">To Date<Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} /></label>
+            <label className="field-label">Trip Date<Input type="date" value={tripDate} onChange={(e) => {
+              setTripDate(e.target.value);
+              setTripDateActive(true);
+            }} /></label>
+            <label className="field-label">From Date<Input type="date" value={fromDate} onChange={(e) => {
+              setFromDate(e.target.value);
+              setFromDateActive(true);
+            }} /></label>
+            <label className="field-label">To Date<Input type="date" value={toDate} onChange={(e) => {
+              setToDate(e.target.value);
+              setToDateActive(true);
+            }} /></label>
             <label className="field-label">Sort Order
               <Select value={sort} onChange={(e) => setSort(e.target.value as "newest" | "oldest")}>
                 <option value="newest">Newest First</option>
@@ -77,6 +93,16 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" onClick={() => onSelectAll(filtered.map((bill) => bill.id))}>Select All</Button>
             <Button type="button" onClick={onClearSelection}>Clear Selection</Button>
+            <Button type="button" onClick={() => {
+              setGuestSearch("");
+              setTripDate(todayInputDate());
+              setFromDate(todayInputDate());
+              setToDate(todayInputDate());
+              setTripDateActive(false);
+              setFromDateActive(false);
+              setToDateActive(false);
+              setSort("newest");
+            }}>Clear Filters</Button>
             <Button type="button" variant="primary" disabled={selectedBills.length === 0} onClick={() => setSummaryOpen(true)}>Generate Bill Summary</Button>
             <span className="rounded-full bg-blue-50 px-3 py-2 text-sm font-semibold text-[#1E3A8A]">{selectedIds.length} bills selected</span>
           </div>
@@ -132,7 +158,7 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
               <Textarea value={previewText} readOnly className="min-h-[420px] font-mono text-xs leading-5" />
               <label className="field-label">WhatsApp Number<Input placeholder="e.g. 919876543210" inputMode="tel" value={shareNumber} onChange={(event) => setShareNumber(event.target.value)} /></label>
               <div className="flex flex-wrap gap-2">
-                <a className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl bg-[#1E3A8A] px-4 py-2 text-sm font-semibold text-white shadow-sm transition duration-200 hover:bg-[#1D4ED8]" href={createWhatsAppUrl(previewText, shareNumber)} target="_blank" rel="noreferrer">Share on WhatsApp</a>
+                <a className={outlineActionClass} href={createWhatsAppUrl(previewText, shareNumber)} target="_blank" rel="noreferrer">Share on WhatsApp</a>
                 <Button type="button" onClick={() => onCopy(previewText)}>Copy Bill Text</Button>
                 <Button type="button" onClick={() => exportSingleBillPdf(previewBill, settings)}>Export PDF</Button>
                 <Button type="button" onClick={() => {
@@ -169,7 +195,7 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
               <Textarea value={summaryText} readOnly className="min-h-[360px] font-mono text-xs leading-5" />
               <label className="field-label">WhatsApp Number<Input placeholder="e.g. 919876543210" inputMode="tel" value={shareNumber} onChange={(event) => setShareNumber(event.target.value)} /></label>
               <div className="flex flex-wrap gap-2">
-                <a className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl bg-[#1E3A8A] px-4 py-2 text-sm font-semibold text-white shadow-sm transition duration-200 hover:bg-[#1D4ED8]" href={createWhatsAppUrl(summaryText, shareNumber)} target="_blank" rel="noreferrer">Share on WhatsApp</a>
+                <a className={outlineActionClass} href={createWhatsAppUrl(summaryText, shareNumber)} target="_blank" rel="noreferrer">Share on WhatsApp</a>
                 <Button type="button" onClick={() => onCopy(summaryText)}>Copy Bill Text</Button>
                 <Button type="button" onClick={() => summaryMode === "combined" ? exportCombinedSummaryPdf(summaryTotals, settings) : exportIndividualSummaryPdf(summaryBills, settings)}>Export PDF</Button>
               </div>

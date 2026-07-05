@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { AppSettings, TimeFormat } from "../../types/settings";
 import { Button } from "../ui/Button";
@@ -12,6 +12,32 @@ function num(value: string): number {
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="field-label">{label}{children}</label>;
+}
+
+function NumberInput({ value, onValueChange }: { value: number; onValueChange: (value: number) => void }) {
+  const [inputValue, setInputValue] = useState(value === 0 ? "" : String(value));
+  const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setInputValue(value === 0 ? "" : String(value));
+    }
+  }, [isEditing, value]);
+
+  return (
+    <Input
+      type="number"
+      inputMode="decimal"
+      value={inputValue}
+      onFocus={() => setIsEditing(true)}
+      onBlur={() => setIsEditing(false)}
+      onChange={(event) => {
+        const nextValue = event.target.value;
+        setInputValue(nextValue);
+        onValueChange(num(nextValue));
+      }}
+    />
+  );
 }
 
 export function SettingsPage({ settings, onSave }: { settings: AppSettings; onSave: (settings: AppSettings) => Promise<void> }) {
@@ -34,11 +60,11 @@ export function SettingsPage({ settings, onSave }: { settings: AppSettings; onSa
           <Field label="Currency Symbol"><Input value={draft.currencySymbol} onChange={(e) => setDraft({ ...draft, currencySymbol: e.target.value })} /></Field>
           <Field label="Business Name"><Input placeholder="Business Name" value={draft.businessName} onChange={(e) => setDraft({ ...draft, businessName: e.target.value })} /></Field>
           <Field label="Default Base Package"><Input placeholder="8 Hours / 80 KM" value={draft.defaultBasePackage} onChange={(e) => setDraft({ ...draft, defaultBasePackage: e.target.value })} /></Field>
-          <Field label="Default Base Hours"><Input type="number" value={draft.defaultBaseHours} onChange={(e) => setDraft({ ...draft, defaultBaseHours: num(e.target.value) })} /></Field>
-          <Field label="Default Base KM"><Input type="number" value={draft.defaultBaseKm} onChange={(e) => setDraft({ ...draft, defaultBaseKm: num(e.target.value) })} /></Field>
-          <Field label="Default Base Amount"><Input type="number" value={draft.defaultBaseAmount} onChange={(e) => setDraft({ ...draft, defaultBaseAmount: num(e.target.value) })} /></Field>
-          <Field label="Default Extra Hour Rate"><Input type="number" value={draft.defaultExtraHourRate} onChange={(e) => setDraft({ ...draft, defaultExtraHourRate: num(e.target.value) })} /></Field>
-          <Field label="Default Extra KM Rate"><Input type="number" value={draft.defaultExtraKmRate} onChange={(e) => setDraft({ ...draft, defaultExtraKmRate: num(e.target.value) })} /></Field>
+          <Field label="Default Base Hours"><NumberInput value={draft.defaultBaseHours} onValueChange={(value) => setDraft({ ...draft, defaultBaseHours: value })} /></Field>
+          <Field label="Default Base KM"><NumberInput value={draft.defaultBaseKm} onValueChange={(value) => setDraft({ ...draft, defaultBaseKm: value })} /></Field>
+          <Field label="Default Base Amount"><NumberInput value={draft.defaultBaseAmount} onValueChange={(value) => setDraft({ ...draft, defaultBaseAmount: value })} /></Field>
+          <Field label="Default Extra Hour Rate"><NumberInput value={draft.defaultExtraHourRate} onValueChange={(value) => setDraft({ ...draft, defaultExtraHourRate: value })} /></Field>
+          <Field label="Default Extra KM Rate"><NumberInput value={draft.defaultExtraKmRate} onValueChange={(value) => setDraft({ ...draft, defaultExtraKmRate: value })} /></Field>
         </div>
         <Button type="button" variant="primary" onClick={() => void onSave(draft)}>Save Settings</Button>
       </CardContent>

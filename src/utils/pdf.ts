@@ -1,13 +1,22 @@
 import { jsPDF } from "jspdf";
 import type { Bill, BillSummaryTotals } from "../types/bill";
 import type { AppSettings } from "../types/settings";
-import { amountOrNA, currency, dateDisplay, numberOrNA, timeDisplay } from "./formatters";
+import { dateDisplay, numberOrNA, timeDisplay } from "./formatters";
 import { formatDuration } from "./timeUtils";
 
 type Row = [string, string];
 
+function pdfCurrency(value: number, settings: AppSettings): string {
+  const formatted = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.round(value || 0));
+  const symbol = settings.currencySymbol === "₹" ? "Rs." : settings.currencySymbol;
+  return `${symbol}${formatted}`;
+}
+
+function pdfAmountOrNA(value: number, settings: AppSettings): string {
+  return value > 0 ? pdfCurrency(value, settings) : "NA";
+}
+
 function billSections(bill: Bill, settings: AppSettings): Array<{ title: string; rows: Row[] }> {
-  const symbol = settings.currencySymbol;
   return [
     {
       title: "Bill Details",
@@ -35,20 +44,21 @@ function billSections(bill: Bill, settings: AppSettings): Array<{ title: string;
       title: "Package & KM",
       rows: [
         ["Base Package", bill.basePackage || `${bill.baseHours} Hours / ${bill.baseKm} KM`],
-        ["Base Amount", currency(bill.baseAmount, symbol)],
+        ["Base Amount", pdfCurrency(bill.baseAmount, settings)],
         ["Total KM", numberOrNA(bill.totalKm)],
-        ["Extra KM", numberOrNA(bill.extraKm)],
-        ["Extra KM Amount", amountOrNA(bill.extraKmAmount, symbol)]
+        ["Extra KM", numberOrNA(bill.extraKm)]
       ]
     },
     {
       title: "Charges",
       rows: [
-        ["Extra Hour Amount", amountOrNA(bill.extraHourAmount, symbol)],
-        ["Airport Parking", amountOrNA(bill.airportParking, symbol)],
-        ["Fastag", amountOrNA(bill.fastag, symbol)],
-        ["Road Parking", amountOrNA(bill.roadParking, symbol)],
-        ["Pending Amount", amountOrNA(bill.pendingAmount, symbol)]
+        ["Extra KM Rate", bill.extraKm > 0 ? pdfAmountOrNA(bill.extraKmRate, settings) : "NA"],
+        ["Extra KM Amount", pdfAmountOrNA(bill.extraKmAmount, settings)],
+        ["Extra Hour Amount", pdfAmountOrNA(bill.extraHourAmount, settings)],
+        ["Airport Parking", pdfAmountOrNA(bill.airportParking, settings)],
+        ["Fastag", pdfAmountOrNA(bill.fastag, settings)],
+        ["Road Parking", pdfAmountOrNA(bill.roadParking, settings)],
+        ["Pending Amount", pdfAmountOrNA(bill.pendingAmount, settings)]
       ]
     }
   ];
@@ -96,7 +106,7 @@ function addSection(doc: jsPDF, title: string, rows: Row[], startY: number): num
     doc.text(label, 18, y);
     doc.setTextColor(15, 23, 42);
     doc.setFont("helvetica", "normal");
-    doc.text(value, 82, y);
+    doc.text(value, 82, y, { maxWidth: 105 });
     y += 9;
   });
   return y + 4;
@@ -121,7 +131,7 @@ function addBill(doc: jsPDF, bill: Bill, settings: AppSettings, startY: number):
   billSections(bill, settings).forEach((section) => {
     y = addSection(doc, section.title, section.rows, y);
   });
-  addTotalBox(doc, currency(bill.totalAmount, settings.currencySymbol), y);
+  addTotalBox(doc, pdfCurrency(bill.totalAmount, settings), y);
 }
 
 export function exportSingleBillPdf(bill: Bill, settings: AppSettings): void {
@@ -138,15 +148,15 @@ export function exportCombinedSummaryPdf(totals: BillSummaryTotals, settings: Ap
     ["Selected Bills", String(totals.selectedBillsCount)],
     ["Total KM", numberOrNA(totals.totalKm)],
     ["Total Hours", formatDuration(totals.totalHours)],
-    ["Total Base Amount", currency(totals.totalBaseAmount, settings.currencySymbol)],
-    ["Extra KM Amount", amountOrNA(totals.totalExtraKmAmount, settings.currencySymbol)],
-    ["Extra Hour Amount", amountOrNA(totals.totalExtraHourAmount, settings.currencySymbol)],
-    ["Airport Parking", amountOrNA(totals.totalAirportParking, settings.currencySymbol)],
-    ["Fastag", amountOrNA(totals.totalFastag, settings.currencySymbol)],
-    ["Road Parking", amountOrNA(totals.totalRoadParking, settings.currencySymbol)],
-    ["Pending Amount", amountOrNA(totals.totalPendingAmount, settings.currencySymbol)]
+    ["Total Base Amount", pdfCurrency(totals.totalBaseAmount, settings)],
+    ["Extra KM Amount", pdfAmountOrNA(totals.totalExtraKmAmount, settings)],
+    ["Extra Hour Amount", pdfAmountOrNA(totals.totalExtraHourAmount, settings)],
+    ["Airport Parking", pdfAmountOrNA(totals.totalAirportParking, settings)],
+    ["Fastag", pdfAmountOrNA(totals.totalFastag, settings)],
+    ["Road Parking", pdfAmountOrNA(totals.totalRoadParking, settings)],
+    ["Pending Amount", pdfAmountOrNA(totals.totalPendingAmount, settings)]
   ], y);
-  addTotalBox(doc, currency(totals.grandTotal, settings.currencySymbol), y);
+  addTotalBox(doc, pdfCurrency(totals.grandTotal, settings), y);
   doc.save("tripledger-combined-summary.pdf");
 }
 

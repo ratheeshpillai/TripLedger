@@ -9,8 +9,8 @@ export function Button({ children, className, variant = "secondary", ...props }:
       className={cn(
         "inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold transition duration-200 disabled:cursor-not-allowed disabled:opacity-60",
         variant === "primary" && "bg-[#1E3A8A] text-white shadow-sm hover:bg-[#1D4ED8]",
-        variant === "secondary" && "border border-[#1E3A8A] bg-white text-[#1E3A8A] hover:bg-blue-50",
-        variant === "ghost" && "text-[#1E3A8A] hover:bg-blue-50",
+        variant === "secondary" && "border border-[#1E3A8A] bg-white text-[#1E3A8A] hover:bg-[#1E3A8A] hover:text-white",
+        variant === "ghost" && "text-[#1E3A8A] hover:bg-[#E0E7FF] hover:text-[#1E3A8A]",
         variant === "danger" && "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100",
         className
       )}

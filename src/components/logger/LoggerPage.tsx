@@ -8,7 +8,7 @@ import { Button } from "../ui/Button";
 import { Card, CardContent, CardHeader } from "../ui/Card";
 import { Input } from "../ui/Input";
 import { Textarea } from "../ui/Textarea";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 type Props = {
   draft: BillDraft;
@@ -28,6 +28,34 @@ function num(value: string): number {
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="field-label">{label}{children}</label>;
+}
+
+function NumberInput({ value, onValueChange, placeholder, readOnly = false }: { value: number; onValueChange?: (value: number) => void; placeholder?: string; readOnly?: boolean }) {
+  const [inputValue, setInputValue] = useState(value === 0 ? "" : String(value));
+  const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setInputValue(value === 0 ? "" : String(value));
+    }
+  }, [isEditing, value]);
+
+  return (
+    <Input
+      type="number"
+      inputMode="decimal"
+      placeholder={placeholder}
+      readOnly={readOnly}
+      value={inputValue}
+      onFocus={() => setIsEditing(true)}
+      onBlur={() => setIsEditing(false)}
+      onChange={(event) => {
+        const nextValue = event.target.value;
+        setInputValue(nextValue);
+        onValueChange?.(num(nextValue));
+      }}
+    />
+  );
 }
 
 export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGarageTimeChange, onSave, onReset, onCopy, onPdf }: Props) {
@@ -64,7 +92,7 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
               <div className="form-grid">
                 <Field label="Trip Date"><Input type="date" value={draft.tripDate} onChange={(e) => onFieldChange("tripDate", e.target.value)} /></Field>
                 <Field label="Reporting Time"><Input placeholder={settings.timeFormat === "24h" ? "03:00" : "3:00 AM"} value={draft.reportingTime} onChange={(e) => onFieldChange("reportingTime", e.target.value)} /></Field>
-                <Field label="Garage Time"><Input placeholder="Garage Time" value={draft.garageTime} onChange={(e) => onGarageTimeChange(e.target.value)} /></Field>
+                <Field label="Garage Time"><Input placeholder={settings.timeFormat === "24h" ? "02:00" : "2:00 AM"} value={draft.garageTime} onChange={(e) => onGarageTimeChange(e.target.value)} /></Field>
                 <Field label="Closing Date"><Input type="date" value={draft.closingDate} onChange={(e) => onFieldChange("closingDate", e.target.value)} /></Field>
                 <Field label="Closing Time"><Input placeholder={settings.timeFormat === "24h" ? "23:20" : "11:20 PM"} value={draft.closingTime} onChange={(e) => onFieldChange("closingTime", e.target.value)} /></Field>
                 <Field label="Total Hours"><Input value={formatDuration(draft.totalHours)} readOnly /></Field>
@@ -76,25 +104,25 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
               <h3 className="section-title">Package & KM</h3>
               <div className="form-grid">
                 <Field label="Base Package"><Input placeholder="e.g. 8 Hours / 80 KM" value={draft.basePackage} onChange={(e) => onFieldChange("basePackage", e.target.value)} /></Field>
-                <Field label="Base Hours"><Input type="number" value={draft.baseHours} onChange={(e) => onFieldChange("baseHours", num(e.target.value))} /></Field>
-                <Field label="Base KM"><Input type="number" value={draft.baseKm} onChange={(e) => onFieldChange("baseKm", num(e.target.value))} /></Field>
-                <Field label="Base Amount"><Input type="number" placeholder="e.g. 2800" value={draft.baseAmount} onChange={(e) => onFieldChange("baseAmount", num(e.target.value))} /></Field>
-                <Field label="Total KM"><Input type="number" value={draft.totalKm} onChange={(e) => onFieldChange("totalKm", num(e.target.value))} /></Field>
-                <Field label="Extra KM"><Input type="number" value={draft.extraKm} onChange={(e) => onFieldChange("extraKm", num(e.target.value))} /></Field>
-                <Field label="Extra KM Rate"><Input type="number" placeholder="e.g. 25" value={draft.extraKmRate} onChange={(e) => onFieldChange("extraKmRate", num(e.target.value))} /></Field>
-                <Field label="Extra KM Amount"><Input type="number" value={draft.extraKmAmount} onChange={(e) => onFieldChange("extraKmAmount", num(e.target.value))} /></Field>
+                <Field label="Base Hours"><NumberInput value={draft.baseHours} onValueChange={(value) => onFieldChange("baseHours", value)} placeholder="e.g. 8" /></Field>
+                <Field label="Base KM"><NumberInput value={draft.baseKm} onValueChange={(value) => onFieldChange("baseKm", value)} placeholder="e.g. 80" /></Field>
+                <Field label="Base Amount"><NumberInput value={draft.baseAmount} onValueChange={(value) => onFieldChange("baseAmount", value)} placeholder="e.g. 2800" /></Field>
+                <Field label="Total KM"><NumberInput value={draft.totalKm} onValueChange={(value) => onFieldChange("totalKm", value)} placeholder="e.g. 80" /></Field>
+                <Field label="Extra KM"><NumberInput value={draft.extraKm} onValueChange={(value) => onFieldChange("extraKm", value)} placeholder="Auto calculated" /></Field>
               </div>
             </section>
 
             <section className="space-y-4">
               <h3 className="section-title">Charges</h3>
               <div className="form-grid">
-                <Field label="Extra Hour Rate"><Input type="number" placeholder="e.g. 200" value={draft.extraHourRate} onChange={(e) => onFieldChange("extraHourRate", num(e.target.value))} /></Field>
-                <Field label="Extra Hour Amount"><Input type="number" value={draft.extraHourAmount} onChange={(e) => onFieldChange("extraHourAmount", num(e.target.value))} /></Field>
-                <Field label="Airport Parking"><Input type="number" placeholder="e.g. 300" value={draft.airportParking} onChange={(e) => onFieldChange("airportParking", num(e.target.value))} /></Field>
-                <Field label="Fastag"><Input type="number" placeholder="e.g. 150" value={draft.fastag} onChange={(e) => onFieldChange("fastag", num(e.target.value))} /></Field>
-                <Field label="Road Parking"><Input type="number" placeholder="e.g. 100" value={draft.roadParking} onChange={(e) => onFieldChange("roadParking", num(e.target.value))} /></Field>
-                <Field label="Pending Bills"><Input type="number" placeholder="0" value={draft.pendingAmount} onChange={(e) => onFieldChange("pendingAmount", num(e.target.value))} /></Field>
+                <Field label="Extra KM Rate"><NumberInput value={draft.extraKmRate} onValueChange={(value) => onFieldChange("extraKmRate", value)} placeholder="e.g. 25" /></Field>
+                <Field label="Extra KM Amount"><NumberInput value={draft.extraKmAmount} onValueChange={(value) => onFieldChange("extraKmAmount", value)} placeholder="Auto calculated" /></Field>
+                <Field label="Extra Hour Rate"><NumberInput value={draft.extraHourRate} onValueChange={(value) => onFieldChange("extraHourRate", value)} placeholder="e.g. 200" /></Field>
+                <Field label="Extra Hour Amount"><NumberInput value={draft.extraHourAmount} onValueChange={(value) => onFieldChange("extraHourAmount", value)} placeholder="Auto calculated" /></Field>
+                <Field label="Airport Parking"><NumberInput value={draft.airportParking} onValueChange={(value) => onFieldChange("airportParking", value)} placeholder="e.g. 300" /></Field>
+                <Field label="Fastag"><NumberInput value={draft.fastag} onValueChange={(value) => onFieldChange("fastag", value)} placeholder="e.g. 150" /></Field>
+                <Field label="Road Parking"><NumberInput value={draft.roadParking} onValueChange={(value) => onFieldChange("roadParking", value)} placeholder="e.g. 100" /></Field>
+                <Field label="Pending Bills"><NumberInput value={draft.pendingAmount} onValueChange={(value) => onFieldChange("pendingAmount", value)} placeholder="0" /></Field>
               </div>
               <Field label="Notes"><Textarea placeholder="e.g. Airport pickup and local travel" value={draft.notes} onChange={(e) => onFieldChange("notes", e.target.value)} /></Field>
               <div className="grid gap-2 pt-2 sm:flex sm:justify-end">
