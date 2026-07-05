@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TripLedger</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">TripLedger</p>
+          <h1>Driver trip billing</h1>
+        </div>
+        <button class="icon-button" id="clearAllButton" type="button" title="Clear saved data" aria-label="Clear saved data">
+          <span aria-hidden="true">x</span>
+        </button>
+      </section>
+
+      <section class="workspace">
+        <form class="panel entry-panel" id="tripForm">
+          <div class="section-heading">
+            <h2>Trip details</h2>
+            <button class="small-button" id="sampleButton" type="button">Use sample</button>
+          </div>
+
+          <div class="grid two form-section">
+            <label>
+              Driver
+              <input id="driver" autocomplete="name" value="RADHA">
+            </label>
+            <label>
+              Vehicle
+              <input id="vehicle" value="Innova Crysta">
+            </label>
+            <label>
+              Vehicle number
+              <input id="vehicleNumber" value="MH03CV 4312">
+            </label>
+            <label>
+              Guest
+              <input id="guest" placeholder="Mr.Chemban Vinod + 2">
+            </label>
+            <label class="wide">
+              Reporting place
+              <input id="reportingPlace" placeholder="Leela">
+            </label>
+          </div>
+
+          <div class="grid three form-section">
+            <label>
+              Trip date
+              <input id="tripDate" type="date">
+            </label>
+            <label>
+              Reporting time (24h)
+              <input id="reportingTime" inputmode="numeric" placeholder="05.00">
+            </label>
+            <label>
+              Garage time (24h)
+              <input id="garageTime" inputmode="numeric" placeholder="04.00">
+            </label>
+            <label>
+              Closing date
+              <input id="closingDate" type="date">
+            </label>
+            <label>
+              Closing time (24h)
+              <input id="closingTime" inputmode="numeric" placeholder="00.30">
+            </label>
+            <label>
+              Total KM
+              <input id="totalKm" type="number" min="0" step="1" value="80">
+            </label>
+          </div>
+
+          <div class="section-heading compact">
+            <h2>Billing hours</h2>
+          </div>
+          <div class="grid three">
+            <label>
+              Total hours
+              <input id="totalHoursManual" inputmode="decimal" placeholder="20.30">
+            </label>
+            <label>
+              Base hours
+              <input id="baseHours" type="number" min="0" step="0.5" value="8">
+            </label>
+            <label>
+              Extra hour rate
+              <input id="extraHourRate" type="number" min="0" step="1" value="200">
+            </label>
+            <label>
+              Extra hour amount
+              <input id="extraHourAmount" type="number" min="0" step="1" value="0">
+            </label>
+          </div>
+
+          <div class="section-heading compact">
+            <h2>Rates</h2>
+          </div>
+          <div class="grid three">
+            <label>
+              Base KM
+              <input id="baseKm" type="number" min="0" step="1" value="80">
+            </label>
+            <label>
+              Base amount
+              <input id="baseAmount" type="number" min="0" step="1" value="2800">
+            </label>
+            <label>
+              Extra KM rate
+              <input id="extraKmRate" type="number" min="0" step="1" value="0">
+            </label>
+            <label>
+              Extra KM
+              <input id="extraKm" type="number" min="0" step="1" value="0">
+            </label>
+            <label>
+              Extra KM amount
+              <input id="extraKmAmount" type="number" min="0" step="1" value="0">
+            </label>
+            <label>
+              Round amount to
+              <select id="rounding">
+                <option value="1">Nearest rupee</option>
+                <option value="10">Nearest 10</option>
+                <option value="50">Nearest 50</option>
+                <option value="100">Nearest 100</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="section-heading compact">
+            <h2>Extras</h2>
+          </div>
+          <div class="grid three">
+            <label>
+              Airport parking
+              <input id="airportParking" type="number" min="0" step="1" value="0">
+            </label>
+            <label>
+              Fastag
+              <input id="fastag" type="number" min="0" step="1" value="0">
+            </label>
+            <label>
+              Road parking
+              <input id="roadParking" type="number" min="0" step="1" value="0">
+            </label>
+            <label>
+              Pending bills
+              <input id="pendingBills" type="number" min="0" step="1" value="0">
+            </label>
+            <label class="wide">
+              Notes
+              <input id="notes" placeholder="Optional">
+            </label>
+          </div>
+
+          <div class="actions">
+            <button class="primary" type="submit">Save trip</button>
+            <button id="resetFormButton" type="button">New entry</button>
+          </div>
+        </form>
+
+        <aside class="panel summary-panel">
+          <div class="section-heading">
+            <h2>Bill preview</h2>
+            <span class="pill" id="tripCount">0 trips</span>
+          </div>
+
+          <div class="totals">
+            <div>
+              <span>Current trips</span>
+              <strong id="currentTotal">Rs.0</strong>
+            </div>
+            <div>
+              <span>Pending</span>
+              <strong id="pendingTotal">Rs.0</strong>
+            </div>
+            <div class="grand">
+              <span>Grand total</span>
+              <strong id="grandTotal">Rs.0</strong>
+            </div>
+          </div>
+
+          <div class="message-tools">
+            <label>
+              WhatsApp number
+              <input id="whatsappNumber" inputmode="tel" placeholder="919876543210">
+            </label>
+            <textarea id="billMessage" readonly rows="16"></textarea>
+            <div class="actions">
+              <button id="copyButton" type="button">Copy bill</button>
+              <a class="primary link-button" id="whatsappButton" target="_blank" rel="noreferrer">Send WhatsApp</a>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="trip-list" id="tripList" aria-live="polite"></section>
+    </main>
+
+    <template id="tripCardTemplate">
+      <article class="trip-card">
+        <div>
+          <h3></h3>
+          <p></p>
+        </div>
+        <div class="trip-card-actions">
+          <strong></strong>
+          <button type="button">Delete</button>
+        </div>
+      </article>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
