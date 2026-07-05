@@ -7,8 +7,10 @@ import { MetricCard } from "../shared/MetricCard";
 import { Button } from "../ui/Button";
 import { Card, CardContent, CardHeader } from "../ui/Card";
 import { Input } from "../ui/Input";
+import { Select } from "../ui/Select";
 import { Textarea } from "../ui/Textarea";
 import { useEffect, useState, type ReactNode } from "react";
+import { normalizeTimeInput } from "../../utils/timeUtils";
 
 type Props = {
   draft: BillDraft;
@@ -28,6 +30,17 @@ function num(value: string): number {
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="field-label">{label}{children}</label>;
+}
+
+function TimeInput({ value, placeholder, onChange }: { value: string; placeholder: string; onChange: (value: string) => void }) {
+  return (
+    <Input
+      placeholder={placeholder}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onBlur={(event) => onChange(normalizeTimeInput(event.target.value))}
+    />
+  );
 }
 
 function NumberInput({ value, onValueChange, placeholder, readOnly = false }: { value: number; onValueChange?: (value: number) => void; placeholder?: string; readOnly?: boolean }) {
@@ -82,7 +95,16 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
                 <Field label="Driver"><Input placeholder="e.g. Radha" value={draft.driverName} onChange={(e) => onFieldChange("driverName", e.target.value)} /></Field>
                 <Field label="Vehicle"><Input placeholder="e.g. Innova Crysta" value={draft.vehicleName} onChange={(e) => onFieldChange("vehicleName", e.target.value)} /></Field>
                 <Field label="Vehicle Number"><Input placeholder="e.g. MH03CV4312" value={draft.vehicleNumber} onChange={(e) => onFieldChange("vehicleNumber", e.target.value)} /></Field>
-                <Field label="Guest"><Input placeholder="e.g. Mr. X" value={draft.guestName} onChange={(e) => onFieldChange("guestName", e.target.value)} /></Field>
+                <Field label="Guest">
+                  <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                    <Select value={draft.guestSalutation || "Mr."} onChange={(e) => onFieldChange("guestSalutation", e.target.value as BillDraft["guestSalutation"])}>
+                      <option value="Mr.">Mr.</option>
+                      <option value="Mrs.">Mrs.</option>
+                      <option value="Miss">Miss</option>
+                    </Select>
+                    <Input placeholder="e.g. X" value={draft.guestName} onChange={(e) => onFieldChange("guestName", e.target.value)} />
+                  </div>
+                </Field>
                 <Field label="Reporting Place"><Input placeholder="e.g. The Leela Mumbai" value={draft.reportingPlace} onChange={(e) => onFieldChange("reportingPlace", e.target.value)} /></Field>
               </div>
             </section>
@@ -91,10 +113,10 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
               <h3 className="section-title">Trip Timing</h3>
               <div className="form-grid">
                 <Field label="Trip Date"><Input type="date" value={draft.tripDate} onChange={(e) => onFieldChange("tripDate", e.target.value)} /></Field>
-                <Field label="Reporting Time"><Input placeholder={settings.timeFormat === "24h" ? "03:00" : "3:00 AM"} value={draft.reportingTime} onChange={(e) => onFieldChange("reportingTime", e.target.value)} /></Field>
-                <Field label="Garage Time"><Input placeholder={settings.timeFormat === "24h" ? "02:00" : "2:00 AM"} value={draft.garageTime} onChange={(e) => onGarageTimeChange(e.target.value)} /></Field>
+                <Field label="Reporting Time"><TimeInput placeholder={settings.timeFormat === "24h" ? "03:00" : "3:00 AM"} value={draft.reportingTime} onChange={(value) => onFieldChange("reportingTime", value)} /></Field>
+                <Field label="Garage Time"><TimeInput placeholder={settings.timeFormat === "24h" ? "02:00" : "2:00 AM"} value={draft.garageTime} onChange={onGarageTimeChange} /></Field>
                 <Field label="Closing Date"><Input type="date" value={draft.closingDate} onChange={(e) => onFieldChange("closingDate", e.target.value)} /></Field>
-                <Field label="Closing Time"><Input placeholder={settings.timeFormat === "24h" ? "23:20" : "11:20 PM"} value={draft.closingTime} onChange={(e) => onFieldChange("closingTime", e.target.value)} /></Field>
+                <Field label="Closing Time"><TimeInput placeholder={settings.timeFormat === "24h" ? "23:20" : "11:20 PM"} value={draft.closingTime} onChange={(value) => onFieldChange("closingTime", value)} /></Field>
                 <Field label="Total Hours"><Input value={formatDuration(draft.totalHours)} readOnly /></Field>
                 <Field label="Extra Hours"><Input value={formatDuration(draft.extraHours)} readOnly /></Field>
               </div>
@@ -126,7 +148,7 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
               </div>
               <Field label="Notes"><Textarea placeholder="e.g. Airport pickup and local travel" value={draft.notes} onChange={(e) => onFieldChange("notes", e.target.value)} /></Field>
               <div className="grid gap-2 pt-2 sm:flex sm:justify-end">
-                <Button type="button" variant="secondary" onClick={onReset}>Reset Logger</Button>
+                <Button type="button" variant="neutral" onClick={onReset}>Reset Logger</Button>
                 <Button type="button" variant="primary" onClick={() => void onSave()}>{editingBillId ? "Update Bill" : "Save Bill"}</Button>
               </div>
             </section>

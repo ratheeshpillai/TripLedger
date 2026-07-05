@@ -8,6 +8,7 @@ export interface Bill {
   driverName: string;
   vehicleName: string;
   vehicleNumber: string;
+  guestSalutation?: "Mr." | "Mrs." | "Miss";
   guestName: string;
   reportingPlace: string;
   tripDate: string;

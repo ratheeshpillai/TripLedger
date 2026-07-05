@@ -3,7 +3,7 @@ import { todayInputDate } from "../../constants/defaults";
 import type { Bill } from "../../types/bill";
 import type { AppSettings } from "../../types/settings";
 import { calculateCombinedSummary } from "../../utils/calculations";
-import { amountOrNA, currency, dateDisplay } from "../../utils/formatters";
+import { amountOrNA, currency, dateDisplay, guestDisplay } from "../../utils/formatters";
 import { exportCombinedSummaryPdf, exportIndividualSummaryPdf, exportSingleBillPdf } from "../../utils/pdf";
 import { formatDuration } from "../../utils/timeUtils";
 import { buildCombinedSummaryText, buildIndividualSummaryText, buildSingleBillText, createWhatsAppUrl } from "../../utils/whatsapp";
@@ -121,7 +121,7 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
                   <input className="h-5 w-5 rounded border-slate-300" type="checkbox" checked={selectedIds.includes(bill.id)} onChange={() => onToggleSelected(bill.id)} />
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-bold text-slate-950">{bill.guestName || "Guest"}</h3>
+                      <h3 className="font-bold text-slate-950">{guestDisplay(bill)}</h3>
                       <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">{dateDisplay(bill.tripDate)}</span>
                     </div>
                     <p className="mt-1 text-sm text-slate-500">{bill.driverName || "Driver"} | {bill.vehicleName || "Vehicle"} | {bill.vehicleNumber || "Vehicle Number"} | {bill.reportingPlace || "Reporting Place"}</p>

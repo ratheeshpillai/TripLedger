@@ -30,6 +30,7 @@ export function createEmptyBillDraft(settings: AppSettings = DEFAULT_SETTINGS): 
     driverName: "",
     vehicleName: "",
     vehicleNumber: "",
+    guestSalutation: "Mr.",
     guestName: "",
     reportingPlace: "",
     tripDate: today,

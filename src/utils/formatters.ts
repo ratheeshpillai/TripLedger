@@ -1,5 +1,6 @@
 import type { TimeFormat } from "../types/settings";
 import { formatTime } from "./timeUtils";
+import type { Bill } from "../types/bill";
 
 export function currency(value: number, symbol = "₹"): string {
   return `${symbol}${Math.round(value).toLocaleString("en-IN")}`;
@@ -21,6 +22,13 @@ export function dateDisplay(value: string): string {
 
 export function timeDisplay(value: string, timeFormat: TimeFormat): string {
   return value ? formatTime(value, timeFormat) : "NA";
+}
+
+export function guestDisplay(bill: Pick<Bill, "guestName" | "guestSalutation">): string {
+  const guestName = bill.guestName.trim();
+  if (!guestName) return "NA";
+  if (/^(mr\.?|mrs\.?|miss)\s/i.test(guestName)) return guestName;
+  return `${bill.guestSalutation || "Mr."} ${guestName}`.trim();
 }
 
 export function padLabel(label: string, width = 17): string {

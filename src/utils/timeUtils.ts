@@ -31,6 +31,11 @@ export function minutesToTime(minutes: number): string {
   return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
 }
 
+export function normalizeTimeInput(value: string): string {
+  const minutes = parseTimeToMinutes(value);
+  return minutes === null ? value.trim().replace(".", ":") : minutesToTime(minutes);
+}
+
 export function formatTime(value: string, format: TimeFormat): string {
   const minutes = parseTimeToMinutes(value);
   if (minutes === null) return value;

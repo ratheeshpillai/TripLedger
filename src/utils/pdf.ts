@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf";
 import type { Bill, BillSummaryTotals } from "../types/bill";
 import type { AppSettings } from "../types/settings";
-import { dateDisplay, numberOrNA, timeDisplay } from "./formatters";
+import { dateDisplay, guestDisplay, numberOrNA, timeDisplay } from "./formatters";
 import { formatDuration } from "./timeUtils";
 
 type Row = [string, string];
@@ -21,7 +21,7 @@ function billSections(bill: Bill, settings: AppSettings): Array<{ title: string;
     {
       title: "Bill Details",
       rows: [
-        ["Guest", bill.guestName || "NA"],
+        ["Guest", guestDisplay(bill)],
         ["Driver", bill.driverName || "NA"],
         ["Vehicle", bill.vehicleName || "NA"],
         ["Vehicle Number", bill.vehicleNumber || "NA"],
@@ -52,8 +52,9 @@ function billSections(bill: Bill, settings: AppSettings): Array<{ title: string;
     {
       title: "Charges",
       rows: [
-        ["Extra KM Rate", bill.extraKm > 0 ? pdfAmountOrNA(bill.extraKmRate, settings) : "NA"],
+        ["Extra KM Rate", bill.extraKm > 0 ? `${pdfAmountOrNA(bill.extraKmRate, settings)} / KM` : "NA"],
         ["Extra KM Amount", pdfAmountOrNA(bill.extraKmAmount, settings)],
+        ["Extra Hour Rate", bill.extraHours > 0 ? `${pdfAmountOrNA(bill.extraHourRate, settings)} / Hour` : "NA"],
         ["Extra Hour Amount", pdfAmountOrNA(bill.extraHourAmount, settings)],
         ["Airport Parking", pdfAmountOrNA(bill.airportParking, settings)],
         ["Fastag", pdfAmountOrNA(bill.fastag, settings)],

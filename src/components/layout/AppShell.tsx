@@ -26,8 +26,10 @@ export function AppShell({ page, setPage, children }: { page: AppPage; setPage: 
               key={item.id}
               onClick={() => setPage(item.id)}
               className={cn(
-                "relative cursor-pointer whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold text-[#475569] transition duration-200 hover:bg-[#E0E7FF] hover:text-[#1E3A8A]",
-                page === item.id && "text-white"
+                "relative cursor-pointer whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition duration-200",
+                page === item.id
+                  ? "text-white hover:text-white"
+                  : "text-[#475569] hover:bg-[#E0E7FF] hover:text-[#1E3A8A]"
               )}
             >
               {page === item.id && (

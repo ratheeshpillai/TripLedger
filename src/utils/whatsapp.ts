@@ -1,6 +1,6 @@
 import type { Bill, BillSummaryTotals } from "../types/bill";
 import type { AppSettings } from "../types/settings";
-import { amountOrNA, currency, dateDisplay, numberOrNA, padLabel, timeDisplay } from "./formatters";
+import { amountOrNA, currency, dateDisplay, guestDisplay, numberOrNA, padLabel, timeDisplay } from "./formatters";
 import { formatDuration } from "./timeUtils";
 
 function line(label: string, value: string): string {
@@ -15,7 +15,7 @@ export function buildSingleBillText(bill: Bill, settings: AppSettings): string {
     line("Driver", bill.driverName || "NA"),
     line("Vehicle", bill.vehicleName || "NA"),
     line("Vehicle Number", bill.vehicleNumber || "NA"),
-    line("Guest", bill.guestName || "NA"),
+    line("Guest", guestDisplay(bill)),
     line("Reporting Place", bill.reportingPlace || "NA"),
     "",
     "TRIP TIMING",
@@ -37,8 +37,9 @@ export function buildSingleBillText(bill: Bill, settings: AppSettings): string {
     "",
     "CHARGES",
     "",
-    line("Extra KM Rate", bill.extraKm > 0 ? amountOrNA(bill.extraKmRate, symbol) : "NA"),
+    line("Extra KM Rate", bill.extraKm > 0 ? `${amountOrNA(bill.extraKmRate, symbol)} / KM` : "NA"),
     line("Extra KM Amount", amountOrNA(bill.extraKmAmount, symbol)),
+    line("Extra Hour Rate", bill.extraHours > 0 ? `${amountOrNA(bill.extraHourRate, symbol)} / Hour` : "NA"),
     line("Extra Hour Amount", amountOrNA(bill.extraHourAmount, symbol)),
     line("Airport Parking", amountOrNA(bill.airportParking, symbol)),
     line("Fastag", amountOrNA(bill.fastag, symbol)),
