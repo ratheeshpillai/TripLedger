@@ -2,7 +2,6 @@ import { useState } from "react";
 import { AppShell, type AppPage } from "../components/layout/AppShell";
 import { LoggerPage } from "../components/logger/LoggerPage";
 import { HistoryPage } from "../components/history/HistoryPage";
-import { BillSummaryPage } from "../components/summary/BillSummaryPage";
 import { SettingsPage } from "../components/settings/SettingsPage";
 import { Toast } from "../components/shared/Toast";
 import { useBillForm } from "../hooks/useBillForm";
@@ -24,7 +23,7 @@ export default function App() {
 
   async function copyText(text: string) {
     await navigator.clipboard.writeText(text);
-    showToast("Copied");
+    showToast("Bill text copied");
   }
 
   async function handleSave() {
@@ -42,7 +41,7 @@ export default function App() {
   }
 
   return (
-    <AppShell page={page} setPage={setPage} selectedCount={billsApi.selectedIds.length}>
+    <AppShell page={page} setPage={setPage}>
       {page === "logger" && (
         <LoggerPage
           draft={form.draft}
@@ -82,14 +81,6 @@ export default function App() {
             await billsApi.deleteBill(id);
             showToast("Bill deleted");
           }}
-          onCopy={copyText}
-        />
-      )}
-
-      {page === "summary" && (
-        <BillSummaryPage
-          bills={billsApi.selectedBills.length > 0 ? billsApi.selectedBills : billsApi.bills}
-          settings={settings}
           onCopy={copyText}
         />
       )}

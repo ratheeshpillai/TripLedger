@@ -1,14 +1,17 @@
 import { useMemo, useState } from "react";
 import type { Bill } from "../../types/bill";
 import type { AppSettings } from "../../types/settings";
-import { currency, dateDisplay } from "../../utils/formatters";
-import { exportSingleBillPdf } from "../../utils/pdf";
-import { buildSingleBillText, createWhatsAppUrl } from "../../utils/whatsapp";
+import { calculateCombinedSummary } from "../../utils/calculations";
+import { amountOrNA, currency, dateDisplay } from "../../utils/formatters";
+import { exportCombinedSummaryPdf, exportIndividualSummaryPdf, exportSingleBillPdf } from "../../utils/pdf";
+import { formatDuration } from "../../utils/timeUtils";
+import { buildCombinedSummaryText, buildIndividualSummaryText, buildSingleBillText, createWhatsAppUrl } from "../../utils/whatsapp";
 import { EmptyState } from "../shared/EmptyState";
 import { Button } from "../ui/Button";
 import { Card, CardContent, CardHeader } from "../ui/Card";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
+import { Textarea } from "../ui/Textarea";
 
 type Props = {
   bills: Bill[];
@@ -29,6 +32,10 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
+  const [previewBill, setPreviewBill] = useState<Bill | null>(null);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [summaryMode, setSummaryMode] = useState<"combined" | "individual">("combined");
+  const [shareNumber, setShareNumber] = useState("");
 
   const filtered = useMemo(() => {
     return bills
@@ -39,6 +46,14 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
       .sort((a, b) => sort === "newest" ? b.tripDate.localeCompare(a.tripDate) : a.tripDate.localeCompare(b.tripDate));
   }, [bills, fromDate, guestSearch, sort, toDate, tripDate]);
 
+  const selectedBills = useMemo(() => bills.filter((bill) => selectedIds.includes(bill.id)), [bills, selectedIds]);
+  const summaryBills = selectedBills;
+  const summaryTotals = useMemo(() => calculateCombinedSummary(summaryBills), [summaryBills]);
+  const previewText = previewBill ? buildSingleBillText(previewBill, settings) : "";
+  const summaryText = summaryMode === "combined"
+    ? buildCombinedSummaryText(summaryTotals, settings)
+    : buildIndividualSummaryText(summaryBills, settings);
+
   return (
     <div className="space-y-5">
       <Card>
@@ -48,19 +63,22 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-5">
-            <Input placeholder="Search by Guest Name" value={guestSearch} onChange={(e) => setGuestSearch(e.target.value)} />
-            <Input type="date" value={tripDate} onChange={(e) => setTripDate(e.target.value)} />
-            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-            <Select value={sort} onChange={(e) => setSort(e.target.value as "newest" | "oldest")}>
-              <option value="newest">Newest First</option>
-              <option value="oldest">Oldest First</option>
-            </Select>
+            <label className="field-label">Search by Guest Name<Input placeholder="e.g. Mr. X" value={guestSearch} onChange={(e) => setGuestSearch(e.target.value)} /></label>
+            <label className="field-label">Trip Date<Input type="date" value={tripDate} onChange={(e) => setTripDate(e.target.value)} /></label>
+            <label className="field-label">From Date<Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></label>
+            <label className="field-label">To Date<Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} /></label>
+            <label className="field-label">Sort Order
+              <Select value={sort} onChange={(e) => setSort(e.target.value as "newest" | "oldest")}>
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+              </Select>
+            </label>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" onClick={() => onSelectAll(filtered.map((bill) => bill.id))}>Select All</Button>
             <Button type="button" onClick={onClearSelection}>Clear Selection</Button>
-            <span className="rounded-full bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-600">{selectedIds.length} selected</span>
+            <Button type="button" variant="primary" disabled={selectedBills.length === 0} onClick={() => setSummaryOpen(true)}>Generate Bill Summary</Button>
+            <span className="rounded-full bg-blue-50 px-3 py-2 text-sm font-semibold text-[#1E3A8A]">{selectedIds.length} bills selected</span>
           </div>
         </CardContent>
       </Card>
@@ -84,9 +102,9 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
                     <p className="mt-2 text-sm font-bold text-slate-950">{currency(bill.totalAmount, settings.currencySymbol)}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Button type="button" onClick={() => onCopy(text)}>View/Copy</Button>
-                    <a className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" href={createWhatsAppUrl(text, bill.whatsappNumber)} target="_blank" rel="noreferrer">WhatsApp</a>
-                    <Button type="button" onClick={() => exportSingleBillPdf(bill, settings)}>PDF</Button>
+                    <Button type="button" onClick={() => setPreviewBill(bill)}>View / Preview</Button>
+                    <Button type="button" onClick={() => onCopy(text)}>Copy Bill Text</Button>
+                    <Button type="button" onClick={() => exportSingleBillPdf(bill, settings)}>Export PDF</Button>
                     <Button type="button" onClick={() => onEdit(bill)}>Edit</Button>
                     <Button type="button" onClick={() => onDuplicate(bill)}>Duplicate</Button>
                     <Button type="button" variant="danger" onClick={() => {
@@ -97,6 +115,66 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {previewBill && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4">
+          <Card className="max-h-[90vh] w-full max-w-3xl overflow-y-auto">
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-base font-black text-slate-950">Bill Preview</h2>
+                <p className="mt-1 text-sm text-slate-500">Review this bill before sharing, copying, editing, or exporting.</p>
+              </div>
+              <Button type="button" variant="ghost" onClick={() => setPreviewBill(null)}>Close</Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Textarea value={previewText} readOnly className="min-h-[420px] font-mono text-xs leading-5" />
+              <label className="field-label">WhatsApp Number<Input placeholder="e.g. 919876543210" inputMode="tel" value={shareNumber} onChange={(event) => setShareNumber(event.target.value)} /></label>
+              <div className="flex flex-wrap gap-2">
+                <a className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl bg-[#1E3A8A] px-4 py-2 text-sm font-semibold text-white shadow-sm transition duration-200 hover:bg-[#1D4ED8]" href={createWhatsAppUrl(previewText, shareNumber)} target="_blank" rel="noreferrer">Share on WhatsApp</a>
+                <Button type="button" onClick={() => onCopy(previewText)}>Copy Bill Text</Button>
+                <Button type="button" onClick={() => exportSingleBillPdf(previewBill, settings)}>Export PDF</Button>
+                <Button type="button" onClick={() => {
+                  onEdit(previewBill);
+                  setPreviewBill(null);
+                }}>Edit Bill</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {summaryOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4">
+          <Card className="max-h-[90vh] w-full max-w-5xl overflow-y-auto">
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-base font-black text-slate-950">Bill Summary Preview</h2>
+                <p className="mt-1 text-sm text-slate-500">Generated from selected bills in History. Switch modes before sharing or exporting.</p>
+              </div>
+              <Button type="button" variant="ghost" onClick={() => setSummaryOpen(false)}>Close</Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+                <button className={`cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold transition duration-200 ${summaryMode === "combined" ? "bg-[#1E3A8A] text-white" : "text-[#1E3A8A] hover:bg-blue-50"}`} onClick={() => setSummaryMode("combined")}>Combined Summary</button>
+                <button className={`cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold transition duration-200 ${summaryMode === "individual" ? "bg-[#1E3A8A] text-white" : "text-[#1E3A8A] hover:bg-blue-50"}`} onClick={() => setSummaryMode("individual")}>Individual Summary</button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Card className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-slate-500">Bills</p><p className="mt-2 text-lg font-bold">{summaryTotals.selectedBillsCount}</p></CardContent></Card>
+                <Card className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-slate-500">Total Hours</p><p className="mt-2 text-lg font-bold">{formatDuration(summaryTotals.totalHours)}</p></CardContent></Card>
+                <Card className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-slate-500">Extra Charges</p><p className="mt-2 text-lg font-bold">{amountOrNA(summaryTotals.totalExtraHourAmount + summaryTotals.totalExtraKmAmount, settings.currencySymbol)}</p></CardContent></Card>
+                <Card className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-slate-500">Grand Total</p><p className="mt-2 text-lg font-bold">{currency(summaryTotals.grandTotal, settings.currencySymbol)}</p></CardContent></Card>
+              </div>
+              <Textarea value={summaryText} readOnly className="min-h-[360px] font-mono text-xs leading-5" />
+              <label className="field-label">WhatsApp Number<Input placeholder="e.g. 919876543210" inputMode="tel" value={shareNumber} onChange={(event) => setShareNumber(event.target.value)} /></label>
+              <div className="flex flex-wrap gap-2">
+                <a className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl bg-[#1E3A8A] px-4 py-2 text-sm font-semibold text-white shadow-sm transition duration-200 hover:bg-[#1D4ED8]" href={createWhatsAppUrl(summaryText, shareNumber)} target="_blank" rel="noreferrer">Share on WhatsApp</a>
+                <Button type="button" onClick={() => onCopy(summaryText)}>Copy Bill Text</Button>
+                <Button type="button" onClick={() => summaryMode === "combined" ? exportCombinedSummaryPdf(summaryTotals, settings) : exportIndividualSummaryPdf(summaryBills, settings)}>Export PDF</Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>

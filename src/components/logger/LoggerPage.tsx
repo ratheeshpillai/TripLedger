@@ -34,10 +34,11 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(340px,0.8fr)]">
       <div className="space-y-6">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <MetricCard label="Total KM" value={draft.totalKm > 0 ? `${draft.totalKm} KM` : "NA"} />
+          <MetricCard label="Extra KM" value={draft.extraKm > 0 ? `${draft.extraKm} KM` : "NA"} />
           <MetricCard label="Total Hours" value={formatDuration(draft.totalHours)} />
           <MetricCard label="Extra Hours" value={formatDuration(draft.extraHours)} />
-          <MetricCard label="Extra KM" value={draft.extraKm > 0 ? `${draft.extraKm} KM` : "NA"} />
           <MetricCard label="Total Amount" value={currency(draft.totalAmount, settings.currencySymbol)} />
         </div>
 
@@ -50,12 +51,11 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
             <section className="space-y-4">
               <h3 className="section-title">Trip Details</h3>
               <div className="form-grid">
-                <Field label="Driver"><Input placeholder="Driver Name" value={draft.driverName} onChange={(e) => onFieldChange("driverName", e.target.value)} /></Field>
-                <Field label="Vehicle"><Input placeholder="Vehicle Name" value={draft.vehicleName} onChange={(e) => onFieldChange("vehicleName", e.target.value)} /></Field>
-                <Field label="Vehicle Number"><Input placeholder="Vehicle Number" value={draft.vehicleNumber} onChange={(e) => onFieldChange("vehicleNumber", e.target.value)} /></Field>
-                <Field label="Guest"><Input placeholder="Guest Name" value={draft.guestName} onChange={(e) => onFieldChange("guestName", e.target.value)} /></Field>
-                <Field label="Reporting Place"><Input placeholder="Reporting Place" value={draft.reportingPlace} onChange={(e) => onFieldChange("reportingPlace", e.target.value)} /></Field>
-                <Field label="WhatsApp Number"><Input placeholder="WhatsApp Number" inputMode="tel" value={draft.whatsappNumber} onChange={(e) => onFieldChange("whatsappNumber", e.target.value)} /></Field>
+                <Field label="Driver"><Input placeholder="e.g. Radha" value={draft.driverName} onChange={(e) => onFieldChange("driverName", e.target.value)} /></Field>
+                <Field label="Vehicle"><Input placeholder="e.g. Innova Crysta" value={draft.vehicleName} onChange={(e) => onFieldChange("vehicleName", e.target.value)} /></Field>
+                <Field label="Vehicle Number"><Input placeholder="e.g. MH03CV4312" value={draft.vehicleNumber} onChange={(e) => onFieldChange("vehicleNumber", e.target.value)} /></Field>
+                <Field label="Guest"><Input placeholder="e.g. Mr. X" value={draft.guestName} onChange={(e) => onFieldChange("guestName", e.target.value)} /></Field>
+                <Field label="Reporting Place"><Input placeholder="e.g. The Leela Mumbai" value={draft.reportingPlace} onChange={(e) => onFieldChange("reportingPlace", e.target.value)} /></Field>
               </div>
             </section>
 
@@ -75,13 +75,13 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
             <section className="space-y-4">
               <h3 className="section-title">Package & KM</h3>
               <div className="form-grid">
-                <Field label="Base Package"><Input placeholder="8 Hours / 80 KM" value={draft.basePackage} onChange={(e) => onFieldChange("basePackage", e.target.value)} /></Field>
+                <Field label="Base Package"><Input placeholder="e.g. 8 Hours / 80 KM" value={draft.basePackage} onChange={(e) => onFieldChange("basePackage", e.target.value)} /></Field>
                 <Field label="Base Hours"><Input type="number" value={draft.baseHours} onChange={(e) => onFieldChange("baseHours", num(e.target.value))} /></Field>
                 <Field label="Base KM"><Input type="number" value={draft.baseKm} onChange={(e) => onFieldChange("baseKm", num(e.target.value))} /></Field>
-                <Field label="Base Amount"><Input type="number" value={draft.baseAmount} onChange={(e) => onFieldChange("baseAmount", num(e.target.value))} /></Field>
+                <Field label="Base Amount"><Input type="number" placeholder="e.g. 2800" value={draft.baseAmount} onChange={(e) => onFieldChange("baseAmount", num(e.target.value))} /></Field>
                 <Field label="Total KM"><Input type="number" value={draft.totalKm} onChange={(e) => onFieldChange("totalKm", num(e.target.value))} /></Field>
                 <Field label="Extra KM"><Input type="number" value={draft.extraKm} onChange={(e) => onFieldChange("extraKm", num(e.target.value))} /></Field>
-                <Field label="Extra KM Rate"><Input type="number" value={draft.extraKmRate} onChange={(e) => onFieldChange("extraKmRate", num(e.target.value))} /></Field>
+                <Field label="Extra KM Rate"><Input type="number" placeholder="e.g. 25" value={draft.extraKmRate} onChange={(e) => onFieldChange("extraKmRate", num(e.target.value))} /></Field>
                 <Field label="Extra KM Amount"><Input type="number" value={draft.extraKmAmount} onChange={(e) => onFieldChange("extraKmAmount", num(e.target.value))} /></Field>
               </div>
             </section>
@@ -89,14 +89,18 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
             <section className="space-y-4">
               <h3 className="section-title">Charges</h3>
               <div className="form-grid">
-                <Field label="Extra Hour Rate"><Input type="number" value={draft.extraHourRate} onChange={(e) => onFieldChange("extraHourRate", num(e.target.value))} /></Field>
+                <Field label="Extra Hour Rate"><Input type="number" placeholder="e.g. 200" value={draft.extraHourRate} onChange={(e) => onFieldChange("extraHourRate", num(e.target.value))} /></Field>
                 <Field label="Extra Hour Amount"><Input type="number" value={draft.extraHourAmount} onChange={(e) => onFieldChange("extraHourAmount", num(e.target.value))} /></Field>
-                <Field label="Airport Parking"><Input type="number" placeholder="0" value={draft.airportParking} onChange={(e) => onFieldChange("airportParking", num(e.target.value))} /></Field>
-                <Field label="Fastag"><Input type="number" placeholder="0" value={draft.fastag} onChange={(e) => onFieldChange("fastag", num(e.target.value))} /></Field>
-                <Field label="Road Parking"><Input type="number" placeholder="0" value={draft.roadParking} onChange={(e) => onFieldChange("roadParking", num(e.target.value))} /></Field>
+                <Field label="Airport Parking"><Input type="number" placeholder="e.g. 300" value={draft.airportParking} onChange={(e) => onFieldChange("airportParking", num(e.target.value))} /></Field>
+                <Field label="Fastag"><Input type="number" placeholder="e.g. 150" value={draft.fastag} onChange={(e) => onFieldChange("fastag", num(e.target.value))} /></Field>
+                <Field label="Road Parking"><Input type="number" placeholder="e.g. 100" value={draft.roadParking} onChange={(e) => onFieldChange("roadParking", num(e.target.value))} /></Field>
                 <Field label="Pending Bills"><Input type="number" placeholder="0" value={draft.pendingAmount} onChange={(e) => onFieldChange("pendingAmount", num(e.target.value))} /></Field>
               </div>
-              <Field label="Notes"><Textarea placeholder="Notes" value={draft.notes} onChange={(e) => onFieldChange("notes", e.target.value)} /></Field>
+              <Field label="Notes"><Textarea placeholder="e.g. Airport pickup and local travel" value={draft.notes} onChange={(e) => onFieldChange("notes", e.target.value)} /></Field>
+              <div className="grid gap-2 pt-2 sm:flex sm:justify-end">
+                <Button type="button" variant="secondary" onClick={onReset}>Reset Logger</Button>
+                <Button type="button" variant="primary" onClick={() => void onSave()}>{editingBillId ? "Update Bill" : "Save Bill"}</Button>
+              </div>
             </section>
           </CardContent>
         </Card>
@@ -106,16 +110,6 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
         <BillPreview draft={draft} settings={settings} onCopy={onCopy} onPdf={onPdf} />
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 backdrop-blur lg:hidden">
-        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-2">
-          <Button type="button" variant="secondary" onClick={onReset}>Reset Logger</Button>
-          <Button type="button" variant="primary" onClick={() => void onSave()}>{editingBillId ? "Update Bill" : "Save Bill"}</Button>
-        </div>
-      </div>
-      <div className="hidden lg:fixed lg:bottom-5 lg:right-6 lg:z-30 lg:flex lg:gap-2">
-        <Button type="button" variant="secondary" onClick={onReset}>Reset Logger</Button>
-        <Button type="button" variant="primary" onClick={() => void onSave()}>{editingBillId ? "Update Bill" : "Save Bill"}</Button>
-      </div>
     </div>
   );
 }
