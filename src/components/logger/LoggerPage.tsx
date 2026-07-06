@@ -1,6 +1,6 @@
 import type { Bill, BillDraft } from "../../types/bill";
 import type { AppSettings } from "../../types/settings";
-import { currency } from "../../utils/formatters";
+import { amountOrNA, currency } from "../../utils/formatters";
 import { formatDuration } from "../../utils/timeUtils";
 import { BillPreview } from "./BillPreview";
 import { MetricCard } from "../shared/MetricCard";
@@ -30,6 +30,35 @@ function num(value: string): number {
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="field-label">{label}{children}</label>;
+}
+
+function toggleSection(openSections: string[], sectionId: string): string[] {
+  const isOpen = openSections.includes(sectionId);
+  const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches;
+
+  if (isMobile) return isOpen ? [] : [sectionId];
+  return isOpen ? openSections.filter((id) => id !== sectionId) : [...openSections, sectionId];
+}
+
+function AccordionSection({ id, title, summary, openSections, setOpenSections, children }: { id: string; title: string; summary: string; openSections: string[]; setOpenSections: (sections: string[]) => void; children: ReactNode }) {
+  const isOpen = openSections.includes(id);
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/50">
+      <button
+        type="button"
+        className="flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left transition duration-200 hover:bg-slate-50 sm:px-5"
+        onClick={() => setOpenSections(toggleSection(openSections, id))}
+      >
+        <div className="min-w-0">
+          <h3 className="text-sm font-black uppercase tracking-wide text-[#1E3A8A]">{title}</h3>
+          <p className="mt-1 truncate text-xs font-semibold text-slate-500">{summary}</p>
+        </div>
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-50 text-lg font-black text-[#1E3A8A]">{isOpen ? "-" : "+"}</span>
+      </button>
+      {isOpen && <div className="border-t border-slate-100 bg-slate-50/70 p-4 sm:p-5">{children}</div>}
+    </section>
+  );
 }
 
 function TimeInput({ value, placeholder, onChange }: { value: string; placeholder: string; onChange: (value: string) => void }) {
@@ -72,10 +101,24 @@ function NumberInput({ value, onValueChange, placeholder, readOnly = false }: { 
 }
 
 export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGarageTimeChange, onSave, onReset, onCopy, onPdf }: Props) {
+  const [openSections, setOpenSections] = useState(() => {
+    const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches;
+    return isMobile ? ["customer"] : ["customer", "kilometers", "charges", "balance"];
+  });
+  const guestLabel = `${draft.guestSalutation === "Miss" ? "Miss." : draft.guestSalutation || "Mr."} ${draft.guestName || "Guest"}`.trim();
+  const routeLabel = draft.reportingPlace || "Route not set";
+  const kmSummary = draft.totalKm > 0 ? `${draft.totalKm} km x ${currency(draft.extraKmRate, settings.currencySymbol)}` : `${draft.baseKm} base km`;
+  const chargeSummary = [
+    draft.fastag > 0 ? `Fastag ${currency(draft.fastag, settings.currencySymbol)}` : "",
+    draft.airportParking > 0 ? `Parking ${currency(draft.airportParking, settings.currencySymbol)}` : "",
+    draft.extraHourAmount > 0 ? `Hours ${currency(draft.extraHourAmount, settings.currencySymbol)}` : ""
+  ].filter(Boolean).join(", ") || "No extra charges";
+  const balanceSummary = `Balance ${amountOrNA(draft.pendingAmount, settings.currencySymbol)}, Total ${currency(draft.totalAmount, settings.currencySymbol)}`;
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(340px,0.8fr)]">
-      <div className="space-y-6">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.85fr)]">
+      <div className="space-y-4">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
           <MetricCard label="Total KM" value={draft.totalKm > 0 ? `${draft.totalKm} KM` : "NA"} />
           <MetricCard label="Extra KM" value={draft.extraKm > 0 ? `${draft.extraKm} KM` : "NA"} />
           <MetricCard label="Total Hours" value={formatDuration(draft.totalHours)} />
@@ -88,10 +131,9 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
             <h2 className="text-base font-black text-slate-950">{editingBillId ? "Edit Bill" : "Logger"}</h2>
             <p className="mt-1 text-sm text-slate-500">Save one bill, then change only a few fields to create another similar bill.</p>
           </CardHeader>
-          <CardContent className="space-y-5">
-            <section className="logger-section space-y-4">
-              <h3 className="section-title">Trip Details</h3>
-              <div className="form-grid">
+          <CardContent className="space-y-3">
+            <AccordionSection id="customer" title="Customer & Trip Details" summary={`${guestLabel} | ${routeLabel}`} openSections={openSections} setOpenSections={setOpenSections}>
+              <div className="form-grid compact-form-grid">
                 <Field label="Driver"><Input placeholder="e.g. Radha" value={draft.driverName} onChange={(e) => onFieldChange("driverName", e.target.value)} /></Field>
                 <Field label="Vehicle"><Input placeholder="e.g. Innova Crysta" value={draft.vehicleName} onChange={(e) => onFieldChange("vehicleName", e.target.value)} /></Field>
                 <Field label="Vehicle Number"><Input placeholder="e.g. MH03CV4312" value={draft.vehicleNumber} onChange={(e) => onFieldChange("vehicleNumber", e.target.value)} /></Field>
@@ -106,12 +148,6 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
                   </div>
                 </Field>
                 <Field label="Reporting Place"><Input placeholder="e.g. The Leela Mumbai" value={draft.reportingPlace} onChange={(e) => onFieldChange("reportingPlace", e.target.value)} /></Field>
-              </div>
-            </section>
-
-            <section className="logger-section space-y-4">
-              <h3 className="section-title">Trip Timing</h3>
-              <div className="form-grid">
                 <Field label="Trip Date"><Input type="date" value={draft.tripDate} onChange={(e) => onFieldChange("tripDate", e.target.value)} /></Field>
                 <Field label="Reporting Time"><TimeInput placeholder={settings.timeFormat === "24h" ? "03:00" : "3:00 AM"} value={draft.reportingTime} onChange={(value) => onFieldChange("reportingTime", value)} /></Field>
                 <Field label="Garage Time"><TimeInput placeholder={settings.timeFormat === "24h" ? "02:00" : "2:00 AM"} value={draft.garageTime} onChange={onGarageTimeChange} /></Field>
@@ -120,11 +156,10 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
                 <Field label="Total Hours"><Input value={formatDuration(draft.totalHours)} readOnly /></Field>
                 <Field label="Extra Hours"><Input value={formatDuration(draft.extraHours)} readOnly /></Field>
               </div>
-            </section>
+            </AccordionSection>
 
-            <section className="logger-section space-y-4">
-              <h3 className="section-title">Package & KM</h3>
-              <div className="form-grid">
+            <AccordionSection id="kilometers" title="Kilometer Details" summary={kmSummary} openSections={openSections} setOpenSections={setOpenSections}>
+              <div className="form-grid compact-form-grid">
                 <Field label="Base Package"><Input placeholder="e.g. 8 Hours / 80 KM" value={draft.basePackage} onChange={(e) => onFieldChange("basePackage", e.target.value)} /></Field>
                 <Field label="Base Hours"><NumberInput value={draft.baseHours} onValueChange={(value) => onFieldChange("baseHours", value)} placeholder="e.g. 8" /></Field>
                 <Field label="Base KM"><NumberInput value={draft.baseKm} onValueChange={(value) => onFieldChange("baseKm", value)} placeholder="e.g. 80" /></Field>
@@ -132,11 +167,10 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
                 <Field label="Total KM"><NumberInput value={draft.totalKm} onValueChange={(value) => onFieldChange("totalKm", value)} placeholder="e.g. 80" /></Field>
                 <Field label="Extra KM"><NumberInput value={draft.extraKm} onValueChange={(value) => onFieldChange("extraKm", value)} placeholder="Auto calculated" /></Field>
               </div>
-            </section>
+            </AccordionSection>
 
-            <section className="logger-section space-y-4">
-              <h3 className="section-title">Charges</h3>
-              <div className="form-grid">
+            <AccordionSection id="charges" title="Charges" summary={chargeSummary} openSections={openSections} setOpenSections={setOpenSections}>
+              <div className="form-grid compact-form-grid">
                 <Field label="Extra KM Rate"><NumberInput value={draft.extraKmRate} onValueChange={(value) => onFieldChange("extraKmRate", value)} placeholder="e.g. 25" /></Field>
                 <Field label="Extra KM Amount"><NumberInput value={draft.extraKmAmount} onValueChange={(value) => onFieldChange("extraKmAmount", value)} placeholder="Auto calculated" /></Field>
                 <Field label="Extra Hour Rate"><NumberInput value={draft.extraHourRate} onValueChange={(value) => onFieldChange("extraHourRate", value)} placeholder="e.g. 200" /></Field>
@@ -144,23 +178,39 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
                 <Field label="Airport Parking"><NumberInput value={draft.airportParking} onValueChange={(value) => onFieldChange("airportParking", value)} placeholder="e.g. 300" /></Field>
                 <Field label="Fastag"><NumberInput value={draft.fastag} onValueChange={(value) => onFieldChange("fastag", value)} placeholder="e.g. 150" /></Field>
                 <Field label="Road Parking"><NumberInput value={draft.roadParking} onValueChange={(value) => onFieldChange("roadParking", value)} placeholder="e.g. 100" /></Field>
-                <Field label="Pending Bills"><NumberInput value={draft.pendingAmount} onValueChange={(value) => onFieldChange("pendingAmount", value)} placeholder="0" /></Field>
               </div>
-            </section>
+            </AccordionSection>
 
-            <section className="logger-section space-y-4">
-              <h3 className="section-title">Notes / Additional Details</h3>
+            <AccordionSection id="balance" title="Advance & Balance" summary={balanceSummary} openSections={openSections} setOpenSections={setOpenSections}>
+              <div className="form-grid compact-form-grid">
+                <Field label="Pending / Balance"><NumberInput value={draft.pendingAmount} onValueChange={(value) => onFieldChange("pendingAmount", value)} placeholder="0" /></Field>
+                <Field label="Total Amount"><Input value={currency(draft.totalAmount, settings.currencySymbol)} readOnly /></Field>
+              </div>
               <Field label="Notes"><Textarea placeholder="e.g. Airport pickup and local travel" value={draft.notes} onChange={(e) => onFieldChange("notes", e.target.value)} /></Field>
-              <div className="grid gap-2 pt-2 sm:flex sm:justify-end">
+              <div className="grid gap-2 pt-1 sm:flex sm:justify-end">
                 <Button type="button" variant="neutral" onClick={onReset}>Reset Logger</Button>
                 <Button type="button" variant="primary" onClick={() => void onSave()}>{editingBillId ? "Update Bill" : "Save Bill"}</Button>
               </div>
-            </section>
+            </AccordionSection>
+
+            <div className="lg:hidden">
+              <AccordionSection id="preview" title="Preview & Share" summary={`Live preview | ${currency(draft.totalAmount, settings.currencySymbol)}`} openSections={openSections} setOpenSections={setOpenSections}>
+                <BillPreview draft={draft} settings={settings} onCopy={onCopy} onPdf={onPdf} compact />
+              </AccordionSection>
+            </div>
           </CardContent>
         </Card>
+
+        <button
+          type="button"
+          className="fixed bottom-4 right-4 z-30 rounded-full bg-[#1E3A8A] px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-900/25 lg:hidden"
+          onClick={() => setOpenSections(["preview"])}
+        >
+          Preview Bill
+        </button>
       </div>
 
-      <div className="space-y-4">
+      <div className="hidden space-y-4 lg:block">
         <BillPreview draft={draft} settings={settings} onCopy={onCopy} onPdf={onPdf} />
       </div>
 
