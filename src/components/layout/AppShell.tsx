@@ -10,7 +10,7 @@ const navItems: Array<{ id: AppPage; label: string }> = [
   { id: "settings", label: "Settings" }
 ];
 
-export function AppShell({ page, setPage, children }: { page: AppPage; setPage: (page: AppPage) => void; children: ReactNode }) {
+export function AppShell({ page, setPage, userEmail, onLogout, children }: { page: AppPage; setPage: (page: AppPage) => void; userEmail?: string; onLogout: () => void; children: ReactNode }) {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
@@ -18,6 +18,12 @@ export function AppShell({ page, setPage, children }: { page: AppPage; setPage: 
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A]">TripLedger</p>
             <h1 className="text-lg font-black text-slate-950 sm:text-2xl">Fleet & Billing Platform</h1>
+          </div>
+          <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">
+            {userEmail && <span className="max-w-[160px] truncate text-xs font-semibold text-slate-500 sm:max-w-none">{userEmail}</span>}
+            <button className="cursor-pointer rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition duration-200 hover:bg-slate-50 hover:text-slate-950" type="button" onClick={onLogout}>
+              Logout
+            </button>
           </div>
         </div>
         <nav className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 pb-3 sm:px-6">

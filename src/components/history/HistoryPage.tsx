@@ -124,8 +124,11 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
                       <h3 className="font-bold text-slate-950">{guestDisplay(bill)}</h3>
                       <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">{dateDisplay(bill.tripDate)}</span>
                     </div>
-                    <p className="mt-1 text-sm text-slate-500">{bill.driverName || "Driver"} | {bill.vehicleName || "Vehicle"} | {bill.vehicleNumber || "Vehicle Number"} | {bill.reportingPlace || "Reporting Place"}</p>
-                    <p className="mt-2 text-sm font-bold text-slate-950">{currency(bill.totalAmount, settings.currencySymbol)}</p>
+                    <p className="mt-1 text-sm text-slate-500">{bill.driverName || "Driver"} | {bill.vehicleName || "Vehicle"} | {bill.vehicleNumber || "Vehicle Number"}</p>
+                    <p className="mt-1 text-sm text-slate-500">Route: {bill.reportingPlace || "NA"}</p>
+                    <p className="mt-2 text-sm font-bold text-slate-950">
+                      Total: {currency(bill.totalAmount, settings.currencySymbol)} | Balance: {amountOrNA(bill.pendingAmount, settings.currencySymbol)}
+                    </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" onClick={() => setPreviewBill(bill)}>View / Preview</Button>

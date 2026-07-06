@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { localStorageBillService } from "../services/localStorageBillService";
-import type { BillService } from "../services/billService";
+import { billService, type BillService } from "../services/billService";
 import type { Bill, BillDraft } from "../types/bill";
 import { calculateBillDraft, calculateBillTotal } from "../utils/calculations";
 
@@ -8,22 +7,39 @@ function createId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `bill-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export function useBills(service: BillService = localStorageBillService) {
+export function useBills(userId: string | null, service: BillService = billService) {
   const [bills, setBills] = useState<Bill[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   async function refresh() {
-    const saved = await service.listBills();
-    setBills(saved);
-    setLoading(false);
+    if (!userId) {
+      setBills([]);
+      setSelectedIds([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setError("");
+      const saved = await service.listBills(userId);
+      setBills(saved);
+    } catch (billError) {
+      setError(billError instanceof Error ? billError.message : "Unable to load bills.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
+    setLoading(true);
     void refresh();
-  }, []);
+  }, [userId]);
 
   async function saveBill(draft: BillDraft, editingBillId?: string | null) {
+    if (!userId) throw new Error("You must be logged in to save bills.");
+
     const now = new Date().toISOString();
     const calculated = calculateBillDraft(draft);
 
@@ -32,11 +48,12 @@ export function useBills(service: BillService = localStorageBillService) {
       const updated: Bill = {
         ...calculated,
         id: editingBillId,
+        userId,
         totalAmount: calculateBillTotal(calculated),
         createdAt: existing?.createdAt ?? now,
         updatedAt: now
       };
-      await service.updateBill(updated);
+      await service.updateBill(userId, updated);
       await refresh();
       return updated;
     }
@@ -44,17 +61,19 @@ export function useBills(service: BillService = localStorageBillService) {
     const bill: Bill = {
       ...calculated,
       id: createId(),
+      userId,
       totalAmount: calculateBillTotal(calculated),
       createdAt: now,
       updatedAt: now
     };
-    await service.saveBill(bill);
+    await service.saveBill(userId, bill);
     await refresh();
     return bill;
   }
 
   async function deleteBill(id: string) {
-    await service.deleteBill(id);
+    if (!userId) throw new Error("You must be logged in to delete bills.");
+    await service.deleteBill(userId, id);
     setSelectedIds((ids) => ids.filter((item) => item !== id));
     await refresh();
   }
@@ -76,6 +95,7 @@ export function useBills(service: BillService = localStorageBillService) {
   return {
     bills,
     loading,
+    error,
     selectedIds,
     selectedBills,
     saveBill,
