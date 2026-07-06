@@ -28,7 +28,8 @@ export function guestDisplay(bill: Pick<Bill, "guestName" | "guestSalutation">):
   const guestName = bill.guestName.trim();
   if (!guestName) return "NA";
   if (/^(mr\.?|mrs\.?|miss)\s/i.test(guestName)) return guestName;
-  return `${bill.guestSalutation || "Mr."} ${guestName}`.trim();
+  const salutation = bill.guestSalutation === "Miss" ? "Miss." : bill.guestSalutation || "Mr.";
+  return `${salutation} ${guestName}`.trim();
 }
 
 export function padLabel(label: string, width = 17): string {

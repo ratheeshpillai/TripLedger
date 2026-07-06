@@ -88,8 +88,8 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
             <h2 className="text-base font-black text-slate-950">{editingBillId ? "Edit Bill" : "Logger"}</h2>
             <p className="mt-1 text-sm text-slate-500">Save one bill, then change only a few fields to create another similar bill.</p>
           </CardHeader>
-          <CardContent className="space-y-8">
-            <section className="space-y-4">
+          <CardContent className="space-y-5">
+            <section className="logger-section space-y-4">
               <h3 className="section-title">Trip Details</h3>
               <div className="form-grid">
                 <Field label="Driver"><Input placeholder="e.g. Radha" value={draft.driverName} onChange={(e) => onFieldChange("driverName", e.target.value)} /></Field>
@@ -97,10 +97,10 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
                 <Field label="Vehicle Number"><Input placeholder="e.g. MH03CV4312" value={draft.vehicleNumber} onChange={(e) => onFieldChange("vehicleNumber", e.target.value)} /></Field>
                 <Field label="Guest">
                   <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
-                    <Select value={draft.guestSalutation || "Mr."} onChange={(e) => onFieldChange("guestSalutation", e.target.value as BillDraft["guestSalutation"])}>
+                    <Select value={draft.guestSalutation === "Miss" ? "Miss." : draft.guestSalutation || "Mr."} onChange={(e) => onFieldChange("guestSalutation", e.target.value as BillDraft["guestSalutation"])}>
                       <option value="Mr.">Mr.</option>
                       <option value="Mrs.">Mrs.</option>
-                      <option value="Miss">Miss</option>
+                      <option value="Miss.">Miss.</option>
                     </Select>
                     <Input placeholder="e.g. X" value={draft.guestName} onChange={(e) => onFieldChange("guestName", e.target.value)} />
                   </div>
@@ -109,7 +109,7 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
               </div>
             </section>
 
-            <section className="space-y-4">
+            <section className="logger-section space-y-4">
               <h3 className="section-title">Trip Timing</h3>
               <div className="form-grid">
                 <Field label="Trip Date"><Input type="date" value={draft.tripDate} onChange={(e) => onFieldChange("tripDate", e.target.value)} /></Field>
@@ -122,7 +122,7 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
               </div>
             </section>
 
-            <section className="space-y-4">
+            <section className="logger-section space-y-4">
               <h3 className="section-title">Package & KM</h3>
               <div className="form-grid">
                 <Field label="Base Package"><Input placeholder="e.g. 8 Hours / 80 KM" value={draft.basePackage} onChange={(e) => onFieldChange("basePackage", e.target.value)} /></Field>
@@ -134,7 +134,7 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
               </div>
             </section>
 
-            <section className="space-y-4">
+            <section className="logger-section space-y-4">
               <h3 className="section-title">Charges</h3>
               <div className="form-grid">
                 <Field label="Extra KM Rate"><NumberInput value={draft.extraKmRate} onValueChange={(value) => onFieldChange("extraKmRate", value)} placeholder="e.g. 25" /></Field>
@@ -146,6 +146,10 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
                 <Field label="Road Parking"><NumberInput value={draft.roadParking} onValueChange={(value) => onFieldChange("roadParking", value)} placeholder="e.g. 100" /></Field>
                 <Field label="Pending Bills"><NumberInput value={draft.pendingAmount} onValueChange={(value) => onFieldChange("pendingAmount", value)} placeholder="0" /></Field>
               </div>
+            </section>
+
+            <section className="logger-section space-y-4">
+              <h3 className="section-title">Notes / Additional Details</h3>
               <Field label="Notes"><Textarea placeholder="e.g. Airport pickup and local travel" value={draft.notes} onChange={(e) => onFieldChange("notes", e.target.value)} /></Field>
               <div className="grid gap-2 pt-2 sm:flex sm:justify-end">
                 <Button type="button" variant="neutral" onClick={onReset}>Reset Logger</Button>
