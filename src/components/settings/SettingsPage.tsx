@@ -46,8 +46,8 @@ export function SettingsPage({ settings, onSave }: { settings: AppSettings; onSa
   return (
     <Card>
       <CardHeader>
-        <h2 className="text-base font-black text-slate-950">Settings</h2>
-        <p className="mt-1 text-sm text-slate-500">Defaults live behind the settings service, ready for cloud sync later.</p>
+        <h2 className="text-base font-black text-slate-950 dark:text-slate-50">Settings</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Defaults live behind the settings service, ready for cloud sync later.</p>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="form-grid">

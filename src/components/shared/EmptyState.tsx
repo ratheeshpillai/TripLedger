@@ -4,8 +4,8 @@ export function EmptyState({ title, description }: { title: string; description:
   return (
     <Card className="border-dashed">
       <CardContent className="py-10 text-center">
-        <h3 className="text-base font-bold text-slate-900">{title}</h3>
-        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">{description}</p>
+        <h3 className="text-base font-bold text-slate-900 dark:text-slate-50">{title}</h3>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>
       </CardContent>
     </Card>
   );

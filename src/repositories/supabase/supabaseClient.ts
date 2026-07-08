@@ -8,7 +8,7 @@ export function isSupabaseConfigured(): boolean {
 
 export function getSupabaseClient(): SupabaseClient {
   if (!isSupabaseConfigured()) {
-    throw new Error("Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.");
+    throw new Error("Missing Supabase environment variables. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file and restart the dev server.");
   }
 
   if (!client) {

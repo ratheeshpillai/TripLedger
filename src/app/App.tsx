@@ -8,11 +8,13 @@ import { Toast } from "../components/shared/Toast";
 import { useAuth } from "../hooks/useAuth";
 import { useBillForm } from "../hooks/useBillForm";
 import { useBills } from "../hooks/useBills";
+import { useDarkMode } from "../hooks/useDarkMode";
 import { useSettings } from "../hooks/useSettings";
 import { exportSingleBillPdf } from "../utils/pdf";
 
 export default function App() {
   const auth = useAuth();
+  const theme = useDarkMode();
   const { settings, saveSettings } = useSettings();
   const billsApi = useBills(auth.user?.id ?? null);
   const form = useBillForm(settings);
@@ -60,8 +62,8 @@ export default function App() {
 
   if (auth.loading) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-50 px-4">
-        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-bold text-slate-600 shadow-soft">Loading TripLedger...</div>
+      <main className="grid min-h-screen place-items-center bg-slate-50 px-4 dark:bg-slate-950">
+        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-bold text-slate-600 shadow-soft dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:shadow-none">Loading TripLedger...</div>
       </main>
     );
   }
@@ -70,6 +72,8 @@ export default function App() {
     return (
       <AuthPage
         authError={auth.error}
+        isDarkMode={theme.isDarkMode}
+        onToggleDarkMode={theme.toggleDarkMode}
         onLogin={async (email, password) => {
           await auth.login(email, password);
           showToast("Logged in");
@@ -83,7 +87,7 @@ export default function App() {
   }
 
   return (
-    <AppShell page={page} setPage={setPage} userEmail={auth.user.email} onLogout={() => void handleLogout()}>
+    <AppShell page={page} setPage={setPage} userEmail={auth.user.email} isDarkMode={theme.isDarkMode} onToggleDarkMode={theme.toggleDarkMode} onLogout={() => void handleLogout()}>
       {page === "logger" && (
         <LoggerPage
           draft={form.draft}

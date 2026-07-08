@@ -44,19 +44,19 @@ function AccordionSection({ id, title, summary, openSections, setOpenSections, c
   const isOpen = openSections.includes(id);
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/50">
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
       <button
         type="button"
-        className="flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left transition duration-200 hover:bg-slate-50 sm:px-5"
+        className="flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left transition duration-200 hover:bg-slate-50 dark:hover:bg-slate-800 sm:px-5"
         onClick={() => setOpenSections(toggleSection(openSections, id))}
       >
         <div className="min-w-0">
-          <h3 className="text-sm font-black uppercase tracking-wide text-[#1E3A8A]">{title}</h3>
-          <p className="mt-1 truncate text-xs font-semibold text-slate-500">{summary}</p>
+          <h3 className="text-sm font-black uppercase tracking-wide text-[#1E3A8A] dark:text-blue-300">{title}</h3>
+          <p className="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-slate-400">{summary}</p>
         </div>
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-50 text-lg font-black text-[#1E3A8A]">{isOpen ? "-" : "+"}</span>
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-50 text-lg font-black text-[#1E3A8A] dark:bg-slate-800 dark:text-blue-200">{isOpen ? "-" : "+"}</span>
       </button>
-      {isOpen && <div className="border-t border-slate-100 bg-slate-50/70 p-4 sm:p-5">{children}</div>}
+      {isOpen && <div className="border-t border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/40 sm:p-5">{children}</div>}
     </section>
   );
 }
@@ -128,8 +128,8 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
 
         <Card>
           <CardHeader>
-            <h2 className="text-base font-black text-slate-950">{editingBillId ? "Edit Bill" : "Logger"}</h2>
-            <p className="mt-1 text-sm text-slate-500">Save one bill, then change only a few fields to create another similar bill.</p>
+            <h2 className="text-base font-black text-slate-950 dark:text-slate-50">{editingBillId ? "Edit Bill" : "Logger"}</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Save one bill, then change only a few fields to create another similar bill.</p>
           </CardHeader>
           <CardContent className="space-y-3">
             <AccordionSection id="customer" title="Customer & Trip Details" summary={`${guestLabel} | ${routeLabel}`} openSections={openSections} setOpenSections={setOpenSections}>

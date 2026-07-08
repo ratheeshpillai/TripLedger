@@ -8,6 +8,11 @@
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+.dark {
+  color: #e2e8f0;
+  background: #020617;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -26,7 +31,7 @@ textarea {
 
 @layer components {
   .field-label {
-    @apply grid gap-1.5 text-sm font-semibold text-slate-600;
+    @apply grid gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300;
   }
 
   .form-grid {
@@ -38,10 +43,14 @@ textarea {
   }
 
   .logger-section {
-    @apply rounded-2xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm shadow-slate-200/40 sm:p-5;
+    @apply rounded-2xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm shadow-slate-200/40 dark:border-slate-800 dark:bg-slate-900/70 dark:shadow-none sm:p-5;
   }
 
   .section-title {
-    @apply border-b border-slate-200 pb-3 text-sm font-black uppercase tracking-wide text-[#1E3A8A];
+    @apply border-b border-slate-200 pb-3 text-sm font-black uppercase tracking-wide text-[#1E3A8A] dark:border-slate-800 dark:text-blue-300;
+  }
+
+  .theme-toggle {
+    @apply cursor-pointer rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition duration-200 hover:bg-slate-50 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50;
   }
 }

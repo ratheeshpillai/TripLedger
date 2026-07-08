@@ -27,7 +27,7 @@ type Props = {
   onCopy: (text: string) => void;
 };
 
-const outlineActionClass = "inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl border border-[#1E3A8A] bg-white px-4 py-2 text-sm font-semibold text-[#1E3A8A] transition duration-200 hover:bg-[#1E3A8A] hover:text-white";
+const outlineActionClass = "inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl border border-[#1E3A8A] bg-white px-4 py-2 text-sm font-semibold text-[#1E3A8A] transition duration-200 hover:bg-[#1E3A8A] hover:text-white dark:border-blue-400 dark:bg-slate-900 dark:text-blue-200 dark:hover:bg-blue-500 dark:hover:text-white";
 
 export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, onSelectAll, onClearSelection, onEdit, onDuplicate, onDelete, onCopy }: Props) {
   const today = todayInputDate();
@@ -65,8 +65,8 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
     <div className="space-y-5">
       <Card>
         <CardHeader>
-          <h2 className="text-base font-black text-slate-950">History</h2>
-          <p className="mt-1 text-sm text-slate-500">Search, filter, select, edit, duplicate, or export saved bills.</p>
+          <h2 className="text-base font-black text-slate-950 dark:text-slate-50">History</h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Search, filter, select, edit, duplicate, or export saved bills.</p>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-5">
@@ -104,7 +104,7 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
               setSort("newest");
             }}>Clear Filters</Button>
             <Button type="button" variant="primary" disabled={selectedBills.length === 0} onClick={() => setSummaryOpen(true)}>Generate Bill Summary</Button>
-            <span className="rounded-full bg-blue-50 px-3 py-2 text-sm font-semibold text-[#1E3A8A]">{selectedIds.length} bills selected</span>
+            <span className="rounded-full bg-blue-50 px-3 py-2 text-sm font-semibold text-[#1E3A8A] dark:bg-blue-950/50 dark:text-blue-200">{selectedIds.length} bills selected</span>
           </div>
         </CardContent>
       </Card>
@@ -121,12 +121,12 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
                   <input className="h-5 w-5 rounded border-slate-300" type="checkbox" checked={selectedIds.includes(bill.id)} onChange={() => onToggleSelected(bill.id)} />
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-bold text-slate-950">{guestDisplay(bill)}</h3>
-                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">{dateDisplay(bill.tripDate)}</span>
+                      <h3 className="font-bold text-slate-950 dark:text-slate-50">{guestDisplay(bill)}</h3>
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-300">{dateDisplay(bill.tripDate)}</span>
                     </div>
-                    <p className="mt-1 text-sm text-slate-500">{bill.driverName || "Driver"} | {bill.vehicleName || "Vehicle"} | {bill.vehicleNumber || "Vehicle Number"}</p>
-                    <p className="mt-1 text-sm text-slate-500">Route: {bill.reportingPlace || "NA"}</p>
-                    <p className="mt-2 text-sm font-bold text-slate-950">
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{bill.driverName || "Driver"} | {bill.vehicleName || "Vehicle"} | {bill.vehicleNumber || "Vehicle Number"}</p>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Route: {bill.reportingPlace || "NA"}</p>
+                    <p className="mt-2 text-sm font-bold text-slate-950 dark:text-slate-50">
                       Total: {currency(bill.totalAmount, settings.currencySymbol)} | Balance: {amountOrNA(bill.pendingAmount, settings.currencySymbol)}
                     </p>
                   </div>
@@ -148,12 +148,12 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
       )}
 
       {previewBill && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-4">
           <Card className="max-h-[90vh] w-full max-w-3xl overflow-y-auto">
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="text-base font-black text-slate-950">Bill Preview</h2>
-                <p className="mt-1 text-sm text-slate-500">Review this bill before sharing, copying, editing, or exporting.</p>
+                <h2 className="text-base font-black text-slate-950 dark:text-slate-50">Bill Preview</h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Review this bill before sharing, copying, editing, or exporting.</p>
               </div>
               <Button type="button" variant="ghost" onClick={() => setPreviewBill(null)}>Close</Button>
             </CardHeader>
@@ -175,25 +175,25 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
       )}
 
       {summaryOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-4">
           <Card className="max-h-[90vh] w-full max-w-5xl overflow-y-auto">
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="text-base font-black text-slate-950">Bill Summary Preview</h2>
-                <p className="mt-1 text-sm text-slate-500">Generated from selected bills in History. Switch modes before sharing or exporting.</p>
+                <h2 className="text-base font-black text-slate-950 dark:text-slate-50">Bill Summary Preview</h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Generated from selected bills in History. Switch modes before sharing or exporting.</p>
               </div>
               <Button type="button" variant="ghost" onClick={() => setSummaryOpen(false)}>Close</Button>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
-                <button className={`cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold transition duration-200 ${summaryMode === "combined" ? "bg-[#1E3A8A] text-white" : "text-[#1E3A8A] hover:bg-blue-50"}`} onClick={() => setSummaryMode("combined")}>Combined Summary</button>
-                <button className={`cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold transition duration-200 ${summaryMode === "individual" ? "bg-[#1E3A8A] text-white" : "text-[#1E3A8A] hover:bg-blue-50"}`} onClick={() => setSummaryMode("individual")}>Individual Summary</button>
+              <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-950">
+                <button className={`cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold transition duration-200 ${summaryMode === "combined" ? "bg-[#1E3A8A] text-white" : "text-[#1E3A8A] hover:bg-blue-50 dark:text-blue-200 dark:hover:bg-slate-800"}`} onClick={() => setSummaryMode("combined")}>Combined Summary</button>
+                <button className={`cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold transition duration-200 ${summaryMode === "individual" ? "bg-[#1E3A8A] text-white" : "text-[#1E3A8A] hover:bg-blue-50 dark:text-blue-200 dark:hover:bg-slate-800"}`} onClick={() => setSummaryMode("individual")}>Individual Summary</button>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Card className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-slate-500">Bills</p><p className="mt-2 text-lg font-bold">{summaryTotals.selectedBillsCount}</p></CardContent></Card>
-                <Card className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-slate-500">Total Hours</p><p className="mt-2 text-lg font-bold">{formatDuration(summaryTotals.totalHours)}</p></CardContent></Card>
-                <Card className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-slate-500">Extra Charges</p><p className="mt-2 text-lg font-bold">{amountOrNA(summaryTotals.totalExtraHourAmount + summaryTotals.totalExtraKmAmount, settings.currencySymbol)}</p></CardContent></Card>
-                <Card className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-slate-500">Grand Total</p><p className="mt-2 text-lg font-bold">{currency(summaryTotals.grandTotal, settings.currencySymbol)}</p></CardContent></Card>
+                <Card className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Bills</p><p className="mt-2 text-lg font-bold text-slate-950 dark:text-slate-50">{summaryTotals.selectedBillsCount}</p></CardContent></Card>
+                <Card className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Total Hours</p><p className="mt-2 text-lg font-bold text-slate-950 dark:text-slate-50">{formatDuration(summaryTotals.totalHours)}</p></CardContent></Card>
+                <Card className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Extra Charges</p><p className="mt-2 text-lg font-bold text-slate-950 dark:text-slate-50">{amountOrNA(summaryTotals.totalExtraHourAmount + summaryTotals.totalExtraKmAmount, settings.currencySymbol)}</p></CardContent></Card>
+                <Card className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Grand Total</p><p className="mt-2 text-lg font-bold text-slate-950 dark:text-slate-50">{currency(summaryTotals.grandTotal, settings.currencySymbol)}</p></CardContent></Card>
               </div>
               <Textarea value={summaryText} readOnly className="min-h-[360px] font-mono text-xs leading-5" />
               <label className="field-label">WhatsApp Number<Input placeholder="e.g. 919876543210" inputMode="tel" value={shareNumber} onChange={(event) => setShareNumber(event.target.value)} /></label>
