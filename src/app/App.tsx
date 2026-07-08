@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { AuthPage } from "../components/auth/AuthPage";
 import { AppShell, type AppPage } from "../components/layout/AppShell";
 import { LoggerPage } from "../components/logger/LoggerPage";
 import { HistoryPage } from "../components/history/HistoryPage";
 import { SettingsPage } from "../components/settings/SettingsPage";
+import { ConfirmationDialog } from "../components/shared/ConfirmationDialog";
 import { Toast } from "../components/shared/Toast";
 import { useAuth } from "../hooks/useAuth";
 import { useBillForm } from "../hooks/useBillForm";
 import { useBills } from "../hooks/useBills";
 import { useDarkMode } from "../hooks/useDarkMode";
 import { useSettings } from "../hooks/useSettings";
+import { getErrorMessage, logDevError } from "../utils/errors";
 import { exportSingleBillPdf } from "../utils/pdf";
 
 export default function App() {
@@ -20,6 +22,19 @@ export default function App() {
   const form = useBillForm(settings);
   const [page, setPage] = useState<AppPage>("logger");
   const [toast, setToast] = useState("");
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const previousUserIdRef = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    const nextUserId = auth.user?.id ?? null;
+    if (previousUserIdRef.current !== nextUserId) {
+      form.resetLogger();
+      billsApi.clearSelection();
+      setPage("logger");
+      previousUserIdRef.current = nextUserId;
+    }
+  }, [auth.user?.id]);
 
   function showToast(message: string) {
     setToast(message);
@@ -38,32 +53,40 @@ export default function App() {
       showToast(form.editingBillId ? "Bill updated" : "Bill saved");
       return saved;
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "Unable to save bill");
+      logDevError("Save bill action failed", error);
+      showToast(getErrorMessage(error, "Unable to save bill"));
       throw error;
     }
   }
 
   function handleReset() {
-    if (confirm("Reset logger and clear all form fields?")) {
-      form.resetLogger();
-      showToast("Logger reset");
-    }
+    setResetConfirmOpen(true);
+  }
+
+  function confirmReset() {
+    form.resetLogger();
+    setResetConfirmOpen(false);
+    showToast("Logger reset");
   }
 
   async function handleLogout() {
     try {
+      form.resetLogger();
+      billsApi.clearSelection();
       await auth.logout();
+      setLogoutConfirmOpen(false);
       setPage("logger");
       showToast("Logged out");
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "Unable to logout");
+      logDevError("Logout failed", error);
+      showToast(getErrorMessage(error, "Unable to logout"));
     }
   }
 
   if (auth.loading) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-50 px-4 dark:bg-slate-950">
-        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-bold text-slate-600 shadow-soft dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:shadow-none">Loading TripLedger...</div>
+      <main className="grid min-h-screen place-items-center bg-slate-50 px-4 dark:bg-[#0b1120]">
+        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-bold text-slate-600 shadow-soft dark:border-slate-700 dark:bg-[#111827] dark:text-slate-200 dark:shadow-black/20">Loading TripLedger...</div>
       </main>
     );
   }
@@ -72,8 +95,6 @@ export default function App() {
     return (
       <AuthPage
         authError={auth.error}
-        isDarkMode={theme.isDarkMode}
-        onToggleDarkMode={theme.toggleDarkMode}
         onLogin={async (email, password) => {
           await auth.login(email, password);
           showToast("Logged in");
@@ -87,7 +108,7 @@ export default function App() {
   }
 
   return (
-    <AppShell page={page} setPage={setPage} userEmail={auth.user.email} isDarkMode={theme.isDarkMode} onToggleDarkMode={theme.toggleDarkMode} onLogout={() => void handleLogout()}>
+    <AppShell page={page} setPage={setPage} userEmail={auth.user.email} isDarkMode={theme.isDarkMode} onToggleDarkMode={theme.toggleDarkMode} onLogout={() => setLogoutConfirmOpen(true)}>
       {page === "logger" && (
         <LoggerPage
           draft={form.draft}
@@ -128,7 +149,8 @@ export default function App() {
               await billsApi.deleteBill(id);
               showToast("Bill deleted");
             } catch (error) {
-              showToast(error instanceof Error ? error.message : "Unable to delete bill");
+              logDevError("Delete bill action failed", error);
+              showToast(getErrorMessage(error, "Unable to delete bill"));
             }
           }}
           onCopy={copyText}
@@ -144,6 +166,26 @@ export default function App() {
           }}
         />
       )}
+
+      <ConfirmationDialog
+        open={resetConfirmOpen}
+        title="Reset Logger?"
+        message="Clear all current logger fields and start from a blank bill?"
+        confirmLabel="Reset Logger"
+        confirmVariant="danger"
+        onCancel={() => setResetConfirmOpen(false)}
+        onConfirm={confirmReset}
+      />
+
+      <ConfirmationDialog
+        open={logoutConfirmOpen}
+        title="Log out?"
+        message="Are you sure you want to log out?"
+        confirmLabel="Log out"
+        confirmVariant="danger"
+        onCancel={() => setLogoutConfirmOpen(false)}
+        onConfirm={handleLogout}
+      />
 
       <Toast message={toast || billsApi.error} />
     </AppShell>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { billService, type BillService } from "../services/billService";
 import type { Bill, BillDraft } from "../types/bill";
 import { calculateBillDraft, calculateBillTotal } from "../utils/calculations";
+import { getErrorMessage, logDevError } from "../utils/errors";
 
 function createId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `bill-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -26,7 +27,8 @@ export function useBills(userId: string | null, service: BillService = billServi
       const saved = await service.listBills(userId);
       setBills(saved);
     } catch (billError) {
-      setError(billError instanceof Error ? billError.message : "Unable to load bills.");
+      logDevError("Bill refresh failed", billError);
+      setError(getErrorMessage(billError, "Unable to load bills."));
     } finally {
       setLoading(false);
     }
@@ -53,7 +55,12 @@ export function useBills(userId: string | null, service: BillService = billServi
         createdAt: existing?.createdAt ?? now,
         updatedAt: now
       };
-      await service.updateBill(userId, updated);
+      try {
+        await service.updateBill(userId, updated);
+      } catch (billError) {
+        logDevError("Bill update failed", billError);
+        throw billError;
+      }
       await refresh();
       return updated;
     }
@@ -66,14 +73,24 @@ export function useBills(userId: string | null, service: BillService = billServi
       createdAt: now,
       updatedAt: now
     };
-    await service.saveBill(userId, bill);
+    try {
+      await service.saveBill(userId, bill);
+    } catch (billError) {
+      logDevError("Bill save failed", billError);
+      throw billError;
+    }
     await refresh();
     return bill;
   }
 
   async function deleteBill(id: string) {
     if (!userId) throw new Error("You must be logged in to delete bills.");
-    await service.deleteBill(userId, id);
+    try {
+      await service.deleteBill(userId, id);
+    } catch (billError) {
+      logDevError("Bill delete failed", billError);
+      throw billError;
+    }
     setSelectedIds((ids) => ids.filter((item) => item !== id));
     await refresh();
   }

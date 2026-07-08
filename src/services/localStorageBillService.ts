@@ -16,20 +16,22 @@ function writeBills(bills: Bill[]): void {
 }
 
 export const localStorageBillService: BillService = {
-  async listBills() {
-    return readBills().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  async listBills(userId) {
+    return readBills().filter((bill) => bill.userId === userId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   },
-  async saveBill(_userId, bill) {
+  async saveBill(userId, bill) {
     const bills = readBills();
-    writeBills([bill, ...bills]);
-    return bill;
+    const nextBill = { ...bill, userId };
+    writeBills([nextBill, ...bills]);
+    return nextBill;
   },
-  async updateBill(_userId, bill) {
+  async updateBill(userId, bill) {
     const bills = readBills();
-    writeBills(bills.map((item) => (item.id === bill.id ? bill : item)));
-    return bill;
+    const nextBill = { ...bill, userId };
+    writeBills(bills.map((item) => (item.id === bill.id && item.userId === userId ? nextBill : item)));
+    return nextBill;
   },
-  async deleteBill(_userId, id) {
-    writeBills(readBills().filter((bill) => bill.id !== id));
+  async deleteBill(userId, id) {
+    writeBills(readBills().filter((bill) => !(bill.id === id && bill.userId === userId)));
   }
 };

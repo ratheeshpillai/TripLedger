@@ -53,6 +53,7 @@ export function createEmptyBillDraft(settings: AppSettings = DEFAULT_SETTINGS): 
     airportParking: 0,
     fastag: 0,
     roadParking: 0,
+    advanceAmount: 0,
     pendingAmount: 0,
     totalAmount: settings.defaultBaseAmount,
     notes: "",

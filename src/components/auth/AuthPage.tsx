@@ -1,3 +1,4 @@
+import { motion } from "framer-motion";
 import { useState, type FormEvent } from "react";
 import { Button } from "../ui/Button";
 import { Card, CardContent, CardHeader } from "../ui/Card";
@@ -7,13 +8,11 @@ type AuthMode = "login" | "signup";
 
 type Props = {
   authError?: string;
-  isDarkMode: boolean;
-  onToggleDarkMode: () => void;
   onLogin: (email: string, password: string) => Promise<void>;
   onSignup: (email: string, password: string) => Promise<void>;
 };
 
-export function AuthPage({ authError, isDarkMode, onToggleDarkMode, onLogin, onSignup }: Props) {
+export function AuthPage({ authError, onLogin, onSignup }: Props) {
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,13 +42,13 @@ export function AuthPage({ authError, isDarkMode, onToggleDarkMode, onLogin, onS
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-50 px-4 py-10 transition-colors duration-200 dark:bg-slate-950">
+    <motion.main
+      className="grid min-h-screen place-items-center bg-slate-50 px-4 py-10 dark:bg-[#0b1120]"
+      initial={{ opacity: 0, y: 10, scale: 0.99 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.24, ease: "easeOut" }}
+    >
       <div className="w-full max-w-md">
-        <div className="mb-4 flex justify-end">
-          <button className="theme-toggle" type="button" onClick={onToggleDarkMode}>
-            {isDarkMode ? "Light Mode" : "Dark Mode"}
-          </button>
-        </div>
         <div className="mb-6 text-center">
           <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A]">TripLedger</p>
           <h1 className="mt-2 text-2xl font-black text-slate-950 dark:text-slate-50">Fleet & Billing Platform</h1>
@@ -101,6 +100,6 @@ export function AuthPage({ authError, isDarkMode, onToggleDarkMode, onLogin, onS
           </CardContent>
         </Card>
       </div>
-    </main>
+    </motion.main>
   );
 }

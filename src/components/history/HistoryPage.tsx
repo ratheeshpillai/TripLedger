@@ -6,7 +6,8 @@ import { calculateCombinedSummary } from "../../utils/calculations";
 import { amountOrNA, currency, dateDisplay, guestDisplay } from "../../utils/formatters";
 import { exportCombinedSummaryPdf, exportIndividualSummaryPdf, exportSingleBillPdf } from "../../utils/pdf";
 import { formatDuration } from "../../utils/timeUtils";
-import { buildCombinedSummaryText, buildIndividualSummaryText, buildSingleBillText, createWhatsAppUrl } from "../../utils/whatsapp";
+import { buildCombinedSummaryText, buildCombinedSummaryWhatsAppText, buildIndividualSummaryText, buildIndividualSummaryWhatsAppText, buildSingleBillText, buildSingleBillWhatsAppText, createWhatsAppUrl, logWhatsAppTextForDebug } from "../../utils/whatsapp";
+import { ConfirmationDialog } from "../shared/ConfirmationDialog";
 import { EmptyState } from "../shared/EmptyState";
 import { Button } from "../ui/Button";
 import { Card, CardContent, CardHeader } from "../ui/Card";
@@ -27,7 +28,7 @@ type Props = {
   onCopy: (text: string) => void;
 };
 
-const outlineActionClass = "inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl border border-[#1E3A8A] bg-white px-4 py-2 text-sm font-semibold text-[#1E3A8A] transition duration-200 hover:bg-[#1E3A8A] hover:text-white dark:border-blue-400 dark:bg-slate-900 dark:text-blue-200 dark:hover:bg-blue-500 dark:hover:text-white";
+const outlineActionClass = "inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl border border-[#1E3A8A] bg-white px-4 py-2 text-sm font-semibold text-[#1E3A8A] hover:bg-[#1E3A8A] hover:text-white dark:border-blue-400 dark:bg-[#111827] dark:text-blue-200 dark:hover:bg-blue-600 dark:hover:text-white";
 
 export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, onSelectAll, onClearSelection, onEdit, onDuplicate, onDelete, onCopy }: Props) {
   const today = todayInputDate();
@@ -43,6 +44,7 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [summaryMode, setSummaryMode] = useState<"combined" | "individual">("combined");
   const [shareNumber, setShareNumber] = useState("");
+  const [deleteBill, setDeleteBill] = useState<Bill | null>(null);
 
   const filtered = useMemo(() => {
     return bills
@@ -57,9 +59,13 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
   const summaryBills = selectedBills;
   const summaryTotals = useMemo(() => calculateCombinedSummary(summaryBills), [summaryBills]);
   const previewText = previewBill ? buildSingleBillText(previewBill, settings) : "";
+  const previewWhatsAppText = previewBill ? buildSingleBillWhatsAppText(previewBill, settings) : "";
   const summaryText = summaryMode === "combined"
     ? buildCombinedSummaryText(summaryTotals, settings)
     : buildIndividualSummaryText(summaryBills, settings);
+  const summaryWhatsAppText = summaryMode === "combined"
+    ? buildCombinedSummaryWhatsAppText(summaryTotals, settings)
+    : buildIndividualSummaryWhatsAppText(summaryBills, settings);
 
   return (
     <div className="space-y-5">
@@ -114,7 +120,7 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
       ) : (
         <div className="grid gap-3">
           {filtered.map((bill) => {
-            const text = buildSingleBillText(bill, settings);
+            const whatsappText = buildSingleBillWhatsAppText(bill, settings);
             return (
               <Card key={bill.id} className="shadow-none">
                 <CardContent className="grid gap-4 p-4 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
@@ -132,13 +138,11 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" onClick={() => setPreviewBill(bill)}>View / Preview</Button>
-                    <Button type="button" onClick={() => onCopy(text)}>Copy Bill Text</Button>
+                    <Button type="button" onClick={() => onCopy(whatsappText)}>Copy Bill Text</Button>
                     <Button type="button" onClick={() => exportSingleBillPdf(bill, settings)}>Export PDF</Button>
                     <Button type="button" onClick={() => onEdit(bill)}>Edit</Button>
                     <Button type="button" onClick={() => onDuplicate(bill)}>Duplicate</Button>
-                    <Button type="button" variant="danger" onClick={() => {
-                      if (confirm("Delete this bill?")) void onDelete(bill.id);
-                    }}>Delete</Button>
+                    <Button type="button" variant="danger" onClick={() => setDeleteBill(bill)}>Delete</Button>
                   </div>
                 </CardContent>
               </Card>
@@ -161,8 +165,8 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
               <Textarea value={previewText} readOnly className="min-h-[420px] font-mono text-xs leading-5" />
               <label className="field-label">WhatsApp Number<Input placeholder="e.g. 919876543210" inputMode="tel" value={shareNumber} onChange={(event) => setShareNumber(event.target.value)} /></label>
               <div className="flex flex-wrap gap-2">
-                <a className={outlineActionClass} href={createWhatsAppUrl(previewText, shareNumber)} target="_blank" rel="noreferrer">Share on WhatsApp</a>
-                <Button type="button" onClick={() => onCopy(previewText)}>Copy Bill Text</Button>
+                <Button type="button" onClick={() => onCopy(previewWhatsAppText)}>Copy Bill Text</Button>
+                <a className={outlineActionClass} href={createWhatsAppUrl(previewWhatsAppText, shareNumber)} target="_blank" rel="noreferrer" onClick={() => logWhatsAppTextForDebug(previewWhatsAppText)}>Share on WhatsApp</a>
                 <Button type="button" onClick={() => exportSingleBillPdf(previewBill, settings)}>Export PDF</Button>
                 <Button type="button" onClick={() => {
                   onEdit(previewBill);
@@ -185,9 +189,9 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
               <Button type="button" variant="ghost" onClick={() => setSummaryOpen(false)}>Close</Button>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-950">
-                <button className={`cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold transition duration-200 ${summaryMode === "combined" ? "bg-[#1E3A8A] text-white" : "text-[#1E3A8A] hover:bg-blue-50 dark:text-blue-200 dark:hover:bg-slate-800"}`} onClick={() => setSummaryMode("combined")}>Combined Summary</button>
-                <button className={`cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold transition duration-200 ${summaryMode === "individual" ? "bg-[#1E3A8A] text-white" : "text-[#1E3A8A] hover:bg-blue-50 dark:text-blue-200 dark:hover:bg-slate-800"}`} onClick={() => setSummaryMode("individual")}>Individual Summary</button>
+              <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-[#0f172a]">
+                <button className={`cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold ${summaryMode === "combined" ? "bg-[#1E3A8A] text-white" : "text-[#1E3A8A] hover:bg-blue-50 dark:text-blue-200 dark:hover:bg-slate-800"}`} onClick={() => setSummaryMode("combined")}>Combined Summary</button>
+                <button className={`cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold ${summaryMode === "individual" ? "bg-[#1E3A8A] text-white" : "text-[#1E3A8A] hover:bg-blue-50 dark:text-blue-200 dark:hover:bg-slate-800"}`} onClick={() => setSummaryMode("individual")}>Individual Summary</button>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <Card className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Bills</p><p className="mt-2 text-lg font-bold text-slate-950 dark:text-slate-50">{summaryTotals.selectedBillsCount}</p></CardContent></Card>
@@ -198,14 +202,28 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
               <Textarea value={summaryText} readOnly className="min-h-[360px] font-mono text-xs leading-5" />
               <label className="field-label">WhatsApp Number<Input placeholder="e.g. 919876543210" inputMode="tel" value={shareNumber} onChange={(event) => setShareNumber(event.target.value)} /></label>
               <div className="flex flex-wrap gap-2">
-                <a className={outlineActionClass} href={createWhatsAppUrl(summaryText, shareNumber)} target="_blank" rel="noreferrer">Share on WhatsApp</a>
-                <Button type="button" onClick={() => onCopy(summaryText)}>Copy Bill Text</Button>
+                <Button type="button" onClick={() => onCopy(summaryWhatsAppText)}>Copy Bill Text</Button>
+                <a className={outlineActionClass} href={createWhatsAppUrl(summaryWhatsAppText, shareNumber)} target="_blank" rel="noreferrer" onClick={() => logWhatsAppTextForDebug(summaryWhatsAppText)}>Share on WhatsApp</a>
                 <Button type="button" onClick={() => summaryMode === "combined" ? exportCombinedSummaryPdf(summaryTotals, settings) : exportIndividualSummaryPdf(summaryBills, settings)}>Export PDF</Button>
               </div>
             </CardContent>
           </Card>
         </div>
       )}
+
+      <ConfirmationDialog
+        open={Boolean(deleteBill)}
+        title="Delete Bill?"
+        message="Are you sure you want to delete this bill? This action cannot be undone."
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onCancel={() => setDeleteBill(null)}
+        onConfirm={async () => {
+          if (!deleteBill) return;
+          await onDelete(deleteBill.id);
+          setDeleteBill(null);
+        }}
+      />
     </div>
   );
 }

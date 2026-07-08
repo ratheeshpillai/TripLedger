@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 
 const THEME_KEY = "tripledger.theme";
 
@@ -6,7 +6,7 @@ function getInitialDarkMode(): boolean {
   if (typeof window === "undefined") return false;
   const saved = localStorage.getItem(THEME_KEY);
   if (saved) return saved === "dark";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  return false;
 }
 
 function applyTheme(isDarkMode: boolean): void {
@@ -17,7 +17,7 @@ function applyTheme(isDarkMode: boolean): void {
 export function useDarkMode() {
   const [isDarkMode, setIsDarkMode] = useState(getInitialDarkMode);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyTheme(isDarkMode);
     localStorage.setItem(THEME_KEY, isDarkMode ? "dark" : "light");
   }, [isDarkMode]);

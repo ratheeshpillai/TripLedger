@@ -31,6 +31,7 @@ export interface Bill {
   airportParking: number;
   fastag: number;
   roadParking: number;
+  advanceAmount: number;
   pendingAmount: number;
   totalAmount: number;
   notes: string;

@@ -13,9 +13,9 @@ function mapUser(user: User | null): AuthUser | null {
 
 export const supabaseAuthRepository: AuthRepository = {
   async getCurrentUser() {
-    const { data, error } = await getSupabaseClient().auth.getUser();
+    const { data, error } = await getSupabaseClient().auth.getSession();
     if (error) throw error;
-    return mapUser(data.user);
+    return mapUser(data.session?.user ?? null);
   },
 
   async signIn(credentials: AuthCredentials) {

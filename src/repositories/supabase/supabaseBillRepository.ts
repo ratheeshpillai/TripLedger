@@ -1,4 +1,5 @@
 import type { Bill } from "../../types/bill";
+import { logDevError } from "../../utils/errors";
 import type { BillRepository } from "../billRepository";
 import { getSupabaseClient } from "./supabaseClient";
 
@@ -108,6 +109,7 @@ function toBill(row: BillRow): Bill {
     airportParking: number(row.airport_parking),
     fastag: number(row.fastag ?? row.toll_charges),
     roadParking: number(row.road_parking),
+    advanceAmount: number(row.advance_amount),
     pendingAmount: number(row.pending_amount ?? row.balance_amount),
     totalAmount: number(row.total_amount),
     notes: text(row.notes ?? row.remarks),
@@ -167,7 +169,7 @@ function toRow(userId: string, bill: Bill): Partial<BillRow> {
     road_parking: bill.roadParking,
     permit_charges: 0,
     other_charges: 0,
-    advance_amount: 0,
+    advance_amount: bill.advanceAmount,
     pending_amount: bill.pendingAmount,
     balance_amount: bill.pendingAmount,
     total_amount: bill.totalAmount,
@@ -187,7 +189,10 @@ export const supabaseBillRepository: BillRepository = {
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      logDevError("Supabase bill list failed", error);
+      throw error;
+    }
     return ((data ?? []) as BillRow[]).map(toBill);
   },
 
@@ -198,7 +203,10 @@ export const supabaseBillRepository: BillRepository = {
       .select("*")
       .single();
 
-    if (error) throw error;
+    if (error) {
+      logDevError("Supabase bill save failed", error);
+      throw error;
+    }
     return toBill(data as BillRow);
   },
 
@@ -211,7 +219,10 @@ export const supabaseBillRepository: BillRepository = {
       .select("*")
       .single();
 
-    if (error) throw error;
+    if (error) {
+      logDevError("Supabase bill update failed", error);
+      throw error;
+    }
     return toBill(data as BillRow);
   },
 
@@ -222,6 +233,9 @@ export const supabaseBillRepository: BillRepository = {
       .eq("id", id)
       .eq("user_id", userId);
 
-    if (error) throw error;
+    if (error) {
+      logDevError("Supabase bill delete failed", error);
+      throw error;
+    }
   }
 };

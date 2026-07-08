@@ -7,6 +7,19 @@
     <title>TripLedger - Fleet & Billing Platform</title>
   </head>
   <body>
+    <script>
+      (function () {
+        try {
+          var savedTheme = window.localStorage.getItem("tripledger.theme");
+          var isDark = savedTheme === "dark";
+          document.documentElement.classList.toggle("dark", isDark);
+          document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+        } catch (error) {
+          document.documentElement.classList.remove("dark");
+          document.documentElement.style.colorScheme = "light";
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
