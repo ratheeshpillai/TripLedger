@@ -2,7 +2,6 @@ import { useState, type FormEvent } from "react";
 import { useExtraLoginVerification } from "../../hooks/useExtraLoginVerification";
 import { ConfirmationDialog } from "../shared/ConfirmationDialog";
 import { Button } from "../ui/Button";
-import { Card, CardContent, CardHeader } from "../ui/Card";
 import { Input } from "../ui/Input";
 
 export function ExtraLoginVerificationSettings() {
@@ -35,22 +34,20 @@ export function ExtraLoginVerificationSettings() {
 
   return (
     <>
-      <Card id="extra-login-verification">
-        <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-base font-black text-slate-950 dark:text-slate-50">Extra Login Verification</h2>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Add a secure authenticator-code step after your email and password.</p>
-            </div>
-            {!verification.loading && (
-              <span className={`rounded-full px-3 py-1 text-xs font-black ${verification.status.enabled ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}`}>
-                {verification.status.enabled ? "Enabled" : "Disabled"}
-              </span>
-            )}
+      <div id="extra-login-verification" className="space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-black text-slate-900 dark:text-slate-100">Authenticator verification</h3>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Add a secure authenticator-code step after your email and password.</p>
           </div>
-        </CardHeader>
+          {!verification.loading && (
+            <span className={`rounded-full px-3 py-1 text-xs font-black ${verification.status.enabled ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}`}>
+              {verification.status.enabled ? "Enabled" : "Disabled"}
+            </span>
+          )}
+        </div>
 
-        <CardContent className="space-y-4">
+        <div className="space-y-4">
           {verification.loading && <p className="text-sm text-slate-600 dark:text-slate-300">Loading security settings...</p>}
 
           {!verification.loading && !verification.status.enabled && !verification.enrollment && (
@@ -113,8 +110,8 @@ export function ExtraLoginVerificationSettings() {
           {message && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-200">{message}</div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <ConfirmationDialog
         open={disableConfirmOpen}

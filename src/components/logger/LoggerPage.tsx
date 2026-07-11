@@ -3,6 +3,7 @@ import type { AppSettings } from "../../types/settings";
 import { currency } from "../../utils/formatters";
 import { formatDuration } from "../../utils/timeUtils";
 import { BillPreview } from "./BillPreview";
+import { CollapsibleSection } from "../shared/CollapsibleSection";
 import { MetricCard } from "../shared/MetricCard";
 import { Button } from "../ui/Button";
 import { Card, CardContent, CardHeader } from "../ui/Card";
@@ -42,21 +43,12 @@ function toggleSection(openSections: string[], sectionId: string): string[] {
 
 function AccordionSection({ id, title, openSections, setOpenSections, children }: { id: string; title: string; openSections: string[]; setOpenSections: (sections: string[]) => void; children: ReactNode }) {
   const isOpen = openSections.includes(id);
+  const contentId = `logger-${id}-content`;
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/50 dark:border-slate-700 dark:bg-[#111827] dark:shadow-black/20">
-      <button
-        type="button"
-        className="flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800 sm:px-5"
-        onClick={() => setOpenSections(toggleSection(openSections, id))}
-      >
-        <div className="min-w-0">
-          <h3 className="text-sm font-black uppercase tracking-wide text-[#1E3A8A] dark:text-blue-300">{title}</h3>
-        </div>
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-50 text-lg font-black text-[#1E3A8A] dark:bg-slate-800 dark:text-blue-200">{isOpen ? "-" : "+"}</span>
-      </button>
-      {isOpen && <div className="border-t border-slate-100 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-[#0f172a]/65 sm:p-5">{children}</div>}
-    </section>
+    <CollapsibleSection title={title} open={isOpen} contentId={contentId} onToggle={() => setOpenSections(toggleSection(openSections, id))}>
+      {children}
+    </CollapsibleSection>
   );
 }
 
@@ -204,7 +196,7 @@ export function LoggerPage({ draft, editingBillId, settings, onFieldChange, onGa
 
         <button
           type="button"
-          className="fixed bottom-4 right-4 z-30 rounded-full bg-[#1E3A8A] px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-900/25 lg:hidden"
+          className="fixed bottom-24 right-4 z-30 rounded-full bg-[#1E3A8A] px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-900/25 md:bottom-4 lg:hidden"
           onClick={() => setOpenSections(["preview"])}
         >
           Preview Bill

@@ -167,6 +167,14 @@ If Vite starts on another port, add that exact callback URL as well (for example
 
 Ensure TOTP enrollment is enabled in the project's Supabase MFA settings. No service-role key or additional frontend secret is required.
 
+### Verification Email Design
+
+Supabase, not the React frontend, renders authentication emails. For a hosted project, open **Supabase Dashboard -> Authentication -> Email Templates -> Confirm sign up**, set the subject to `Verify your email for TripLedger`, and paste the contents of `docs/supabase-confirm-signup-email.html` into the message body.
+
+The template preserves Supabase's required `{{ .ConfirmationURL }}` variable. Custom SMTP is recommended for production delivery, sender-domain branding, and practical rate limits.
+
+As of June 3, 2026, new Supabase Free projects using the default email provider cannot customize Auth email templates. Existing Free projects created before that date and paid projects are unaffected. A new Free project must configure custom SMTP before using a branded template. See [Supabase's email-template customization notice](https://supabase.com/changelog/46599-changes-to-email-template-customisation-on-free-tier).
+
 ## RLS Overview
 
 The `bills` table enables Row Level Security.

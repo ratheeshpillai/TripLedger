@@ -3,6 +3,7 @@ import { AuthPage } from "../components/auth/AuthPage";
 import { AuthCallbackPage } from "../components/auth/AuthCallbackPage";
 import { ExtraLoginVerificationPage } from "../components/auth/ExtraLoginVerificationPage";
 import { AppShell, type AppPage } from "../components/layout/AppShell";
+import { DashboardPage } from "../components/dashboard/DashboardPage";
 import { LoggerPage } from "../components/logger/LoggerPage";
 import { HistoryPage } from "../components/history/HistoryPage";
 import { SettingsPage } from "../components/settings/SettingsPage";
@@ -16,13 +17,28 @@ import { useSettings } from "../hooks/useSettings";
 import { getErrorMessage, logDevError } from "../utils/errors";
 import { exportSingleBillPdf } from "../utils/pdf";
 
+function pageFromPath(pathname: string): AppPage {
+  const normalized = pathname.replace(/\/+$/, "") || "/";
+  if (normalized === "/history") return "history";
+  if (normalized === "/logger" || normalized === "/create-bill") return "logger";
+  if (normalized === "/settings") return "settings";
+  return "dashboard";
+}
+
+function pagePath(page: AppPage): string {
+  if (page === "history") return "/history";
+  if (page === "logger") return "/create-bill";
+  if (page === "settings") return "/settings";
+  return "/dashboard";
+}
+
 export default function App() {
   const auth = useAuth();
   const theme = useDarkMode();
   const { settings, saveSettings } = useSettings();
   const billsApi = useBills(auth.user?.id ?? null);
   const form = useBillForm(settings);
-  const [page, setPage] = useState<AppPage>("logger");
+  const [page, setPage] = useState<AppPage>(() => pageFromPath(window.location.pathname));
   const [toast, setToast] = useState("");
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
@@ -34,10 +50,28 @@ export default function App() {
     if (previousUserIdRef.current !== nextUserId) {
       form.resetLogger();
       billsApi.clearSelection();
-      setPage("logger");
+      navigateToPage("dashboard", true);
       previousUserIdRef.current = nextUserId;
     }
   }, [auth.user?.id]);
+
+  useLayoutEffect(() => {
+    function syncPageFromHistory() {
+      setPage(pageFromPath(window.location.pathname));
+    }
+
+    window.addEventListener("popstate", syncPageFromHistory);
+    return () => window.removeEventListener("popstate", syncPageFromHistory);
+  }, []);
+
+  function navigateToPage(nextPage: AppPage, replace = false) {
+    const nextPath = pagePath(nextPage);
+    if (window.location.pathname !== nextPath) {
+      if (replace) window.history.replaceState({}, "", nextPath);
+      else window.history.pushState({}, "", nextPath);
+    }
+    setPage(nextPage);
+  }
 
   function showToast(message: string) {
     setToast(message);
@@ -78,7 +112,7 @@ export default function App() {
       billsApi.clearSelection();
       await auth.logout();
       setLogoutConfirmOpen(false);
-      setPage("logger");
+      navigateToPage("dashboard", true);
       showToast("Logged out");
     } catch (error) {
       logDevError("Logout failed", error);
@@ -144,7 +178,23 @@ export default function App() {
   }
 
   return (
-    <AppShell page={page} setPage={setPage} userEmail={auth.user.email} isDarkMode={theme.isDarkMode} onToggleDarkMode={theme.toggleDarkMode} onLogout={() => setLogoutConfirmOpen(true)}>
+    <AppShell page={page} setPage={navigateToPage} userEmail={auth.user.email} isDarkMode={theme.isDarkMode} onToggleDarkMode={theme.toggleDarkMode} onLogout={() => setLogoutConfirmOpen(true)}>
+      {page === "dashboard" && (
+        <DashboardPage
+          bills={billsApi.bills}
+          settings={settings}
+          loading={billsApi.loading}
+          error={billsApi.error}
+          onCreateBill={() => navigateToPage("logger")}
+          onViewHistory={() => navigateToPage("history")}
+          onOpenBill={(bill) => {
+            form.loadForEdit(bill);
+            navigateToPage("logger");
+            showToast("Bill loaded for edit");
+          }}
+        />
+      )}
+
       {page === "logger" && (
         <LoggerPage
           draft={form.draft}
@@ -172,12 +222,12 @@ export default function App() {
           onClearSelection={billsApi.clearSelection}
           onEdit={(bill) => {
             form.loadForEdit(bill);
-            setPage("logger");
+            navigateToPage("logger");
             showToast("Bill loaded for edit");
           }}
           onDuplicate={(bill) => {
             form.duplicateBill(bill);
-            setPage("logger");
+            navigateToPage("logger");
             showToast("Similar bill ready");
           }}
           onDelete={async (id) => {
@@ -196,6 +246,9 @@ export default function App() {
       {page === "settings" && (
         <SettingsPage
           settings={settings}
+          userEmail={auth.user.email}
+          isDarkMode={theme.isDarkMode}
+          onToggleDarkMode={theme.toggleDarkMode}
           onSave={async (next) => {
             await saveSettings(next);
             showToast("Settings saved");
