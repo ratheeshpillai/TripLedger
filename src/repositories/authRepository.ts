@@ -1,9 +1,21 @@
-import type { AuthCredentials, AuthUser } from "../types/auth";
+import type {
+  AuthCredentials,
+  AuthSessionState,
+  AuthUser,
+  ExtraLoginVerificationEnrollment,
+  ExtraLoginVerificationStatus
+} from "../types/auth";
 
 export interface AuthRepository {
-  getCurrentUser(): Promise<AuthUser | null>;
-  signIn(credentials: AuthCredentials): Promise<AuthUser>;
-  signUp(credentials: AuthCredentials): Promise<AuthUser | null>;
+  getSessionState(): Promise<AuthSessionState>;
+  signIn(credentials: AuthCredentials): Promise<AuthSessionState>;
+  signUp(credentials: AuthCredentials, emailRedirectTo: string): Promise<AuthUser | null>;
+  completeEmailVerification(callbackUrl: string): Promise<AuthSessionState>;
   signOut(): Promise<void>;
-  onAuthStateChange(callback: (user: AuthUser | null) => void): () => void;
+  getExtraLoginVerificationStatus(): Promise<ExtraLoginVerificationStatus>;
+  enrollExtraLoginVerification(): Promise<ExtraLoginVerificationEnrollment>;
+  confirmExtraLoginVerification(factorId: string, code: string): Promise<AuthSessionState>;
+  cancelExtraLoginVerificationEnrollment(factorId: string): Promise<void>;
+  disableExtraLoginVerification(): Promise<ExtraLoginVerificationStatus>;
+  onAuthStateChange(callback: () => void): () => void;
 }

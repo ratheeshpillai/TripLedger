@@ -1,5 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { AuthPage } from "../components/auth/AuthPage";
+import { AuthCallbackPage } from "../components/auth/AuthCallbackPage";
+import { ExtraLoginVerificationPage } from "../components/auth/ExtraLoginVerificationPage";
 import { AppShell, type AppPage } from "../components/layout/AppShell";
 import { LoggerPage } from "../components/logger/LoggerPage";
 import { HistoryPage } from "../components/history/HistoryPage";
@@ -24,6 +26,7 @@ export default function App() {
   const [toast, setToast] = useState("");
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [authCallbackHandled, setAuthCallbackHandled] = useState(false);
   const previousUserIdRef = useRef<string | null>(null);
 
   useLayoutEffect(() => {
@@ -91,13 +94,46 @@ export default function App() {
     );
   }
 
+  const isAuthCallback = window.location.pathname.replace(/\/+$/, "") === "/auth/callback" && !authCallbackHandled;
+
+  if (isAuthCallback) {
+    return (
+      <AuthCallbackPage
+        onVerify={auth.completeEmailVerification}
+        onContinue={() => {
+          window.history.replaceState({}, "", "/");
+          setAuthCallbackHandled(true);
+          showToast("Email verified successfully");
+        }}
+        onReturnToLogin={async () => {
+          await auth.logout();
+          window.history.replaceState({}, "", "/");
+          setAuthCallbackHandled(true);
+        }}
+      />
+    );
+  }
+
+  if (auth.extraVerificationRequired) {
+    return (
+      <ExtraLoginVerificationPage
+        email={auth.verificationEmail}
+        onVerify={async (code) => {
+          await auth.verifyExtraLogin(code);
+          showToast("Login verified");
+        }}
+        onCancel={auth.logout}
+      />
+    );
+  }
+
   if (!auth.user) {
     return (
       <AuthPage
         authError={auth.error}
         onLogin={async (email, password) => {
-          await auth.login(email, password);
-          showToast("Logged in");
+          const result = await auth.login(email, password);
+          if (!result.extraVerificationRequired) showToast("Logged in");
         }}
         onSignup={async (email, password) => {
           await auth.signup(email, password);

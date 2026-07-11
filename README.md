@@ -18,6 +18,8 @@ The app is intentionally structured so Supabase can be replaced later by a FastA
 ## Features
 
 - Email/password login and signup through Supabase
+- Email verification callback handling for local and Netlify deployments
+- Optional TOTP-based Extra Login Verification through Supabase MFA
 - Protected logger dashboard
 - Driver, vehicle, guest, trip timing, package, kilometer, charge, advance, and notes fields
 - Automatic bill calculations in shared utilities
@@ -52,6 +54,7 @@ src/
   utils/               Calculations, formatting, PDF, WhatsApp, time helpers
 supabase/
   bills.sql            Database schema, indexes, trigger, and RLS policies
+  phase1_mfa_rls.sql   Conditional MFA enforcement for protected bill rows
 ```
 
 ## Architecture
@@ -135,7 +138,34 @@ Supabase Auth is isolated behind:
 - `src/services/authService.ts`
 - `src/hooks/useAuth.ts`
 
-The app checks the active session, protects the dashboard, and routes unauthenticated users to the auth screen.
+The app checks the active session, protects the logger, and routes unauthenticated users to the auth screen. Signup emails return to `/auth/callback`, where TripLedger handles successful, invalid, and expired verification links without leaving the user on a blank page.
+
+Users can optionally enable **Extra Login Verification** in Settings. This uses Supabase's official TOTP MFA flow:
+
+1. Scan the enrollment QR code with an authenticator app.
+2. Confirm enrollment with the current 6-digit code.
+3. Future password logins stop at a verification screen until a valid authenticator code upgrades the session from `aal1` to `aal2`.
+
+TripLedger does not generate, persist, or validate verification codes itself. TOTP secrets are shown only during enrollment and are not saved by the app.
+
+### Supabase Auth URLs
+
+In **Supabase Dashboard -> Authentication -> URL Configuration**, set:
+
+```text
+Site URL:
+https://triploggy.netlify.app
+
+Redirect URLs:
+https://triploggy.netlify.app/auth/callback
+http://localhost:5173/auth/callback
+```
+
+You may additionally use Supabase-supported wildcards for preview/development URLs, such as `https://triploggy.netlify.app/**` and `http://localhost:5173/**`.
+
+If Vite starts on another port, add that exact callback URL as well (for example, `http://localhost:5175/auth/callback`).
+
+Ensure TOTP enrollment is enabled in the project's Supabase MFA settings. No service-role key or additional frontend secret is required.
 
 ## RLS Overview
 
@@ -149,6 +179,8 @@ Policies ensure authenticated users can:
 - Delete only rows where `auth.uid() = user_id`
 
 This keeps user bill history isolated across accounts.
+
+After running `supabase/bills.sql`, also run `supabase/phase1_mfa_rls.sql`. It preserves user ownership and additionally requires an `aal2` session for users who have a verified MFA factor. Users who leave Extra Login Verification disabled continue using normal email/password sessions.
 
 ## Local Development
 
@@ -197,6 +229,7 @@ For Netlify or similar static hosting:
 - Build command: `pnpm run build`
 - Publish directory: `dist`
 - Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the hosting provider's environment settings.
+- `netlify.toml` includes the SPA fallback required for direct visits to `/auth/callback`.
 
 ## Business Rules
 

@@ -66,6 +66,18 @@ export function AppShell({ page, setPage, userEmail, isDarkMode, onToggleDarkMod
 
                 <button
                   type="button"
+                  className="flex w-full cursor-pointer items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-bold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                  onClick={() => {
+                    setPage("settings");
+                    setMenuOpen(false);
+                    window.setTimeout(() => document.getElementById("extra-login-verification")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+                  }}
+                >
+                  <span>Extra Login Verification</span>
+                </button>
+
+                <button
+                  type="button"
                   role="switch"
                   aria-checked={isDarkMode}
                   className="flex w-full cursor-pointer items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-bold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"

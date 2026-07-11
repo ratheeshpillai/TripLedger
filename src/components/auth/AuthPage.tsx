@@ -32,7 +32,7 @@ export function AuthPage({ authError, onLogin, onSignup }: Props) {
         await onLogin(email.trim(), password);
       } else {
         await onSignup(email.trim(), password);
-        setMessage("Account created. If email confirmation is enabled, verify your email before logging in.");
+        setMessage("Account created. Check your inbox and open the verification link to continue to TripLedger.");
       }
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Authentication failed.");
