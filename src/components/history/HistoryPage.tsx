@@ -6,7 +6,7 @@ import { calculateCombinedSummary } from "../../utils/calculations";
 import { amountOrNA, currency, dateDisplay, guestDisplay } from "../../utils/formatters";
 import { exportCombinedSummaryPdf, exportIndividualSummaryPdf, exportSingleBillPdf } from "../../utils/pdf";
 import { formatDuration } from "../../utils/timeUtils";
-import { buildCombinedSummaryText, buildCombinedSummaryWhatsAppText, buildIndividualSummaryText, buildIndividualSummaryWhatsAppText, buildSingleBillText, buildSingleBillWhatsAppText, createWhatsAppUrl, logWhatsAppTextForDebug } from "../../utils/whatsapp";
+import { buildCombinedSummaryText, buildCombinedSummaryWhatsAppText, buildIndividualSummaryText, buildIndividualSummaryWhatsAppText, buildSingleBillText, buildSingleBillWhatsAppText, createWhatsAppUrl } from "../../utils/whatsapp";
 import { ConfirmationDialog } from "../shared/ConfirmationDialog";
 import { EmptyState } from "../shared/EmptyState";
 import { Button } from "../ui/Button";
@@ -166,7 +166,7 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
               <label className="field-label">WhatsApp Number<Input placeholder="e.g. 919876543210" inputMode="tel" value={shareNumber} onChange={(event) => setShareNumber(event.target.value)} /></label>
               <div className="flex flex-wrap gap-2">
                 <Button type="button" onClick={() => onCopy(previewWhatsAppText)}>Copy Bill Text</Button>
-                <a className={outlineActionClass} href={createWhatsAppUrl(previewWhatsAppText, shareNumber)} target="_blank" rel="noreferrer" onClick={() => logWhatsAppTextForDebug(previewWhatsAppText)}>Share on WhatsApp</a>
+                <a className={outlineActionClass} href={createWhatsAppUrl(previewWhatsAppText, shareNumber)} target="_blank" rel="noreferrer">Share on WhatsApp</a>
                 <Button type="button" onClick={() => exportSingleBillPdf(previewBill, settings)}>Export PDF</Button>
                 <Button type="button" onClick={() => {
                   onEdit(previewBill);
@@ -203,7 +203,7 @@ export function HistoryPage({ bills, settings, selectedIds, onToggleSelected, on
               <label className="field-label">WhatsApp Number<Input placeholder="e.g. 919876543210" inputMode="tel" value={shareNumber} onChange={(event) => setShareNumber(event.target.value)} /></label>
               <div className="flex flex-wrap gap-2">
                 <Button type="button" onClick={() => onCopy(summaryWhatsAppText)}>Copy Bill Text</Button>
-                <a className={outlineActionClass} href={createWhatsAppUrl(summaryWhatsAppText, shareNumber)} target="_blank" rel="noreferrer" onClick={() => logWhatsAppTextForDebug(summaryWhatsAppText)}>Share on WhatsApp</a>
+                <a className={outlineActionClass} href={createWhatsAppUrl(summaryWhatsAppText, shareNumber)} target="_blank" rel="noreferrer">Share on WhatsApp</a>
                 <Button type="button" onClick={() => summaryMode === "combined" ? exportCombinedSummaryPdf(summaryTotals, settings) : exportIndividualSummaryPdf(summaryBills, settings)}>Export PDF</Button>
               </div>
             </CardContent>

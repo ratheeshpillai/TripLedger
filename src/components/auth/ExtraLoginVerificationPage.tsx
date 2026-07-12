@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Button } from "../ui/Button";
 import { Card, CardContent, CardHeader } from "../ui/Card";
 import { Input } from "../ui/Input";
+import { getSafeErrorMessage, logDevError } from "../../utils/errors";
 
 type Props = {
   email?: string;
@@ -22,7 +23,8 @@ export function ExtraLoginVerificationPage({ email, onVerify, onCancel }: Props)
     try {
       await onVerify(code.trim());
     } catch (verificationError) {
-      setError(verificationError instanceof Error ? verificationError.message : "Unable to verify this code.");
+      logDevError("Extra login verification failed", verificationError);
+      setError(getSafeErrorMessage(verificationError, "auth.mfa"));
     } finally {
       setSubmitting(false);
     }

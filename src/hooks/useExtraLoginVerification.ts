@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { authService, type AuthService } from "../services/authService";
 import type { ExtraLoginVerificationEnrollment, ExtraLoginVerificationStatus } from "../types/auth";
+import { getSafeErrorMessage, logDevError } from "../utils/errors";
 
 const DISABLED_STATUS: ExtraLoginVerificationStatus = {
   enabled: false,
@@ -20,7 +21,8 @@ export function useExtraLoginVerification(service: AuthService = authService) {
     try {
       setStatus(await service.getExtraLoginVerificationStatus());
     } catch (statusError) {
-      setError(statusError instanceof Error ? statusError.message : "Unable to load verification settings.");
+      logDevError("MFA status load failed", statusError);
+      setError(getSafeErrorMessage(statusError, "auth.mfa"));
     } finally {
       setLoading(false);
     }
@@ -36,7 +38,8 @@ export function useExtraLoginVerification(service: AuthService = authService) {
     try {
       setEnrollment(await service.enrollExtraLoginVerification());
     } catch (enrollmentError) {
-      setError(enrollmentError instanceof Error ? enrollmentError.message : "Unable to start login verification setup.");
+      logDevError("MFA enrollment failed", enrollmentError);
+      setError(getSafeErrorMessage(enrollmentError, "auth.mfa"));
     } finally {
       setWorking(false);
     }
@@ -51,8 +54,8 @@ export function useExtraLoginVerification(service: AuthService = authService) {
       setEnrollment(null);
       setStatus(await service.getExtraLoginVerificationStatus());
     } catch (verificationError) {
-      const message = verificationError instanceof Error ? verificationError.message : "Unable to verify this code.";
-      setError(message);
+      logDevError("MFA enrollment verification failed", verificationError);
+      setError(getSafeErrorMessage(verificationError, "auth.mfa"));
       throw verificationError;
     } finally {
       setWorking(false);
@@ -67,7 +70,8 @@ export function useExtraLoginVerification(service: AuthService = authService) {
       await service.cancelExtraLoginVerificationEnrollment(enrollment.factorId);
       setEnrollment(null);
     } catch (cancelError) {
-      setError(cancelError instanceof Error ? cancelError.message : "Unable to cancel verification setup.");
+      logDevError("MFA enrollment cancellation failed", cancelError);
+      setError(getSafeErrorMessage(cancelError, "auth.mfa"));
     } finally {
       setWorking(false);
     }
@@ -80,8 +84,8 @@ export function useExtraLoginVerification(service: AuthService = authService) {
       setStatus(await service.disableExtraLoginVerification());
       setEnrollment(null);
     } catch (disableError) {
-      const message = disableError instanceof Error ? disableError.message : "Unable to disable login verification.";
-      setError(message);
+      logDevError("MFA disable failed", disableError);
+      setError(getSafeErrorMessage(disableError, "auth.mfa"));
       throw disableError;
     } finally {
       setWorking(false);

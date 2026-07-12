@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AuthSessionState } from "../../types/auth";
 import { Button } from "../ui/Button";
 import { Card, CardContent, CardHeader } from "../ui/Card";
+import { getSafeErrorMessage, logDevError } from "../../utils/errors";
 
 type CallbackState = "verifying" | "success" | "error";
 
@@ -25,7 +26,8 @@ export function AuthCallbackPage({ onVerify, onContinue, onReturnToLogin }: Prop
         if (active) setState("success");
       } catch (verificationError) {
         if (!active) return;
-        setError(verificationError instanceof Error ? verificationError.message : "Unable to verify this email link.");
+        logDevError("Email verification failed", verificationError);
+        setError(getSafeErrorMessage(verificationError, "auth.verification"));
         setState("error");
       }
     }

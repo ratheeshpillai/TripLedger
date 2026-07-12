@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { Button } from "../ui/Button";
 import { Card, CardContent, CardHeader } from "../ui/Card";
 import { Input } from "../ui/Input";
+import { getSafeErrorMessage, logDevError } from "../../utils/errors";
 
 type AuthMode = "login" | "signup";
 
@@ -35,7 +36,8 @@ export function AuthPage({ authError, onLogin, onSignup }: Props) {
         setMessage("Account created. Check your inbox and open the verification link to continue to TripLedger.");
       }
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Authentication failed.");
+      logDevError(isLogin ? "Login failed" : "Signup failed", submitError);
+      setError(getSafeErrorMessage(submitError, isLogin ? "auth.login" : "auth.signup"));
     } finally {
       setSubmitting(false);
     }

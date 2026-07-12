@@ -135,14 +135,18 @@ function addBill(doc: jsPDF, bill: Bill, settings: AppSettings, startY: number):
   addTotalBox(doc, pdfCurrency(bill.totalAmount, settings), y);
 }
 
-export function exportSingleBillPdf(bill: Bill, settings: AppSettings): void {
+export function createSingleBillPdf(bill: Bill, settings: AppSettings): jsPDF {
   const doc = new jsPDF();
   const y = addHeader(doc, `Trip Bill | Bill Date: ${dateDisplay(bill.tripDate)}`, settings);
   addBill(doc, bill, settings, y);
-  doc.save(`tripledger-${bill.guestName || "bill"}-${bill.tripDate || "export"}.pdf`);
+  return doc;
 }
 
-export function exportCombinedSummaryPdf(totals: BillSummaryTotals, settings: AppSettings): void {
+export function exportSingleBillPdf(bill: Bill, settings: AppSettings): void {
+  createSingleBillPdf(bill, settings).save(`tripledger-${bill.guestName || "bill"}-${bill.tripDate || "export"}.pdf`);
+}
+
+export function createCombinedSummaryPdf(totals: BillSummaryTotals, settings: AppSettings): jsPDF {
   const doc = new jsPDF();
   let y = addHeader(doc, "Trip Summary | Combined Bill Summary", settings);
   y = addSection(doc, "Summary Totals", [
@@ -158,15 +162,23 @@ export function exportCombinedSummaryPdf(totals: BillSummaryTotals, settings: Ap
     ["Pending Amount", pdfAmountOrNA(totals.totalPendingAmount, settings)]
   ], y);
   addTotalBox(doc, pdfCurrency(totals.grandTotal, settings), y);
-  doc.save("tripledger-combined-summary.pdf");
+  return doc;
 }
 
-export function exportIndividualSummaryPdf(bills: Bill[], settings: AppSettings): void {
+export function exportCombinedSummaryPdf(totals: BillSummaryTotals, settings: AppSettings): void {
+  createCombinedSummaryPdf(totals, settings).save("tripledger-combined-summary.pdf");
+}
+
+export function createIndividualSummaryPdf(bills: Bill[], settings: AppSettings): jsPDF {
   const doc = new jsPDF();
   bills.forEach((bill, index) => {
     if (index > 0) doc.addPage();
     const y = addHeader(doc, `Trip Summary | Individual Bill ${index + 1}`, settings);
     addBill(doc, bill, settings, y);
   });
-  doc.save("tripledger-individual-summary.pdf");
+  return doc;
+}
+
+export function exportIndividualSummaryPdf(bills: Bill[], settings: AppSettings): void {
+  createIndividualSummaryPdf(bills, settings).save("tripledger-individual-summary.pdf");
 }

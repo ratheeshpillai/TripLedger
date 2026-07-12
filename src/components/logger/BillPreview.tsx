@@ -1,6 +1,6 @@
 import type { Bill, BillDraft } from "../../types/bill";
 import type { AppSettings } from "../../types/settings";
-import { buildSingleBillText, buildSingleBillWhatsAppText, createWhatsAppUrl, logWhatsAppTextForDebug } from "../../utils/whatsapp";
+import { buildSingleBillText, buildSingleBillWhatsAppText, createWhatsAppUrl } from "../../utils/whatsapp";
 import { Button } from "../ui/Button";
 import { Card, CardContent, CardHeader } from "../ui/Card";
 import { Input } from "../ui/Input";
@@ -49,7 +49,7 @@ export function BillPreview({ draft, settings, onCopy, onPdf, compact = false }:
           </label>
           <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
             <Button type="button" onClick={() => onCopy(whatsappText)}>Copy Bill Text</Button>
-            <a className={outlineActionClass} href={createWhatsAppUrl(whatsappText, whatsappNumber)} target="_blank" rel="noreferrer" onClick={() => logWhatsAppTextForDebug(whatsappText)}>
+            <a className={outlineActionClass} href={createWhatsAppUrl(whatsappText, whatsappNumber)} target="_blank" rel="noreferrer">
               Share on WhatsApp
             </a>
             <Button type="button" onClick={onPdf}>Export PDF</Button>

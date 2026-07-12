@@ -14,7 +14,8 @@ import { useBillForm } from "../hooks/useBillForm";
 import { useBills } from "../hooks/useBills";
 import { useDarkMode } from "../hooks/useDarkMode";
 import { useSettings } from "../hooks/useSettings";
-import { getErrorMessage, logDevError } from "../utils/errors";
+import { clearLegacyLocalBillData } from "../services/privacyMigrationService";
+import { getSafeErrorMessage, logDevError } from "../utils/errors";
 import { exportSingleBillPdf } from "../utils/pdf";
 
 function pageFromPath(pathname: string): AppPage {
@@ -35,7 +36,7 @@ function pagePath(page: AppPage): string {
 export default function App() {
   const auth = useAuth();
   const theme = useDarkMode();
-  const { settings, saveSettings } = useSettings();
+  const { settings, saveSettings } = useSettings(auth.user?.id ?? null);
   const billsApi = useBills(auth.user?.id ?? null);
   const form = useBillForm(settings);
   const [page, setPage] = useState<AppPage>(() => pageFromPath(window.location.pathname));
@@ -48,8 +49,10 @@ export default function App() {
   useLayoutEffect(() => {
     const nextUserId = auth.user?.id ?? null;
     if (previousUserIdRef.current !== nextUserId) {
+      if (nextUserId) clearLegacyLocalBillData();
       form.resetLogger();
       billsApi.clearSelection();
+      setToast("");
       navigateToPage("dashboard", true);
       previousUserIdRef.current = nextUserId;
     }
@@ -84,14 +87,18 @@ export default function App() {
   }
 
   async function handleSave() {
+    const actionUserId = auth.user?.id ?? null;
     try {
       const saved = await billsApi.saveBill(form.draft, form.editingBillId);
+      if (previousUserIdRef.current !== actionUserId) return saved;
       form.setEditingBillId(null);
       showToast(form.editingBillId ? "Bill updated" : "Bill saved");
       return saved;
     } catch (error) {
       logDevError("Save bill action failed", error);
-      showToast(getErrorMessage(error, "Unable to save bill"));
+      if (previousUserIdRef.current === actionUserId) {
+        showToast(getSafeErrorMessage(error, form.editingBillId ? "bill.update" : "bill.save"));
+      }
       throw error;
     }
   }
@@ -116,7 +123,7 @@ export default function App() {
       showToast("Logged out");
     } catch (error) {
       logDevError("Logout failed", error);
-      showToast(getErrorMessage(error, "Unable to logout"));
+      showToast(getSafeErrorMessage(error, "auth.logout"));
     }
   }
 
@@ -231,12 +238,13 @@ export default function App() {
             showToast("Similar bill ready");
           }}
           onDelete={async (id) => {
+            const actionUserId = auth.user?.id ?? null;
             try {
               await billsApi.deleteBill(id);
-              showToast("Bill deleted");
+              if (previousUserIdRef.current === actionUserId) showToast("Bill deleted");
             } catch (error) {
               logDevError("Delete bill action failed", error);
-              showToast(getErrorMessage(error, "Unable to delete bill"));
+              if (previousUserIdRef.current === actionUserId) showToast(getSafeErrorMessage(error, "bill.delete"));
             }
           }}
           onCopy={copyText}
@@ -250,8 +258,13 @@ export default function App() {
           isDarkMode={theme.isDarkMode}
           onToggleDarkMode={theme.toggleDarkMode}
           onSave={async (next) => {
-            await saveSettings(next);
-            showToast("Settings saved");
+            try {
+              await saveSettings(next);
+              showToast("Settings saved");
+            } catch (error) {
+              logDevError("Settings save failed", error);
+              showToast(getSafeErrorMessage(error, "settings.save"));
+            }
           }}
         />
       )}

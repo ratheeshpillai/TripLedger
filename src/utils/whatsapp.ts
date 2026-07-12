@@ -172,9 +172,3 @@ export function createWhatsAppUrl(message: string, phone?: string): string {
   const text = encodeURIComponent(message);
   return number ? `https://wa.me/${number}?text=${text}` : `https://wa.me/?text=${text}`;
 }
-
-export function logWhatsAppTextForDebug(message: string): void {
-  if (import.meta.env.DEV) {
-    console.info("TripLedger WhatsApp text:\n" + message);
-  }
-}

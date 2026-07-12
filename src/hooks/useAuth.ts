@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { authService, type AuthService } from "../services/authService";
 import type { AuthSessionState, AuthUser } from "../types/auth";
+import { getSafeErrorMessage, logDevError } from "../utils/errors";
 
 export function useAuth(service: AuthService = authService) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -32,7 +33,8 @@ export function useAuth(service: AuthService = authService) {
         applySessionState(await service.getSessionState());
       } catch (authError) {
         if (!active) return;
-        setError(authError instanceof Error ? authError.message : "Unable to refresh authentication.");
+        logDevError("Auth session refresh failed", authError);
+        setError(getSafeErrorMessage(authError, "auth.initialize"));
         setUser(null);
       }
     }
@@ -45,7 +47,8 @@ export function useAuth(service: AuthService = authService) {
           window.setTimeout(() => void refreshSessionState(), 0);
         });
       } catch (authError) {
-        setError(authError instanceof Error ? authError.message : "Unable to initialize authentication.");
+        logDevError("Auth initialization failed", authError);
+        setError(getSafeErrorMessage(authError, "auth.initialize"));
         setUser(null);
       } finally {
         setLoading(false);
