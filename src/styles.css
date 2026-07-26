@@ -6,7 +6,11 @@
   color: #0f172a;
   background: #f8fafc;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --theme-transition: background-color 220ms ease, color 220ms ease, border-color 220ms ease, box-shadow 220ms ease, opacity 220ms ease;
+  --theme-transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, fill 160ms ease, stroke 160ms ease;
+}
+
+html {
+  scrollbar-gutter: stable;
 }
 
 .dark {
@@ -24,29 +28,36 @@ body {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  :where(
+  html.theme-transitioning :where(
     body,
     .app-shell,
-    main,
     header,
+    aside,
+    main,
     section,
-    label,
-    p,
-    h1,
-    h2,
-    h3,
-    span,
+    article,
+    div,
+    table,
+    thead,
+    tbody,
+    tr,
+    th,
+    td,
     input,
     select,
     textarea,
     button,
-    a
+    a,
+    svg,
+    path,
+    .trip-totals,
+    .trip-totals summary
   ) {
     transition: var(--theme-transition);
   }
 
-  :where(input, textarea)::placeholder {
-    transition: color 220ms ease;
+  html.theme-transitioning :where(input, textarea)::placeholder {
+    transition: color 160ms ease;
   }
 }
 
@@ -77,6 +88,328 @@ textarea {
     @apply gap-3;
   }
 
+  .tripledgerListPage,
+  .tripledgerListResults,
+  .tripledgerListToolbarGrid {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .tripledgerListMobileHeader {
+    @apply space-y-0.5 lg:sr-only;
+  }
+
+  .tripledgerListToolbar {
+    width: 100%;
+  }
+
+  .tripledgerListToolbarContent {
+    padding: 1.25rem;
+  }
+
+  .tripledgerListSummary {
+    min-height: 4.125rem;
+    @apply min-w-0 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-[#111827];
+  }
+
+  .tripledgerListDesktop {
+    @apply hidden min-w-0 xl:block;
+  }
+
+  .tripledgerListMobile {
+    @apply grid gap-3 xl:hidden;
+  }
+
+  .tripledgerListMobileRow {
+    @apply min-w-0 max-w-full rounded-2xl border border-slate-200 bg-white shadow-none dark:border-slate-700 dark:bg-[#111827];
+  }
+
+  .tripledgerListMobileRowContent {
+    padding: 1rem;
+  }
+
+  .historyBillGrid {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .historyCustomerCell,
+  .historyOwnerCell,
+  .historyDateCell,
+  .historyPlaceCell,
+  .historyAmountCell,
+  .historyActionsCell {
+    min-width: 0;
+  }
+
+  .historyActionsCell {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .historyAmountCell {
+    width: 100%;
+    min-width: 0;
+    justify-self: stretch;
+    text-align: left;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .historyAmountValue {
+    display: block;
+    width: 100%;
+    text-align: left;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .historyBillTable {
+    box-sizing: border-box;
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+  }
+
+  .tripledgerListTable {
+    --tripledger-actions-width: 5rem;
+    --tripledger-selection-width: 0rem;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .tripledgerListTable.hasSelectionColumn {
+    --tripledger-selection-width: 3.5rem;
+  }
+
+  .tripledgerListTable .tripledgerDataColumn {
+    width: calc((100% - var(--tripledger-actions-width) - var(--tripledger-selection-width)) / 5);
+  }
+
+  .tripledgerListTable .tripledgerActionsColumn {
+    width: var(--tripledger-actions-width);
+  }
+
+  .tripledgerListTable .tripledgerSelectionColumn {
+    width: var(--tripledger-selection-width);
+  }
+
+  .tripledgerListTable .tripledgerActionsCell {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .tripledgerListTable .tripledgerStatusCell {
+    min-width: 0;
+    text-align: left;
+  }
+
+  .historyBillTable th,
+  .historyBillTable td {
+    box-sizing: border-box;
+    min-width: 0;
+    padding: 0.75rem 0.875rem;
+    vertical-align: middle;
+  }
+
+  .historyBillTable th {
+    border-bottom: 1px solid #e2e8f0;
+    border-top: 1px solid #e2e8f0;
+    background: rgb(241 245 249 / 0.7);
+    color: #64748b;
+    font-size: 0.75rem;
+    font-weight: 900;
+    line-height: 1rem;
+    letter-spacing: 0.025em;
+    text-align: left;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .historyBillTable th:first-child {
+    border-left: 1px solid #e2e8f0;
+    border-radius: 1rem 0 0 1rem;
+  }
+
+  .historyBillTable th:last-child {
+    border-right: 1px solid #e2e8f0;
+    border-radius: 0 1rem 1rem 0;
+  }
+
+  .historyBillTable tbody td {
+    border-bottom: 1px solid #e2e8f0;
+    border-top: 1px solid #e2e8f0;
+    background: #fff;
+  }
+
+  .historyBillTable tbody td:first-child {
+    border-left: 1px solid #e2e8f0;
+    border-radius: 1rem 0 0 1rem;
+  }
+
+  .historyBillTable tbody td:last-child {
+    border-right: 1px solid #e2e8f0;
+    border-radius: 0 1rem 1rem 0;
+  }
+
+  .historyBillTableRow.is-selected td {
+    border-color: #93c5fd;
+    background: rgb(239 246 255 / 0.7);
+  }
+
+  .historyBillTable .historyCheckboxCell {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    text-align: center;
+  }
+
+  .historyBillTable .historyAmountCell {
+    width: auto;
+    justify-self: auto;
+    text-align: left;
+    white-space: nowrap;
+    font-variant-numeric: normal;
+  }
+
+  .historyBillTable .historyAmountValue {
+    display: inline;
+    min-width: 0;
+    width: auto;
+    text-align: left;
+    white-space: nowrap;
+    font-variant-numeric: normal;
+  }
+
+  .historyBillTable .historyActionsCell {
+    box-sizing: border-box;
+    display: table-cell;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  .historyBillTable .historyActionsCell > * {
+    display: inline-block;
+  }
+
+  .dark .historyBillTable th {
+    border-color: #1e293b;
+    background: rgb(15 23 42 / 0.7);
+    color: #94a3b8;
+  }
+
+  .dark .historyBillTable tbody td {
+    border-color: #1e293b;
+    background: #111827;
+  }
+
+  .dark .historyBillTableRow.is-selected td {
+    border-color: #1e40af;
+    background: rgb(23 37 84 / 0.35);
+  }
+
+  .tripledger-calendar {
+    --rdp-accent-color: #1e3a8a;
+    --rdp-accent-background-color: #dbeafe;
+    --rdp-day-height: 2.25rem;
+    --rdp-day-width: 2.25rem;
+    --rdp-day_button-height: 2.125rem;
+    --rdp-day_button-width: 2.125rem;
+    --rdp-day_button-border-radius: 0.625rem;
+    --rdp-selected-border: 0;
+    --rdp-range_middle-background-color: #dbeafe;
+    --rdp-range_middle-color: #1e3a8a;
+    --rdp-range_start-date-background-color: #1e3a8a;
+    --rdp-range_end-date-background-color: #1e3a8a;
+    --rdp-today-color: #1e3a8a;
+    --rdp-months-gap: 1rem;
+    color: #334155;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .tripledger-calendar .rdp-months {
+    justify-content: center;
+    max-width: none;
+    width: 100%;
+  }
+
+  .tripledger-calendar .rdp-month {
+    min-width: 0;
+  }
+
+  .tripledger-calendar .rdp-month_grid {
+    width: 100%;
+  }
+
+  .tripledger-calendar .rdp-month_caption {
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    font-weight: 800;
+  }
+
+  .tripledger-calendar .rdp-button_previous,
+  .tripledger-calendar .rdp-button_next {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    color: #475569;
+  }
+
+  .tripledger-calendar .rdp-button_previous:hover,
+  .tripledger-calendar .rdp-button_next:hover {
+    background: #eff6ff;
+    border-color: #1e3a8a;
+    color: #1e3a8a;
+  }
+
+  .tripledger-calendar .rdp-day_button:hover {
+    background: #eff6ff;
+    color: #1e3a8a;
+  }
+
+  .tripledger-calendar .rdp-day_button:focus-visible,
+  .tripledger-calendar .rdp-button_previous:focus-visible,
+  .tripledger-calendar .rdp-button_next:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+  }
+
+  .tripledger-calendar .rdp-weekday {
+    color: #94a3b8;
+    font-size: 0.6875rem;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .dark .tripledger-calendar {
+    --rdp-accent-color: #60a5fa;
+    --rdp-accent-background-color: #172554;
+    --rdp-range_middle-background-color: #172554;
+    --rdp-range_middle-color: #bfdbfe;
+    --rdp-range_start-date-background-color: #2563eb;
+    --rdp-range_end-date-background-color: #2563eb;
+    --rdp-today-color: #93c5fd;
+    color: #e2e8f0;
+  }
+
+  .dark .tripledger-calendar .rdp-button_previous,
+  .dark .tripledger-calendar .rdp-button_next {
+    border-color: #334155;
+    color: #cbd5e1;
+  }
+
+  .dark .tripledger-calendar .rdp-button_previous:hover,
+  .dark .tripledger-calendar .rdp-button_next:hover,
+  .dark .tripledger-calendar .rdp-day_button:hover {
+    background: #1e293b;
+    border-color: #2563eb;
+    color: #bfdbfe;
+  }
+
   .logger-section {
     @apply rounded-2xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm shadow-slate-200/40 dark:border-slate-700 dark:bg-[#111827]/80 dark:shadow-none sm:p-5;
   }
@@ -94,6 +427,7 @@ textarea {
   }
 
   .theme-switch-thumb {
-    @apply block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out dark:translate-x-5 dark:bg-blue-300;
+    @apply block h-5 w-5 rounded-full bg-white shadow-sm dark:translate-x-5 dark:bg-blue-300;
+    transition: transform 160ms ease, background-color 160ms ease;
   }
 }

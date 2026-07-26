@@ -33,8 +33,7 @@ export function calculateBillDraft(draft: BillDraft): BillDraft {
     extraKmAmount +
     Number(draft.airportParking || 0) +
     Number(draft.fastag || 0) +
-    Number(draft.roadParking || 0) +
-    Number(draft.pendingAmount || 0);
+    Number(draft.roadParking || 0);
 
   return {
     ...draft,
@@ -47,15 +46,14 @@ export function calculateBillDraft(draft: BillDraft): BillDraft {
   };
 }
 
-export function calculateBillTotal(bill: Pick<Bill, "baseAmount" | "extraHourAmount" | "extraKmAmount" | "airportParking" | "fastag" | "roadParking" | "pendingAmount">): number {
+export function calculateBillTotal(bill: Pick<Bill, "baseAmount" | "extraHourAmount" | "extraKmAmount" | "airportParking" | "fastag" | "roadParking">): number {
   return (
     Number(bill.baseAmount || 0) +
     Number(bill.extraHourAmount || 0) +
     Number(bill.extraKmAmount || 0) +
     Number(bill.airportParking || 0) +
     Number(bill.fastag || 0) +
-    Number(bill.roadParking || 0) +
-    Number(bill.pendingAmount || 0)
+    Number(bill.roadParking || 0)
   );
 }
 

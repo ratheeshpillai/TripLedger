@@ -6,6 +6,12 @@ export function currency(value: number, symbol = "₹"): string {
   return `${symbol}${Math.round(value).toLocaleString("en-IN")}`;
 }
 
+export function balanceLabel(value: number, symbol = "₹"): string {
+  if (value > 0) return `Outstanding ${currency(value, symbol)}`;
+  if (value < 0) return `Advance ${currency(Math.abs(value), symbol)}`;
+  return "Settled";
+}
+
 export function amountOrNA(value: number, symbol = "₹"): string {
   return value > 0 ? currency(value, symbol) : "NA";
 }

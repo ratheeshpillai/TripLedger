@@ -73,6 +73,17 @@ export function getSafeErrorMessage(error: unknown, context: SafeErrorContext = 
   if (code === "23505") {
     return "A matching record already exists.";
   }
+  if (message.includes("record limit")) {
+    return "You have reached the current record limit.";
+  }
+  if (message.includes("already being processed") || message.includes("already saved")) {
+    return "This request is already being processed.";
+  }
+  if (code === "23514") {
+    return context === "bill.save" || context === "bill.update"
+      ? "Unable to save the bill. Please review the details and try again."
+      : "Unable to save. Please try again.";
+  }
   if (code === "42501" || code === "insufficient_aal" || status === 401 || status === 403 || message.includes("row-level security")) {
     return context.startsWith("auth.")
       ? "Your session is not authorized for this action. Please sign in again."

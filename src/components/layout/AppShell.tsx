@@ -2,29 +2,34 @@ import { motion } from "framer-motion";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "../ui/cn";
 
-export type AppPage = "dashboard" | "logger" | "history" | "settings";
+export type AppPage = "dashboard" | "logger" | "history" | "owners" | "settings";
 
-const navItems: Array<{ id: Exclude<AppPage, "settings">; label: string; icon: "dashboard" | "logger" | "history" }> = [
+const navItems: Array<{ id: Exclude<AppPage, "settings">; label: string; icon: "dashboard" | "logger" | "history" | "owners" }> = [
   { id: "dashboard", label: "Dashboard", icon: "dashboard" },
   { id: "logger", label: "Create Bill", icon: "logger" },
-  { id: "history", label: "History", icon: "history" }
+  { id: "history", label: "History", icon: "history" },
+  { id: "owners", label: "Owners", icon: "owners" }
 ];
 
-const pageTitles: Record<AppPage, { eyebrow: string; title: string }> = {
-  dashboard: { eyebrow: "Dashboard", title: "Billing Overview" },
-  logger: { eyebrow: "Create Bill", title: "Logger" },
-  history: { eyebrow: "History", title: "Saved Bills" },
+const pageTitles: Record<AppPage, { eyebrow: string; title?: string; description?: string }> = {
+  dashboard: { eyebrow: "Dashboard", title: "Billing Overview", description: "Track your saved bills and jump back into daily billing." },
+  logger: { eyebrow: "", title: "Create Bill", description: "Enter trip and billing details" },
+  history: { eyebrow: "", title: "Bill History", description: "Search, review and manage saved bills" },
+  owners: { eyebrow: "", title: "Owners & Payments", description: "Track owner balances, bills and payments" },
   settings: { eyebrow: "Settings", title: "Account & App Settings" }
 };
 
 const SIDEBAR_COLLAPSED_KEY = "tripledger-sidebar-collapsed";
+const PAGE_CONTAINER_CLASS = "mx-auto box-border w-full min-w-0 max-w-7xl px-4 sm:px-6";
+const PAGE_HEADER_CLASS = "flex w-full min-w-0 items-start justify-between gap-4 py-4";
+const PAGE_BODY_CLASS = "pt-4 sm:pt-6 md:pb-8";
 
 function getInitialSidebarCollapsed(): boolean {
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
 }
 
-function NavIcon({ icon }: { icon: "dashboard" | "logger" | "history" }) {
+function NavIcon({ icon }: { icon: "dashboard" | "logger" | "history" | "owners" }) {
   if (icon === "dashboard") {
     return (
       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -38,6 +43,15 @@ function NavIcon({ icon }: { icon: "dashboard" | "logger" | "history" }) {
       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M3 12a9 9 0 1 0 3-6.7L3 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M3 4v4h4M12 7v5l3 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  if (icon === "owners") {
+    return (
+      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M16 11a4 4 0 1 0-8 0M4 20a8 8 0 0 1 16 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M17.5 7.5h3M19 6v3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       </svg>
     );
   }
@@ -83,14 +97,14 @@ export function AppShell({ page, setPage, userEmail, isDarkMode, onToggleDarkMod
           sidebarCollapsed ? "w-20" : "w-64"
         )}
       >
-        <div className="flex min-h-14 items-start justify-between gap-2 px-1">
-          <div className={cn("min-w-0 overflow-hidden transition-opacity duration-150", sidebarCollapsed && "pointer-events-none opacity-0")}>
+        <div className={cn("flex min-h-14", sidebarCollapsed ? "items-center justify-center gap-0 px-0" : "items-start justify-between gap-2 px-1")}>
+          <div className={cn("min-w-0 overflow-hidden transition-[opacity,width] duration-150", sidebarCollapsed && "pointer-events-none w-0 opacity-0")}>
             <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A] dark:text-blue-300">TripLedger</p>
             <h1 className="mt-1 whitespace-nowrap text-lg font-black leading-tight text-slate-950 dark:text-slate-50">Fleet & Billing</h1>
           </div>
           <button
             type="button"
-            className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-xl border border-slate-200 bg-white text-[#1E3A8A] shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-slate-700 dark:bg-[#111827] dark:text-blue-200 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-950"
+            className="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-2xl border border-slate-200 bg-white text-[#1E3A8A] shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-slate-700 dark:bg-[#111827] dark:text-blue-200 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-950"
             aria-label={sidebarCollapsed ? "Expand sidebar navigation" : "Collapse sidebar navigation"}
             aria-expanded={!sidebarCollapsed}
             title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
@@ -124,23 +138,24 @@ export function AppShell({ page, setPage, userEmail, isDarkMode, onToggleDarkMod
           ))}
         </nav>
       </aside>
-      <div className={cn("transition-[padding] duration-200 ease-out", sidebarCollapsed ? "lg:pl-20" : "lg:pl-64")}>
+      <div className={cn("min-w-0 transition-[padding] duration-200 ease-out", sidebarCollapsed ? "lg:pl-20" : "lg:pl-64")}>
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800/80 dark:bg-[#0b1120]/90">
-        <div className="mx-auto flex max-w-7xl items-start justify-between gap-4 px-4 py-4 sm:px-6">
+        <div className={cn(PAGE_CONTAINER_CLASS, PAGE_HEADER_CLASS)}>
           <div className="min-w-0">
             <div className="lg:hidden">
               <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A]">TripLedger</p>
               <h1 className="text-2xl font-black leading-tight text-slate-950 dark:text-slate-50 sm:text-3xl">Fleet & Billing Platform</h1>
             </div>
             <div className="hidden lg:block">
-              <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A] dark:text-blue-300">{pageTitle.eyebrow}</p>
-              <h1 className="text-2xl font-black leading-tight text-slate-950 dark:text-slate-50">{pageTitle.title}</h1>
+              {pageTitle.eyebrow && <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A] dark:text-blue-300">{pageTitle.eyebrow}</p>}
+              {pageTitle.title && <h1 className="text-2xl font-black leading-tight text-slate-950 dark:text-slate-50">{pageTitle.title}</h1>}
+              {pageTitle.description && <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{pageTitle.description}</p>}
             </div>
           </div>
-          <div ref={menuRef} className="relative ml-auto shrink-0 sm:ml-0">
+          <div ref={menuRef} className="relative shrink-0">
             <button
               type="button"
-              className="grid h-11 w-11 cursor-pointer place-items-center rounded-full border border-slate-200 bg-white text-[#1E3A8A] shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-[#111827] dark:text-blue-200 dark:hover:bg-slate-800"
+              className="grid h-11 w-11 cursor-pointer place-items-center rounded-full border border-slate-200 bg-white text-[#1E3A8A] shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-slate-700 dark:bg-[#111827] dark:text-blue-200 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-950"
               aria-label="Open user menu"
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((current) => !current)}
@@ -198,13 +213,14 @@ export function AppShell({ page, setPage, userEmail, isDarkMode, onToggleDarkMod
             )}
           </div>
         </div>
-        <nav className="mx-auto hidden max-w-7xl gap-3 overflow-x-auto px-4 pb-4 sm:px-6 md:flex lg:hidden">
+        <nav className={cn(PAGE_CONTAINER_CLASS, "hidden gap-3 overflow-x-auto pb-4 md:flex lg:hidden")}>
           {navItems.map((item) => (
             <button
               key={item.id}
               onClick={() => setPage(item.id)}
+              aria-current={page === item.id ? "page" : undefined}
               className={cn(
-                "relative inline-flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-black",
+                "relative inline-flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-black focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-950",
                 page === item.id
                   ? "text-white hover:text-white"
                   : "text-[#475569] hover:bg-[#E0E7FF] hover:text-[#1E3A8A] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-blue-200"
@@ -224,19 +240,20 @@ export function AppShell({ page, setPage, userEmail, isDarkMode, onToggleDarkMod
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.22 }}
-        className="mx-auto max-w-7xl px-4 pb-28 pt-5 sm:px-6 sm:pt-8 md:pb-8"
+        className={cn(PAGE_CONTAINER_CLASS, PAGE_BODY_CLASS, page === "logger" ? "pb-44" : "pb-28")}
       >
         {children}
       </motion.main>
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-800 dark:bg-[#0b1120]/95 md:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-3 gap-2">
+        <div className="mx-auto grid max-w-md grid-cols-4 gap-2">
           {navItems.map((item) => (
             <button
               key={item.id}
               type="button"
               onClick={() => setPage(item.id)}
+              aria-current={page === item.id ? "page" : undefined}
               className={cn(
-                "flex min-h-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl px-2 text-xs font-black",
+                "flex min-h-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl px-1 text-xs font-black focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-950",
                 page === item.id
                   ? "bg-[#1E3A8A] text-white shadow-sm dark:bg-blue-600"
                   : "text-slate-500 hover:bg-slate-100 hover:text-[#1E3A8A] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-blue-200"

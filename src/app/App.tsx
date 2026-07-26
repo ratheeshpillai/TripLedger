@@ -6,14 +6,17 @@ import { AppShell, type AppPage } from "../components/layout/AppShell";
 import { DashboardPage } from "../components/dashboard/DashboardPage";
 import { LoggerPage } from "../components/logger/LoggerPage";
 import { HistoryPage } from "../components/history/HistoryPage";
+import { OwnerCompanyPage } from "../components/owners/OwnerCompanyPage";
 import { SettingsPage } from "../components/settings/SettingsPage";
 import { ConfirmationDialog } from "../components/shared/ConfirmationDialog";
 import { Toast } from "../components/shared/Toast";
 import { useAuth } from "../hooks/useAuth";
 import { useBillForm } from "../hooks/useBillForm";
 import { useBills } from "../hooks/useBills";
+import { useBillingParties } from "../hooks/useBillingParties";
 import { useDarkMode } from "../hooks/useDarkMode";
 import { useSettings } from "../hooks/useSettings";
+import { useOwnerPayments } from "../hooks/useOwnerPayments";
 import { clearLegacyLocalBillData } from "../services/privacyMigrationService";
 import { getSafeErrorMessage, logDevError } from "../utils/errors";
 import { exportSingleBillPdf } from "../utils/pdf";
@@ -21,6 +24,7 @@ import { exportSingleBillPdf } from "../utils/pdf";
 function pageFromPath(pathname: string): AppPage {
   const normalized = pathname.replace(/\/+$/, "") || "/";
   if (normalized === "/history") return "history";
+  if (normalized === "/owners" || normalized === "/owner-company") return "owners";
   if (normalized === "/logger" || normalized === "/create-bill") return "logger";
   if (normalized === "/settings") return "settings";
   return "dashboard";
@@ -28,6 +32,7 @@ function pageFromPath(pathname: string): AppPage {
 
 function pagePath(page: AppPage): string {
   if (page === "history") return "/history";
+  if (page === "owners") return "/owners";
   if (page === "logger") return "/create-bill";
   if (page === "settings") return "/settings";
   return "/dashboard";
@@ -38,6 +43,8 @@ export default function App() {
   const theme = useDarkMode();
   const { settings, saveSettings } = useSettings(auth.user?.id ?? null);
   const billsApi = useBills(auth.user?.id ?? null);
+  const billingPartiesApi = useBillingParties(auth.user?.id ?? null);
+  const ownerPaymentsApi = useOwnerPayments(auth.user?.id ?? null);
   const form = useBillForm(settings);
   const [page, setPage] = useState<AppPage>(() => pageFromPath(window.location.pathname));
   const [toast, setToast] = useState("");
@@ -45,6 +52,7 @@ export default function App() {
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [authCallbackHandled, setAuthCallbackHandled] = useState(false);
   const previousUserIdRef = useRef<string | null>(null);
+  const saveActionPromiseRef = useRef<Promise<unknown> | null>(null);
 
   useLayoutEffect(() => {
     const nextUserId = auth.user?.id ?? null;
@@ -87,19 +95,32 @@ export default function App() {
   }
 
   async function handleSave() {
+    if (saveActionPromiseRef.current) return saveActionPromiseRef.current as Promise<ReturnType<typeof billsApi.saveBill>>;
     const actionUserId = auth.user?.id ?? null;
-    try {
+    const savePromise = (async () => {
+      if (!form.draft.billingPartyId) {
+        showToast("Select an Owner / Company before saving.");
+        throw new Error("Owner / Company is required.");
+      }
       const saved = await billsApi.saveBill(form.draft, form.editingBillId);
       if (previousUserIdRef.current !== actionUserId) return saved;
       form.setEditingBillId(null);
       showToast(form.editingBillId ? "Bill updated" : "Bill saved");
+      await billingPartiesApi.refresh();
       return saved;
+    })();
+
+    saveActionPromiseRef.current = savePromise;
+    try {
+      return await savePromise;
     } catch (error) {
       logDevError("Save bill action failed", error);
       if (previousUserIdRef.current === actionUserId) {
         showToast(getSafeErrorMessage(error, form.editingBillId ? "bill.update" : "bill.save"));
       }
       throw error;
+    } finally {
+      if (saveActionPromiseRef.current === savePromise) saveActionPromiseRef.current = null;
     }
   }
 
@@ -206,7 +227,23 @@ export default function App() {
         <LoggerPage
           draft={form.draft}
           editingBillId={form.editingBillId}
+          saving={billsApi.saving}
           settings={settings}
+          billingParties={billingPartiesApi.parties}
+          onQuickCreateBillingParty={async (name) => {
+            const saved = await billingPartiesApi.saveBillingParty({
+              userId: auth.user?.id,
+              name,
+              companyName: "",
+              phone: "",
+              email: "",
+              address: "",
+              notes: ""
+            });
+            form.updateField("billingPartyId", saved.id);
+            showToast("Owner / Company created");
+            return saved;
+          }}
           onFieldChange={form.updateField}
           onGarageTimeChange={form.setGarageTime}
           onSave={handleSave}
@@ -214,7 +251,15 @@ export default function App() {
           onCopy={copyText}
           onPdf={() => {
             const now = new Date().toISOString();
-            exportSingleBillPdf({ ...form.draft, id: "preview", createdAt: now, updatedAt: now }, settings);
+            const selectedParty = billingPartiesApi.parties.find((party) => party.id === form.draft.billingPartyId);
+            exportSingleBillPdf({
+              ...form.draft,
+              billingPartyName: selectedParty?.name,
+              billingPartyCompanyName: selectedParty?.companyName,
+              id: "preview",
+              createdAt: now,
+              updatedAt: now
+            }, settings);
           }}
         />
       )}
@@ -222,7 +267,9 @@ export default function App() {
       {page === "history" && (
         <HistoryPage
           bills={billsApi.bills}
+          billingParties={billingPartiesApi.parties}
           settings={settings}
+          userId={auth.user.id}
           selectedIds={billsApi.selectedIds}
           onToggleSelected={billsApi.toggleSelected}
           onSelectAll={billsApi.selectAll}
@@ -245,9 +292,61 @@ export default function App() {
             } catch (error) {
               logDevError("Delete bill action failed", error);
               if (previousUserIdRef.current === actionUserId) showToast(getSafeErrorMessage(error, "bill.delete"));
+              throw error;
+            }
+          }}
+          onDeleteSelected={async (ids) => {
+            const actionUserId = auth.user?.id ?? null;
+            try {
+              await billsApi.deleteBills(ids);
+              if (previousUserIdRef.current === actionUserId) showToast(ids.length === 1 ? "Bill deleted" : `${ids.length} bills deleted`);
+            } catch (error) {
+              logDevError("Delete selected bills action failed", error);
+              if (previousUserIdRef.current === actionUserId) showToast(getSafeErrorMessage(error, "bill.delete"));
+              throw error;
             }
           }}
           onCopy={copyText}
+          onCreateBill={() => navigateToPage("logger")}
+        />
+      )}
+
+      {page === "owners" && (
+        <OwnerCompanyPage
+          parties={billingPartiesApi.parties}
+          summaries={billingPartiesApi.summaries}
+          ledgerByPartyId={billingPartiesApi.ledgerByPartyId}
+          payments={ownerPaymentsApi.payments}
+          settings={settings}
+          loading={billingPartiesApi.loading}
+          error={billingPartiesApi.error || ownerPaymentsApi.error}
+          partySaving={billingPartiesApi.saving}
+          partyDeletingIds={billingPartiesApi.deletingIds}
+          paymentSaving={ownerPaymentsApi.saving}
+          paymentDeletingIds={ownerPaymentsApi.deletingIds}
+          onLoadLedger={billingPartiesApi.loadLedger}
+          onLoadStatement={billingPartiesApi.loadStatement}
+          onCopy={copyText}
+          onSaveParty={billingPartiesApi.saveBillingParty}
+          onDeleteParty={async (id) => {
+            await billingPartiesApi.deleteBillingParty(id);
+            if (form.draft.billingPartyId === id) form.updateField("billingPartyId", undefined);
+          }}
+          onSavePayment={async (draft, editingId) => {
+            const saved = await ownerPaymentsApi.saveOwnerPayment(draft, editingId);
+            await billingPartiesApi.refresh();
+            return saved;
+          }}
+          onDeletePayment={async (id) => {
+            await ownerPaymentsApi.deleteOwnerPayment(id);
+            await billingPartiesApi.refresh();
+          }}
+          onCreateBillForOwner={(party) => {
+            form.resetLogger();
+            form.updateField("billingPartyId", party.id);
+            navigateToPage("logger");
+            showToast("Owner / Company selected");
+          }}
         />
       )}
 

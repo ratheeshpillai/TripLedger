@@ -1,6 +1,9 @@
 export interface Bill {
   id: string;
   companyId?: string;
+  billingPartyId?: string;
+  billingPartyName?: string;
+  billingPartyCompanyName?: string;
   userId?: string;
   driverId?: string;
   vehicleId?: string;

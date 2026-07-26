@@ -1,28 +1,29 @@
 import type { Bill, BillSummaryTotals } from "../types/bill";
+import type { BillingPartyStatement } from "../types/billingParty";
 import type { AppSettings } from "../types/settings";
-import { amountOrNA, currency, dateDisplay, guestDisplay, numberOrNA, padLabel, timeDisplay } from "./formatters";
+import { amountOrNA, balanceLabel, currency, dateDisplay, guestDisplay, numberOrNA, timeDisplay } from "./formatters";
+import { chronologicalBills } from "./billOrdering";
 import { formatDuration } from "./timeUtils";
 
 function line(label: string, value: string): string {
-  return `${padLabel(label)}: ${value}`;
+  return `${label}: ${value}`;
 }
 
 type WhatsAppRow = string | [label: string, value: string];
 
 function renderWhatsAppRows(rows: WhatsAppRow[]): string {
-  const labelWidth = rows.reduce((width, row) => Array.isArray(row) ? Math.max(width, row[0].length) : width, 0);
-  return rows.map((row) => Array.isArray(row) ? `${row[0].padEnd(labelWidth, " ")} : ${row[1]}` : row).join("\n");
-}
-
-function wrapWhatsAppCodeBlock(message: string): string {
-  return ["```", message, "```"].join("\n");
+  return rows
+    .flatMap((row) => Array.isArray(row) ? (row[1].trim() ? [line(row[0], row[1])] : []) : [row])
+    .join("\n");
 }
 
 function singleBillWhatsAppRows(bill: Bill, settings: AppSettings): WhatsAppRow[] {
   const symbol = settings.currencySymbol;
+  const ownerName = bill.billingPartyCompanyName || bill.billingPartyName || "Unassigned";
   return [
     "BILL DETAILS",
     "",
+    ["Owner / Company", ownerName],
     ["Driver", bill.driverName || "NA"],
     ["Vehicle", bill.vehicleName || "NA"],
     ["Vehicle Number", bill.vehicleNumber || "NA"],
@@ -55,19 +56,20 @@ function singleBillWhatsAppRows(bill: Bill, settings: AppSettings): WhatsAppRow[
     ["Airport Parking", amountOrNA(bill.airportParking, symbol)],
     ["Fastag", amountOrNA(bill.fastag, symbol)],
     ["Road Parking", amountOrNA(bill.roadParking, symbol)],
-    ["Pending Amount", amountOrNA(bill.pendingAmount, symbol)],
     "",
     "TOTAL",
     "",
-    ["Total Amount", currency(bill.totalAmount, symbol)]
+    ["Current Bill Amount", currency(bill.totalAmount, symbol)]
   ];
 }
 
 export function buildSingleBillText(bill: Bill, settings: AppSettings): string {
   const symbol = settings.currencySymbol;
+  const ownerName = bill.billingPartyCompanyName || bill.billingPartyName || "Unassigned";
   return [
     "BILL DETAILS",
     "",
+    line("Owner / Company", ownerName),
     line("Driver", bill.driverName || "NA"),
     line("Vehicle", bill.vehicleName || "NA"),
     line("Vehicle Number", bill.vehicleNumber || "NA"),
@@ -100,16 +102,15 @@ export function buildSingleBillText(bill: Bill, settings: AppSettings): string {
     line("Airport Parking", amountOrNA(bill.airportParking, symbol)),
     line("Fastag", amountOrNA(bill.fastag, symbol)),
     line("Road Parking", amountOrNA(bill.roadParking, symbol)),
-    line("Pending Amount", amountOrNA(bill.pendingAmount, symbol)),
     "",
     "TOTAL",
     "",
-    line("Total Amount", currency(bill.totalAmount, symbol))
+    line("Current Bill Amount", currency(bill.totalAmount, symbol))
   ].join("\n");
 }
 
 export function buildSingleBillWhatsAppText(bill: Bill, settings: AppSettings): string {
-  return wrapWhatsAppCodeBlock(renderWhatsAppRows(singleBillWhatsAppRows(bill, settings)));
+  return renderWhatsAppRows(singleBillWhatsAppRows(bill, settings));
 }
 
 export function buildCombinedSummaryText(totals: BillSummaryTotals, settings: AppSettings): string {
@@ -126,7 +127,6 @@ export function buildCombinedSummaryText(totals: BillSummaryTotals, settings: Ap
     line("Airport Parking", amountOrNA(totals.totalAirportParking, symbol)),
     line("Fastag", amountOrNA(totals.totalFastag, symbol)),
     line("Road Parking", amountOrNA(totals.totalRoadParking, symbol)),
-    line("Pending Amount", amountOrNA(totals.totalPendingAmount, symbol)),
     "",
     line("Grand Total", currency(totals.grandTotal, symbol))
   ].join("\n");
@@ -134,8 +134,8 @@ export function buildCombinedSummaryText(totals: BillSummaryTotals, settings: Ap
 
 export function buildCombinedSummaryWhatsAppText(totals: BillSummaryTotals, settings: AppSettings): string {
   const symbol = settings.currencySymbol;
-  return wrapWhatsAppCodeBlock(renderWhatsAppRows([
-    "COMBINED BILL SUMMARY",
+  return renderWhatsAppRows([
+    "*Combined Bill Summary*",
     "",
     ["Selected Bills", String(totals.selectedBillsCount)],
     ["Total KM", numberOrNA(totals.totalKm)],
@@ -146,25 +146,96 @@ export function buildCombinedSummaryWhatsAppText(totals: BillSummaryTotals, sett
     ["Airport Parking", amountOrNA(totals.totalAirportParking, symbol)],
     ["Fastag", amountOrNA(totals.totalFastag, symbol)],
     ["Road Parking", amountOrNA(totals.totalRoadParking, symbol)],
-    ["Pending Amount", amountOrNA(totals.totalPendingAmount, symbol)],
     "",
     ["Grand Total", currency(totals.grandTotal, symbol)]
-  ]));
+  ]);
 }
 
 export function buildIndividualSummaryText(bills: Bill[], settings: AppSettings): string {
-  return bills.map((bill, index) => `BILL ${index + 1}\n\n${buildSingleBillText(bill, settings)}`).join("\n\n--------------------\n\n");
+  return chronologicalBills(bills).map((bill, index) => `BILL ${index + 1}\n\n${buildSingleBillText(bill, settings)}`).join("\n\n--------------------\n\n");
 }
 
 export function buildIndividualSummaryWhatsAppText(bills: Bill[], settings: AppSettings): string {
-  const rows = bills.flatMap<WhatsAppRow>((bill, index) => [
-    `BILL ${index + 1}`,
+  const ordered = chronologicalBills(bills);
+  return ordered.map((bill, index) => renderWhatsAppRows([
+    `*Trip ${index + 1} - ${dateDisplay(bill.tripDate)}*`,
     "",
     ...singleBillWhatsAppRows(bill, settings),
-    ...(index < bills.length - 1 ? ["", "--------------------", ""] : [])
-  ]);
+  ])).join("\n\n--------------------\n\n");
+}
 
-  return wrapWhatsAppCodeBlock(renderWhatsAppRows(rows));
+function statementPositionLines(statement: BillingPartyStatement, symbol: string): WhatsAppRow[] {
+  if (statement.summary.advanceAvailable > 0) {
+    return [["Advance Available", currency(statement.summary.advanceAvailable, symbol)]];
+  }
+  if (statement.summary.closingOutstanding > 0) {
+    return [["Outstanding", currency(statement.summary.closingOutstanding, symbol)]];
+  }
+  return [["Status", "Settled"]];
+}
+
+export function buildOwnerStatementText(statement: BillingPartyStatement, settings: AppSettings): string {
+  const symbol = settings.currencySymbol;
+  const ownerName = statement.companyName || statement.displayName || "Owner / Company";
+  const transactionLines = statement.entries.length > 0
+    ? statement.entries.map((entry) => {
+      const amount = entry.debitAmount > 0 ? currency(entry.debitAmount, symbol) : currency(entry.creditAmount, symbol);
+      return `${dateDisplay(entry.entryDate)} - ${labelizeStatementType(entry.entryType)} - ${amount} - ${balanceLabel(entry.runningBalance, symbol)}`;
+    })
+    : ["No transactions in this period."];
+
+  return [
+    line("Owner / Company", ownerName),
+    line("Period", `${dateDisplay(statement.fromDate)} - ${dateDisplay(statement.toDate)}`),
+    "",
+    line("Opening Balance", balanceLabel(statement.summary.openingBalance, symbol)),
+    line("Bills During Period", currency(statement.summary.totalBilled, symbol)),
+    line("Payments Received", currency(statement.summary.totalReceived, symbol)),
+    ...(statement.summary.advanceAvailable > 0
+      ? [line("Advance Available", currency(statement.summary.advanceAvailable, symbol))]
+      : statement.summary.closingOutstanding > 0
+        ? [line("Outstanding", currency(statement.summary.closingOutstanding, symbol))]
+        : [line("Status", "Settled")]),
+    "",
+    "Transactions:",
+    ...transactionLines
+  ].join("\n");
+}
+
+export function buildOwnerStatementWhatsAppText(statement: BillingPartyStatement, settings: AppSettings): string {
+  const symbol = settings.currencySymbol;
+  const ownerName = statement.companyName || statement.displayName || "Owner / Company";
+  const rows: WhatsAppRow[] = [
+    "*Owner / Company Statement*",
+    "",
+    ["Owner / Company", ownerName],
+    ["Period", `${dateDisplay(statement.fromDate)} - ${dateDisplay(statement.toDate)}`],
+    "",
+    ["Opening Balance", balanceLabel(statement.summary.openingBalance, symbol)],
+    ["Bills During Period", currency(statement.summary.totalBilled, symbol)],
+    ["Payments Received", currency(statement.summary.totalReceived, symbol)],
+    ...statementPositionLines(statement, symbol),
+    "",
+    "TRANSACTIONS",
+    ""
+  ];
+
+  if (statement.entries.length === 0) {
+    rows.push("No transactions in this period.");
+  } else {
+    statement.entries.forEach((entry) => {
+      const amount = entry.debitAmount > 0 ? currency(entry.debitAmount, symbol) : currency(entry.creditAmount, symbol);
+      rows.push([`${dateDisplay(entry.entryDate)} ${labelizeStatementType(entry.entryType)}`, `${amount} | ${balanceLabel(entry.runningBalance, symbol)}`]);
+    });
+  }
+
+  return renderWhatsAppRows(rows);
+}
+
+function labelizeStatementType(value: string): string {
+  if (value === "bill") return "Bill";
+  if (value === "advance_received") return "Advance Received";
+  return "Payment Received";
 }
 
 export function createWhatsAppUrl(message: string, phone?: string): string {

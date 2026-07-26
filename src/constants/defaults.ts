@@ -23,6 +23,9 @@ export function createEmptyBillDraft(settings: AppSettings = DEFAULT_SETTINGS): 
 
   return {
     companyId: undefined,
+    billingPartyId: undefined,
+    billingPartyName: undefined,
+    billingPartyCompanyName: undefined,
     userId: undefined,
     driverId: undefined,
     vehicleId: undefined,

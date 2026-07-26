@@ -1,13 +1,13 @@
-import type { HTMLAttributes, PropsWithChildren } from "react";
+import { forwardRef, type HTMLAttributes, type PropsWithChildren } from "react";
 import { cn } from "./cn";
 
-export function Card({ children, className, ...props }: PropsWithChildren<HTMLAttributes<HTMLDivElement>>) {
+export const Card = forwardRef<HTMLDivElement, PropsWithChildren<HTMLAttributes<HTMLDivElement>>>(function Card({ children, className, ...props }, ref) {
   return (
-    <section className={cn("rounded-2xl border border-slate-200 bg-white shadow-soft dark:border-slate-700 dark:bg-[#111827] dark:shadow-black/20", className)} {...props}>
+    <section ref={ref} className={cn("rounded-2xl border border-slate-200 bg-white shadow-soft dark:border-slate-700 dark:bg-[#111827] dark:shadow-black/20", className)} {...props}>
       {children}
     </section>
   );
-}
+});
 
 export function CardHeader({ children, className, ...props }: PropsWithChildren<HTMLAttributes<HTMLDivElement>>) {
   return <div className={cn("border-b border-slate-100 p-5 dark:border-slate-700", className)} {...props}>{children}</div>;

@@ -7,6 +7,11 @@ type BillRow = {
   id: string;
   user_id: string;
   company_id: string | null;
+  billing_party_id: string | null;
+  billing_parties?: {
+    name: string | null;
+    company_name: string | null;
+  } | null;
   driver_id: string | null;
   vehicle_id: string | null;
   guest_id: string | null;
@@ -71,14 +76,22 @@ function number(value: number | null | undefined): number {
   return Number(value ?? 0);
 }
 
-function dateOrNull(value: string): string | null {
+function dateOrNull(value: string | null | undefined): string | null {
   return value || null;
+}
+
+function salutationOrNull(value: Bill["guestSalutation"] | null | undefined): "Mr." | "Mrs." | "Miss." | null {
+  if (value === "Miss") return "Miss.";
+  return value ?? null;
 }
 
 function toBill(row: BillRow): Bill {
   return {
     id: row.id,
     companyId: row.company_id ?? undefined,
+    billingPartyId: row.billing_party_id ?? undefined,
+    billingPartyName: row.billing_parties?.name ?? undefined,
+    billingPartyCompanyName: row.billing_parties?.company_name ?? undefined,
     userId: row.user_id,
     driverId: row.driver_id ?? undefined,
     vehicleId: row.vehicle_id ?? undefined,
@@ -119,65 +132,41 @@ function toBill(row: BillRow): Bill {
   };
 }
 
-function toRow(userId: string, bill: Bill): Partial<BillRow> {
+function toBillRpcParams(bill: Bill) {
   return {
-    id: bill.id,
-    user_id: userId,
-    company_id: bill.companyId ?? null,
-    driver_id: bill.driverId ?? null,
-    vehicle_id: bill.vehicleId ?? null,
-    guest_id: bill.guestId ?? null,
-    driver_name: bill.driverName,
-    vehicle_name: bill.vehicleName,
-    vehicle_number: bill.vehicleNumber,
-    guest_salutation: bill.guestSalutation ?? null,
-    guest_name: bill.guestName,
-    customer_name: bill.guestName,
-    passenger_name: bill.guestName,
-    title_prefix: bill.guestSalutation ?? null,
-    reporting_place: bill.reportingPlace,
-    start_location: bill.reportingPlace,
-    end_location: null,
-    trip_date: dateOrNull(bill.tripDate),
-    date: dateOrNull(bill.tripDate),
-    reporting_time: bill.reportingTime,
-    garage_time: bill.garageTime,
-    closing_date: dateOrNull(bill.closingDate),
-    closing_time: bill.closingTime,
-    base_package: bill.basePackage,
-    base_hours: bill.baseHours,
-    base_km: bill.baseKm,
-    base_amount: bill.baseAmount,
-    opening_kilometer: null,
-    closing_kilometer: null,
-    total_km: bill.totalKm,
-    total_kilometers: bill.totalKm,
-    extra_km: bill.extraKm,
-    extra_km_rate: bill.extraKmRate,
-    rate_per_kilometer: bill.extraKmRate,
-    extra_km_amount: bill.extraKmAmount,
-    kilometer_amount: bill.extraKmAmount,
-    total_hours: bill.totalHours,
-    extra_hours: bill.extraHours,
-    extra_hour_rate: bill.extraHourRate,
-    extra_hour_amount: bill.extraHourAmount,
-    night_charges: 0,
-    toll_charges: bill.fastag,
-    airport_parking: bill.airportParking,
-    parking_charges: bill.airportParking + bill.roadParking,
-    fastag: bill.fastag,
-    road_parking: bill.roadParking,
-    permit_charges: 0,
-    other_charges: 0,
-    advance_amount: bill.advanceAmount,
-    pending_amount: bill.pendingAmount,
-    balance_amount: bill.pendingAmount,
-    total_amount: bill.totalAmount,
-    notes: bill.notes,
-    remarks: bill.notes,
-    whatsapp_number: bill.whatsappNumber,
-    created_at: bill.createdAt,
-    updated_at: bill.updatedAt
+    p_company_id: bill.companyId ?? null,
+    p_billing_party_id: bill.billingPartyId ?? null,
+    p_driver_id: bill.driverId ?? null,
+    p_vehicle_id: bill.vehicleId ?? null,
+    p_guest_id: bill.guestId ?? null,
+    p_driver_name: bill.driverName,
+    p_vehicle_name: bill.vehicleName,
+    p_vehicle_number: bill.vehicleNumber,
+    p_guest_salutation: salutationOrNull(bill.guestSalutation),
+    p_guest_name: bill.guestName,
+    p_reporting_place: bill.reportingPlace,
+    p_trip_date: dateOrNull(bill.tripDate),
+    p_reporting_time: bill.reportingTime,
+    p_garage_time: bill.garageTime,
+    p_closing_date: dateOrNull(bill.closingDate),
+    p_closing_time: bill.closingTime,
+    p_base_package: bill.basePackage,
+    p_base_hours: bill.baseHours,
+    p_base_km: bill.baseKm,
+    p_base_amount: bill.baseAmount,
+    p_opening_kilometer: null,
+    p_closing_kilometer: null,
+    p_total_km: bill.totalKm,
+    p_extra_km_rate: bill.extraKmRate,
+    p_total_hours: bill.totalHours,
+    p_extra_hour_rate: bill.extraHourRate,
+    p_airport_parking: bill.airportParking,
+    p_fastag: bill.fastag,
+    p_road_parking: bill.roadParking,
+    p_advance_amount: bill.advanceAmount,
+    p_pending_amount: bill.pendingAmount,
+    p_notes: bill.notes,
+    p_whatsapp_number: bill.whatsappNumber
   };
 }
 
@@ -185,7 +174,7 @@ export const supabaseBillRepository: BillRepository = {
   async listBills(userId) {
     const { data, error } = await getSupabaseClient()
       .from("bills")
-      .select("*")
+      .select("*, billing_parties(name, company_name)")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
@@ -196,11 +185,12 @@ export const supabaseBillRepository: BillRepository = {
     return ((data ?? []) as BillRow[]).map(toBill);
   },
 
-  async saveBill(userId, bill) {
+  async saveBill(_userId, bill, requestId) {
     const { data, error } = await getSupabaseClient()
-      .from("bills")
-      .insert(toRow(userId, bill))
-      .select("*")
+      .rpc("create_bill", {
+        p_client_request_id: requestId,
+        ...toBillRpcParams(bill)
+      })
       .single();
 
     if (error) {
@@ -210,13 +200,12 @@ export const supabaseBillRepository: BillRepository = {
     return toBill(data as BillRow);
   },
 
-  async updateBill(userId, bill) {
+  async updateBill(_userId, bill) {
     const { data, error } = await getSupabaseClient()
-      .from("bills")
-      .update(toRow(userId, bill))
-      .eq("id", bill.id)
-      .eq("user_id", userId)
-      .select("*")
+      .rpc("update_bill", {
+        p_bill_id: bill.id,
+        ...toBillRpcParams(bill)
+      })
       .single();
 
     if (error) {
@@ -235,6 +224,40 @@ export const supabaseBillRepository: BillRepository = {
 
     if (error) {
       logDevError("Supabase bill delete failed", error);
+      throw error;
+    }
+  },
+
+  async deleteBills(userId, ids) {
+    const uniqueIds = [...new Set(ids)].filter(Boolean);
+    if (uniqueIds.length === 0) return;
+
+    const { data: ownedRows, error: ownershipError } = await getSupabaseClient()
+      .from("bills")
+      .select("id")
+      .eq("user_id", userId)
+      .in("id", uniqueIds);
+
+    if (ownershipError) {
+      logDevError("Supabase bill bulk delete ownership check failed", ownershipError);
+      throw ownershipError;
+    }
+
+    const ownedIds = new Set((ownedRows ?? []).map((row) => row.id));
+    if (ownedIds.size !== uniqueIds.length || uniqueIds.some((id) => !ownedIds.has(id))) {
+      const ownershipMismatchError = new Error("Unable to verify selected bills for deletion.");
+      logDevError("Supabase bill bulk delete ownership mismatch", ownershipMismatchError);
+      throw ownershipMismatchError;
+    }
+
+    const { error } = await getSupabaseClient()
+      .from("bills")
+      .delete()
+      .eq("user_id", userId)
+      .in("id", uniqueIds);
+
+    if (error) {
+      logDevError("Supabase bill bulk delete failed", error);
       throw error;
     }
   }

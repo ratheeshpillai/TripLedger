@@ -27,7 +27,6 @@ function hasMeaningfulPreviewContent(draft: BillDraft): boolean {
     draft.airportParking > 0 ||
     draft.fastag > 0 ||
     draft.roadParking > 0 ||
-    draft.pendingAmount > 0 ||
     draft.notes.trim()
   );
 }
