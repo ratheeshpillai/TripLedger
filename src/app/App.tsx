@@ -210,15 +210,26 @@ export default function App() {
       {page === "dashboard" && (
         <DashboardPage
           bills={billsApi.bills}
+          billingParties={billingPartiesApi.parties}
+          ownerSummaries={billingPartiesApi.summaries}
+          ownerPayments={ownerPaymentsApi.payments}
           settings={settings}
-          loading={billsApi.loading}
-          error={billsApi.error}
+          loading={billsApi.loading || billingPartiesApi.loading || ownerPaymentsApi.loading}
+          error={billsApi.error || billingPartiesApi.error || ownerPaymentsApi.error}
           onCreateBill={() => navigateToPage("logger")}
+          onRecordPayment={() => {
+            navigateToPage("owners");
+            showToast("Select an owner, then choose Record Payment");
+          }}
           onViewHistory={() => navigateToPage("history")}
+          onViewOwners={() => navigateToPage("owners")}
           onOpenBill={(bill) => {
             form.loadForEdit(bill);
             navigateToPage("logger");
             showToast("Bill loaded for edit");
+          }}
+          onRetry={() => {
+            void Promise.all([billsApi.refresh(), billingPartiesApi.refresh(), ownerPaymentsApi.refresh()]);
           }}
         />
       )}

@@ -265,6 +265,88 @@ Checklist:
 - Verify accordion motion still works independently.
 - Verify hover and focus states remain correct in both themes.
 
+## Dashboard Information Hierarchy
+
+- Prioritize the Dashboard in this order: business summary, primary action, Needs Attention, Recent Activity, and secondary overview.
+- Use one primary summary card with supporting metrics instead of multiple equally prominent metric cards.
+- Do not introduce charts unless they support a real decision.
+- Dashboard data must be accurate and derived from actual product records.
+- Avoid fake trends, forecasts, comparison percentages, or unsupported metrics.
+- Keep the primary Dashboard action immediately discoverable.
+
+Checklist:
+
+- Verify the Dashboard answers what happened, what is pending, and what to do next.
+- Verify Create Bill is the primary action.
+- Verify the Dashboard is not overloaded with decorative analytics.
+- Verify every metric maps to real data.
+
+## Dashboard Action Duplication
+
+- Dashboard actions may repeat important navigation destinations only when they represent frequent tasks.
+- Do not repeat every sidebar destination as a Quick Action.
+- Use one primary action, one secondary action, and at most one tertiary navigation action.
+- Approved initial actions are Create Bill, Record Payment, and View History.
+- Do not add Add Owner as a major Dashboard action without usage evidence.
+
+Checklist:
+
+- Verify Dashboard actions are task-oriented rather than a duplicate navigation menu.
+
+## Dashboard Mobile Adaptation
+
+- Prioritize the summary and Create Bill action above the fold on mobile.
+- Do not stack many large metric cards.
+- Use compact metric grids and progressive disclosure.
+- Stack Needs Attention and Recent Activity cleanly.
+- Preserve touch-friendly spacing.
+- Do not force the desktop Dashboard composition directly onto mobile.
+
+Checklist:
+
+- Verify Create Bill remains easy to reach.
+- Verify there is no horizontal overflow.
+- Verify the first mobile screen is useful without excessive scrolling.
+
+## Dashboard Hero Treatment
+
+- Use a branded dark-blue hero only for the primary Dashboard summary.
+- Keep the hero readable and restrained; avoid excessive gradients, glow, or decoration.
+- Period controls that change hero values belong inside or directly adjacent to the hero.
+- In dark mode, retain a distinguishable navy or indigo tone rather than near-black.
+- Verify the hero transitions with the rest of the interface.
+
+Checklist:
+
+- Verify the hero remains the strongest Dashboard element.
+- Verify the period control is visibly associated with the summary.
+- Verify labels, values, and dividers have sufficient contrast.
+
+## Dashboard Action Sizing
+
+- Keep Dashboard actions compact and contextual: one primary action, one secondary action, and one tertiary link.
+- Do not stretch action buttons simply to fill space.
+- Keep Create Bill visually primary while Record Payment and View History remain subordinate.
+
+## Dashboard Destination Reuse
+
+- Reuse History and Owners for Dashboard destinations until a distinct workflow justifies a new page.
+- Recent Activity may use History as its complete-list destination.
+- Make Needs Attention rows individually actionable; avoid generic View All links where each item has a specific destination.
+- Do not add empty routes solely to support Dashboard links.
+
+## Dashboard Column Balance
+
+- Balance a taller activity card by stacking compact, useful cards alongside it.
+- Do not stretch a short card with blank space just to equalise heights.
+- Keep Needs Attention compact and use Quick Overview only for accurate secondary metrics.
+
+Checklist:
+
+- Verify no excessive negative space remains beneath Needs Attention.
+- Verify Recent Activity is limited to a scan-friendly number of rows.
+- Verify Quick Overview remains secondary to the hero.
+
 ## Implementation
 
 - Produce maintainable React code consistent with the repository.

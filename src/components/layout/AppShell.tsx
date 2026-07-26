@@ -12,7 +12,7 @@ const navItems: Array<{ id: Exclude<AppPage, "settings">; label: string; icon: "
 ];
 
 const pageTitles: Record<AppPage, { eyebrow: string; title?: string; description?: string }> = {
-  dashboard: { eyebrow: "Dashboard", title: "Billing Overview", description: "Track your saved bills and jump back into daily billing." },
+  dashboard: { eyebrow: "", title: "Dashboard", description: "Today's business at a glance" },
   logger: { eyebrow: "", title: "Create Bill", description: "Enter trip and billing details" },
   history: { eyebrow: "", title: "Bill History", description: "Search, review and manage saved bills" },
   owners: { eyebrow: "", title: "Owners & Payments", description: "Track owner balances, bills and payments" },
@@ -143,8 +143,17 @@ export function AppShell({ page, setPage, userEmail, isDarkMode, onToggleDarkMod
         <div className={cn(PAGE_CONTAINER_CLASS, PAGE_HEADER_CLASS)}>
           <div className="min-w-0">
             <div className="lg:hidden">
-              <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A]">TripLedger</p>
-              <h1 className="text-2xl font-black leading-tight text-slate-950 dark:text-slate-50 sm:text-3xl">Fleet & Billing Platform</h1>
+              {page === "dashboard" ? (
+                <>
+                  <h1 className="text-2xl font-black leading-tight text-slate-950 dark:text-slate-50">Dashboard</h1>
+                  <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Today's business at a glance</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A]">TripLedger</p>
+                  <h1 className="text-2xl font-black leading-tight text-slate-950 dark:text-slate-50 sm:text-3xl">Fleet & Billing Platform</h1>
+                </>
+              )}
             </div>
             <div className="hidden lg:block">
               {pageTitle.eyebrow && <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A] dark:text-blue-300">{pageTitle.eyebrow}</p>}
