@@ -13,6 +13,20 @@ html {
   scrollbar-gutter: stable;
 }
 
+@media (max-width: 63.99rem) {
+  html {
+    scrollbar-gutter: auto;
+  }
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
 .dark {
   color: #e2e8f0;
   background: #0b1120;
@@ -75,9 +89,19 @@ textarea {
   font: inherit;
 }
 
+input[type="date"] {
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+input[type="date"]::-webkit-date-and-time-value {
+  min-inline-size: 0;
+}
+
 @layer components {
   .field-label {
-    @apply grid gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300;
+    @apply grid min-w-0 max-w-full gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300;
   }
 
   .form-grid {
@@ -96,7 +120,7 @@ textarea {
   }
 
   .tripledgerListMobileHeader {
-    @apply space-y-0.5 lg:sr-only;
+    @apply sr-only;
   }
 
   .tripledgerListToolbar {
@@ -126,6 +150,16 @@ textarea {
 
   .tripledgerListMobileRowContent {
     padding: 1rem;
+  }
+
+  @media (max-width: 63.99rem) {
+    .tripledgerListToolbarContent {
+      padding: 0.625rem;
+    }
+
+    .tripledgerListMobileRowContent {
+      padding: 0.875rem;
+    }
   }
 
   .historyBillGrid {

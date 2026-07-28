@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { MobileBottomNav, MobilePageHeader } from "../mobile/MobilePrimitives";
 import { cn } from "../ui/cn";
 
 export type AppPage = "dashboard" | "logger" | "history" | "owners" | "settings";
@@ -9,6 +10,14 @@ const navItems: Array<{ id: Exclude<AppPage, "settings">; label: string; icon: "
   { id: "logger", label: "Create Bill", icon: "logger" },
   { id: "history", label: "History", icon: "history" },
   { id: "owners", label: "Owners", icon: "owners" }
+];
+
+const mobileNavItems: Array<{ id: AppPage; label: string; icon: "dashboard" | "logger" | "history" | "owners" | "more" | "plus"; primary?: boolean }> = [
+  { id: "dashboard", label: "Home", icon: "dashboard" },
+  { id: "history", label: "History", icon: "history" },
+  { id: "logger", label: "Create", icon: "plus", primary: true },
+  { id: "owners", label: "Owners", icon: "owners" },
+  { id: "settings", label: "More", icon: "more" }
 ];
 
 const pageTitles: Record<AppPage, { eyebrow: string; title?: string; description?: string }> = {
@@ -29,7 +38,15 @@ function getInitialSidebarCollapsed(): boolean {
   return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
 }
 
-function NavIcon({ icon }: { icon: "dashboard" | "logger" | "history" | "owners" }) {
+function NavIcon({ icon }: { icon: "dashboard" | "logger" | "history" | "owners" | "more" | "plus" }) {
+  if (icon === "plus") {
+    return <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" /></svg>;
+  }
+
+  if (icon === "more") {
+    return <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="5" cy="12" r="1.5" fill="currentColor" /><circle cx="12" cy="12" r="1.5" fill="currentColor" /><circle cx="19" cy="12" r="1.5" fill="currentColor" /></svg>;
+  }
+
   if (icon === "dashboard") {
     return (
       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -64,7 +81,7 @@ function NavIcon({ icon }: { icon: "dashboard" | "logger" | "history" | "owners"
   );
 }
 
-export function AppShell({ page, setPage, userEmail, isDarkMode, onToggleDarkMode, onLogout, children }: { page: AppPage; setPage: (page: AppPage) => void; userEmail?: string; isDarkMode: boolean; onToggleDarkMode: () => void; onLogout: () => void; children: ReactNode }) {
+export function AppShell({ page, setPage, userEmail, isDarkMode, mobileTitle, mobileSubtitle, mobileBack, onToggleDarkMode, onLogout, children }: { page: AppPage; setPage: (page: AppPage) => void; userEmail?: string; isDarkMode: boolean; mobileTitle?: string; mobileSubtitle?: string; mobileBack?: () => void; onToggleDarkMode: () => void; onLogout: () => void; children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(getInitialSidebarCollapsed);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -139,21 +156,15 @@ export function AppShell({ page, setPage, userEmail, isDarkMode, onToggleDarkMod
         </nav>
       </aside>
       <div className={cn("min-w-0 transition-[padding] duration-200 ease-out", sidebarCollapsed ? "lg:pl-20" : "lg:pl-64")}>
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800/80 dark:bg-[#0b1120]/90">
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white pt-[env(safe-area-inset-top)] backdrop-blur dark:border-slate-800/80 dark:bg-[#0b1120] lg:pt-0">
         <div className={cn(PAGE_CONTAINER_CLASS, PAGE_HEADER_CLASS)}>
           <div className="min-w-0">
             <div className="lg:hidden">
-              {page === "dashboard" ? (
-                <>
-                  <h1 className="text-2xl font-black leading-tight text-slate-950 dark:text-slate-50">Dashboard</h1>
-                  <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Today's business at a glance</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A]">TripLedger</p>
-                  <h1 className="text-2xl font-black leading-tight text-slate-950 dark:text-slate-50 sm:text-3xl">Fleet & Billing Platform</h1>
-                </>
-              )}
+              <MobilePageHeader
+                title={mobileTitle || (page === "dashboard" ? "TripLedger" : page === "history" ? "History" : page === "logger" ? "Create Bill" : page === "owners" ? "Owners" : "More")}
+                subtitle={mobileSubtitle || (page === "dashboard" ? "Today's business at a glance" : page === "history" ? "Search and manage bills" : page === "logger" ? "Enter trip and billing details" : page === "owners" ? "Balances and payments" : "Account and app settings")}
+                onBack={mobileBack}
+              />
             </div>
             <div className="hidden lg:block">
               {pageTitle.eyebrow && <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A] dark:text-blue-300">{pageTitle.eyebrow}</p>}
@@ -222,58 +233,21 @@ export function AppShell({ page, setPage, userEmail, isDarkMode, onToggleDarkMod
             )}
           </div>
         </div>
-        <nav className={cn(PAGE_CONTAINER_CLASS, "hidden gap-3 overflow-x-auto pb-4 md:flex lg:hidden")}>
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setPage(item.id)}
-              aria-current={page === item.id ? "page" : undefined}
-              className={cn(
-                "relative inline-flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-black focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-950",
-                page === item.id
-                  ? "text-white hover:text-white"
-                  : "text-[#475569] hover:bg-[#E0E7FF] hover:text-[#1E3A8A] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-blue-200"
-              )}
-            >
-              {page === item.id && (
-                <motion.span layoutId="activeTab" className="absolute inset-0 rounded-full bg-[#1E3A8A] shadow-sm dark:bg-blue-600" transition={{ type: "spring", bounce: 0.18, duration: 0.45 }} />
-              )}
-              <span className="relative z-10"><NavIcon icon={item.icon} /></span>
-              <span className="relative z-10">{item.label}</span>
-            </button>
-          ))}
-        </nav>
       </header>
       <motion.main
         key={page}
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.22 }}
-        className={cn(PAGE_CONTAINER_CLASS, PAGE_BODY_CLASS, page === "logger" ? "pb-44" : "pb-28")}
+        className={cn(PAGE_CONTAINER_CLASS, PAGE_BODY_CLASS, page === "logger" ? "pb-[calc(env(safe-area-inset-bottom)+10.25rem)] lg:pb-8" : "pb-28 lg:pb-8")}
       >
         {children}
       </motion.main>
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-800 dark:bg-[#0b1120]/95 md:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-4 gap-2">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setPage(item.id)}
-              aria-current={page === item.id ? "page" : undefined}
-              className={cn(
-                "flex min-h-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl px-1 text-xs font-black focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-950",
-                page === item.id
-                  ? "bg-[#1E3A8A] text-white shadow-sm dark:bg-blue-600"
-                  : "text-slate-500 hover:bg-slate-100 hover:text-[#1E3A8A] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-blue-200"
-              )}
-            >
-              <NavIcon icon={item.icon} />
-              <span className="leading-none">{item.label}</span>
-            </button>
-          ))}
-        </div>
-      </nav>
+      <MobileBottomNav
+        items={mobileNavItems.map((item) => ({ ...item, icon: <NavIcon icon={item.icon} /> }))}
+        current={page}
+        onChange={setPage}
+      />
       </div>
     </div>
   );
