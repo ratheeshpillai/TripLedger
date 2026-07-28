@@ -1,6 +1,15 @@
 import type { Bill, BillDraft } from "../../types/bill";
 import type { BillingParty } from "../../types/billingParty";
 import type { AppSettings } from "../../types/settings";
+import {
+  BILL_FIELD_STEPS,
+  firstInvalidBillField,
+  normalizeBillDraft,
+  validateBillDraft,
+  validateBillStep,
+  type BillField,
+  type BillValidationErrors
+} from "../../utils/billValidation";
 import { currency } from "../../utils/formatters";
 import { formatDuration } from "../../utils/timeUtils";
 import { BillPreview } from "./BillPreview";
@@ -12,7 +21,7 @@ import { Select } from "../ui/Select";
 import { Textarea } from "../ui/Textarea";
 import { cn } from "../ui/cn";
 import { motion, useReducedMotion } from "framer-motion";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
 import { normalizeTimeInput } from "../../utils/timeUtils";
@@ -38,8 +47,78 @@ function num(value: string): number {
   return Number(value || 0);
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return <label className="field-label">{label}{children}</label>;
+function validationProps(field: BillField, error?: string) {
+  return {
+    "data-bill-field": field,
+    "aria-invalid": error ? true : undefined,
+    "aria-describedby": error ? `bill-${field}-error` : undefined
+  };
+}
+
+function Field({ label, field, error, onTouched, children }: { label: string; field?: BillField; error?: string; onTouched?: (field: BillField) => void; children: ReactNode }) {
+  return (
+    <label className="field-label" onBlurCapture={field && onTouched ? () => onTouched(field) : undefined}>
+      {label}
+      {children}
+      {field && error && <span id={`bill-${field}-error`} role="alert" className="text-xs font-semibold text-red-600 dark:text-red-300">{error}</span>}
+    </label>
+  );
+}
+
+function useBillValidation(draft: BillDraft, billingParties: BillingParty[]) {
+  const [errors, setErrors] = useState<BillValidationErrors>({});
+  const validBillingPartyIds = useMemo(() => new Set(billingParties.map((party) => party.id)), [billingParties]);
+  const options = { validBillingPartyIds };
+
+  useEffect(() => {
+    setErrors((current) => {
+      const all = validateBillDraft(draft, options);
+      const next = { ...current };
+      for (const field of Object.keys(current) as BillField[]) {
+        if (all[field]) next[field] = all[field];
+        else delete next[field];
+      }
+      return next;
+    });
+  }, [draft, validBillingPartyIds]);
+
+  function touch(field: BillField) {
+    const message = validateBillDraft(draft, options)[field];
+    setErrors((current) => {
+      const next = { ...current };
+      if (message) next[field] = message;
+      else delete next[field];
+      return next;
+    });
+  }
+
+  function checkStep(step: number) {
+    const stepErrors = validateBillStep(step, draft, options);
+    setErrors((current) => {
+      const next = { ...current };
+      for (const [field, fieldStep] of Object.entries(BILL_FIELD_STEPS)) {
+        if (fieldStep === step) delete next[field as BillField];
+      }
+      return { ...next, ...stepErrors };
+    });
+    return stepErrors;
+  }
+
+  function checkAll() {
+    const all = validateBillDraft(draft, options);
+    setErrors(all);
+    return all;
+  }
+
+  return { errors, touch, checkStep, checkAll, ownerIsValid: !validateBillDraft(draft, options).billingPartyId };
+}
+
+function focusBillField(field: BillField, reduceMotion: boolean) {
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const element = document.querySelector<HTMLElement>(`[data-bill-field="${field}"]`);
+    element?.scrollIntoView({ block: "center", behavior: reduceMotion ? "auto" : "smooth" });
+    element?.focus({ preventScroll: true });
+  }));
 }
 
 function toggleSection(openSections: string[], sectionId: string): string[] {
@@ -61,11 +140,12 @@ function AccordionSection({ id, title, openSections, setOpenSections, children }
   );
 }
 
-function TimeInput({ value, placeholder, onChange }: { value: string; placeholder: string; onChange: (value: string) => void }) {
+function TimeInput({ value, placeholder, onChange, field, error }: { value: string; placeholder: string; onChange: (value: string) => void; field?: BillField; error?: string }) {
   return (
     <Input
       placeholder={placeholder}
       value={value}
+      {...(field ? validationProps(field, error) : {})}
       onChange={(event) => onChange(event.target.value)}
       onBlur={(event) => onChange(normalizeTimeInput(event.target.value))}
     />
@@ -73,8 +153,10 @@ function TimeInput({ value, placeholder, onChange }: { value: string; placeholde
 }
 
 function parseInputDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
   const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, month - 1, day);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : undefined;
 }
 
 function inputDate(value: Date) {
@@ -83,20 +165,24 @@ function inputDate(value: Date) {
 }
 
 function mobileDateDisplay(value: string) {
-  return value ? parseInputDate(value).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "Select date";
+  return parseInputDate(value)?.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) ?? "Select date";
 }
 
-function MobileDateInput({ value, onOpen }: { value: string; onOpen: () => void }) {
-  return <button type="button" className="flex min-h-12 w-full min-w-0 max-w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 text-left text-base text-slate-950 outline-none focus:border-[#1E3A8A] focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-[#0f172a] dark:text-slate-100 dark:focus:border-blue-400 dark:focus:ring-blue-950/70" onClick={onOpen} aria-haspopup="dialog"><span>{mobileDateDisplay(value)}</span><svg className="h-5 w-5 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 3v4M16 3v4M3 10h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg></button>;
+function MobileDateInput({ value, onOpen, field, error }: { value: string; onOpen: () => void; field: BillField; error?: string }) {
+  return <button type="button" className="flex min-h-12 w-full min-w-0 max-w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 text-left text-base text-slate-950 outline-none focus:border-[#1E3A8A] focus:ring-4 focus:ring-blue-100 aria-invalid:border-red-500 aria-invalid:ring-red-100 dark:border-slate-700 dark:bg-[#0f172a] dark:text-slate-100 dark:focus:border-blue-400 dark:focus:ring-blue-950/70" onClick={onOpen} aria-haspopup="dialog" {...validationProps(field, error)}><span>{mobileDateDisplay(value)}</span><svg className="h-5 w-5 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 3v4M16 3v4M3 10h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg></button>;
 }
 
-function NumberInput({ value, onValueChange, placeholder, readOnly = false }: { value: number; onValueChange?: (value: number) => void; placeholder?: string; readOnly?: boolean }) {
-  const [inputValue, setInputValue] = useState(value === 0 ? "" : String(value));
+function numberInputValue(value: number) {
+  return Number.isFinite(value) && value !== 0 ? String(value) : "";
+}
+
+function NumberInput({ value, onValueChange, placeholder, readOnly = false, field, error }: { value: number; onValueChange?: (value: number) => void; placeholder?: string; readOnly?: boolean; field?: BillField; error?: string }) {
+  const [inputValue, setInputValue] = useState(numberInputValue(value));
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     if (!isEditing) {
-      setInputValue(value === 0 ? "" : String(value));
+      setInputValue(numberInputValue(value));
     }
   }, [isEditing, value]);
 
@@ -107,12 +193,13 @@ function NumberInput({ value, onValueChange, placeholder, readOnly = false }: { 
       placeholder={placeholder}
       readOnly={readOnly}
       value={inputValue}
+      {...(field ? validationProps(field, error) : {})}
       onFocus={() => setIsEditing(true)}
       onBlur={() => setIsEditing(false)}
       onChange={(event) => {
         const nextValue = event.target.value;
         setInputValue(nextValue);
-        onValueChange?.(num(nextValue));
+        onValueChange?.(/^-?\d*(?:\.\d*)?$/.test(nextValue) ? num(nextValue) : Number.NaN);
       }}
     />
   );
@@ -181,7 +268,17 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
   const [previewOpen, setPreviewOpen] = useState(false);
   const [activeDateField, setActiveDateField] = useState<"tripDate" | "closingDate" | null>(null);
   const keyboardOpen = useSoftwareKeyboardOpen();
-  const canContinue = step === 0 ? Boolean(draft.billingPartyId) : true;
+  const reduceMotion = useReducedMotion() ?? false;
+  const validation = useBillValidation(draft, billingParties);
+  const canContinue = step === 0 ? validation.ownerIsValid : true;
+
+  function showFirstInvalid(errors: BillValidationErrors) {
+    const field = firstInvalidBillField(errors);
+    if (!field) return false;
+    setStep(BILL_FIELD_STEPS[field] ?? 0);
+    focusBillField(field, reduceMotion);
+    return true;
+  }
 
   async function createQuickOwner() {
     const name = quickOwnerName.trim();
@@ -197,17 +294,20 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
   }
 
   function continueStep() {
-    if (step === 0 && !draft.billingPartyId) {
-      setError("Select an Owner / Company before continuing.");
-      requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-mobile-owner]")?.focus());
-      return;
-    }
+    const errors = validation.checkStep(step);
+    if (showFirstInvalid(errors)) return;
     setError("");
     setStep((current) => Math.min(mobileSteps.length - 1, current + 1));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+  }
+
+  function preview() {
+    if (showFirstInvalid(validation.checkAll())) return;
+    setPreviewOpen(true);
   }
 
   async function save() {
+    if (saving || showFirstInvalid(validation.checkAll())) return;
     setError("");
     try {
       await onSave();
@@ -237,8 +337,8 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
       {step === 0 && (
         <MobileSection title="Owner and customer" description="Who is this trip billed to?">
           <div className="grid gap-4">
-            <Field label="Owner / Company">
-              <Select data-mobile-owner aria-invalid={Boolean(error && !draft.billingPartyId)} value={draft.billingPartyId ?? ""} onChange={(event) => { onFieldChange("billingPartyId", event.target.value || undefined); setError(""); }}>
+            <Field label="Owner / Company" field="billingPartyId" error={validation.errors.billingPartyId} onTouched={validation.touch}>
+              <Select className={cn(validation.errors.billingPartyId && "border-red-500 ring-red-100 dark:border-red-400")} {...validationProps("billingPartyId", validation.errors.billingPartyId)} value={draft.billingPartyId ?? ""} onChange={(event) => { onFieldChange("billingPartyId", event.target.value || undefined); setError(""); }}>
                 <option value="">Select Owner / Company</option>
                 {billingParties.map((party) => <option key={party.id} value={party.id}>{party.companyName || party.name}</option>)}
               </Select>
@@ -257,15 +357,15 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
                 <Button type="button" onClick={() => void createQuickOwner()} disabled={quickOwnerBusy || !quickOwnerName.trim()}>{quickOwnerBusy ? "Adding..." : "Add"}</Button>
               </div>
             </Field>
-            <Field label="Guest / Customer">
+            <Field label="Guest / Customer" field="guestName" error={validation.errors.guestName} onTouched={validation.touch}>
               <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
                 <Select value={draft.guestSalutation === "Miss" ? "Miss." : draft.guestSalutation || "Mr."} onChange={(event) => onFieldChange("guestSalutation", event.target.value as BillDraft["guestSalutation"])}>
                   <option value="Mr.">Mr.</option><option value="Mrs.">Mrs.</option><option value="Miss.">Miss.</option>
                 </Select>
-                <Input value={draft.guestName} onChange={(event) => onFieldChange("guestName", event.target.value)} placeholder="Customer name" />
+                <Input {...validationProps("guestName", validation.errors.guestName)} value={draft.guestName} onChange={(event) => onFieldChange("guestName", event.target.value)} placeholder="Customer name" />
               </div>
             </Field>
-            <Field label="Reporting Place"><Input value={draft.reportingPlace} onChange={(event) => onFieldChange("reportingPlace", event.target.value)} placeholder="Pickup or reporting place" /></Field>
+            <Field label="Reporting Place" field="reportingPlace" error={validation.errors.reportingPlace} onTouched={validation.touch}><Input {...validationProps("reportingPlace", validation.errors.reportingPlace)} value={draft.reportingPlace} onChange={(event) => onFieldChange("reportingPlace", event.target.value)} placeholder="Pickup or reporting place" /></Field>
           </div>
         </MobileSection>
       )}
@@ -273,9 +373,9 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
       {step === 1 && (
         <MobileSection title="Driver and vehicle">
           <div className="grid gap-4">
-            <Field label="Driver"><Input value={draft.driverName} onChange={(event) => onFieldChange("driverName", event.target.value)} placeholder="Driver name" /></Field>
-            <Field label="Vehicle"><Input value={draft.vehicleName} onChange={(event) => onFieldChange("vehicleName", event.target.value)} placeholder="Vehicle model" /></Field>
-            <Field label="Vehicle Number"><Input value={draft.vehicleNumber} onChange={(event) => onFieldChange("vehicleNumber", event.target.value)} placeholder="Registration number" /></Field>
+            <Field label="Driver" field="driverName" error={validation.errors.driverName} onTouched={validation.touch}><Input {...validationProps("driverName", validation.errors.driverName)} value={draft.driverName} onChange={(event) => onFieldChange("driverName", event.target.value)} placeholder="Driver name" /></Field>
+            <Field label="Vehicle" field="vehicleName" error={validation.errors.vehicleName} onTouched={validation.touch}><Input {...validationProps("vehicleName", validation.errors.vehicleName)} value={draft.vehicleName} onChange={(event) => onFieldChange("vehicleName", event.target.value)} placeholder="Vehicle model" /></Field>
+            <Field label="Vehicle Number" field="vehicleNumber" error={validation.errors.vehicleNumber} onTouched={validation.touch}><Input {...validationProps("vehicleNumber", validation.errors.vehicleNumber)} value={draft.vehicleNumber} onChange={(event) => onFieldChange("vehicleNumber", event.target.value)} placeholder="Registration number" /></Field>
           </div>
         </MobileSection>
       )}
@@ -283,13 +383,13 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
       {step === 2 && (
         <MobileSection title="Trip timing">
           <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
-            <Field label="Trip Date"><MobileDateInput value={draft.tripDate} onOpen={() => setActiveDateField("tripDate")} /></Field>
-            <Field label="Reporting Time"><TimeInput value={draft.reportingTime} placeholder={settings.timeFormat === "24h" ? "03:00" : "3:00 AM"} onChange={(value) => onFieldChange("reportingTime", value)} /></Field>
-            <Field label="Garage Time"><TimeInput value={draft.garageTime} placeholder={settings.timeFormat === "24h" ? "02:00" : "2:00 AM"} onChange={onGarageTimeChange} /></Field>
-            <Field label="Closing Date"><MobileDateInput value={draft.closingDate} onOpen={() => setActiveDateField("closingDate")} /></Field>
-            <Field label="Closing Time"><TimeInput value={draft.closingTime} placeholder={settings.timeFormat === "24h" ? "23:20" : "11:20 PM"} onChange={(value) => onFieldChange("closingTime", value)} /></Field>
-            <Field label="Total Hours"><Input value={formatDuration(draft.totalHours)} readOnly /></Field>
-            <Field label="Extra Hours"><Input value={formatDuration(draft.extraHours)} readOnly /></Field>
+            <Field label="Trip Date" field="tripDate" error={validation.errors.tripDate} onTouched={validation.touch}><MobileDateInput field="tripDate" error={validation.errors.tripDate} value={draft.tripDate} onOpen={() => setActiveDateField("tripDate")} /></Field>
+            <Field label="Reporting Time" field="reportingTime" error={validation.errors.reportingTime} onTouched={validation.touch}><TimeInput field="reportingTime" error={validation.errors.reportingTime} value={draft.reportingTime} placeholder={settings.timeFormat === "24h" ? "03:00" : "3:00 AM"} onChange={(value) => onFieldChange("reportingTime", value)} /></Field>
+            <Field label="Garage Time" field="garageTime" error={validation.errors.garageTime} onTouched={validation.touch}><TimeInput field="garageTime" error={validation.errors.garageTime} value={draft.garageTime} placeholder={settings.timeFormat === "24h" ? "02:00" : "2:00 AM"} onChange={onGarageTimeChange} /></Field>
+            <Field label="Closing Date" field="closingDate" error={validation.errors.closingDate} onTouched={validation.touch}><MobileDateInput field="closingDate" error={validation.errors.closingDate} value={draft.closingDate} onOpen={() => setActiveDateField("closingDate")} /></Field>
+            <Field label="Closing Time" field="closingTime" error={validation.errors.closingTime} onTouched={validation.touch}><TimeInput field="closingTime" error={validation.errors.closingTime} value={draft.closingTime} placeholder={settings.timeFormat === "24h" ? "23:20" : "11:20 PM"} onChange={(value) => onFieldChange("closingTime", value)} /></Field>
+            <Field label="Total Hours" field="totalHours" error={validation.errors.totalHours}><Input {...validationProps("totalHours", validation.errors.totalHours)} value={formatDuration(draft.totalHours)} readOnly /></Field>
+            <Field label="Extra Hours" field="extraHours" error={validation.errors.extraHours}><Input {...validationProps("extraHours", validation.errors.extraHours)} value={formatDuration(draft.extraHours)} readOnly /></Field>
           </div>
         </MobileSection>
       )}
@@ -297,12 +397,12 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
       {step === 3 && (
         <MobileSection title="Package and distance">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Base Package"><Input value={draft.basePackage} onChange={(event) => onFieldChange("basePackage", event.target.value)} placeholder="8 Hours / 80 KM" /></Field>
-            <Field label="Base Hours"><NumberInput value={draft.baseHours} onValueChange={(value) => onFieldChange("baseHours", value)} /></Field>
-            <Field label="Base KM"><NumberInput value={draft.baseKm} onValueChange={(value) => onFieldChange("baseKm", value)} /></Field>
-            <Field label="Base Amount"><NumberInput value={draft.baseAmount} onValueChange={(value) => onFieldChange("baseAmount", value)} /></Field>
-            <Field label="Total KM"><NumberInput value={draft.totalKm} onValueChange={(value) => onFieldChange("totalKm", value)} /></Field>
-            <Field label="Extra KM"><NumberInput value={draft.extraKm} onValueChange={(value) => onFieldChange("extraKm", value)} /></Field>
+            <Field label="Base Package" field="basePackage" error={validation.errors.basePackage} onTouched={validation.touch}><Input {...validationProps("basePackage", validation.errors.basePackage)} value={draft.basePackage} onChange={(event) => onFieldChange("basePackage", event.target.value)} placeholder="8 Hours / 80 KM" /></Field>
+            <Field label="Base Hours" field="baseHours" error={validation.errors.baseHours} onTouched={validation.touch}><NumberInput field="baseHours" error={validation.errors.baseHours} value={draft.baseHours} onValueChange={(value) => onFieldChange("baseHours", value)} /></Field>
+            <Field label="Base KM" field="baseKm" error={validation.errors.baseKm} onTouched={validation.touch}><NumberInput field="baseKm" error={validation.errors.baseKm} value={draft.baseKm} onValueChange={(value) => onFieldChange("baseKm", value)} /></Field>
+            <Field label="Base Amount" field="baseAmount" error={validation.errors.baseAmount} onTouched={validation.touch}><NumberInput field="baseAmount" error={validation.errors.baseAmount} value={draft.baseAmount} onValueChange={(value) => onFieldChange("baseAmount", value)} /></Field>
+            <Field label="Total KM" field="totalKm" error={validation.errors.totalKm} onTouched={validation.touch}><NumberInput field="totalKm" error={validation.errors.totalKm} value={draft.totalKm} onValueChange={(value) => onFieldChange("totalKm", value)} /></Field>
+            <Field label="Extra KM" field="extraKm" error={validation.errors.extraKm} onTouched={validation.touch}><NumberInput field="extraKm" error={validation.errors.extraKm} value={draft.extraKm} onValueChange={(value) => onFieldChange("extraKm", value)} /></Field>
           </div>
         </MobileSection>
       )}
@@ -310,13 +410,13 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
       {step === 4 && (
         <MobileSection title="Charges">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Extra KM Rate"><NumberInput value={draft.extraKmRate} onValueChange={(value) => onFieldChange("extraKmRate", value)} /></Field>
-            <Field label="Extra KM Amount"><NumberInput value={draft.extraKmAmount} onValueChange={(value) => onFieldChange("extraKmAmount", value)} /></Field>
-            <Field label="Extra Hour Rate"><NumberInput value={draft.extraHourRate} onValueChange={(value) => onFieldChange("extraHourRate", value)} /></Field>
-            <Field label="Extra Hour Amount"><NumberInput value={draft.extraHourAmount} onValueChange={(value) => onFieldChange("extraHourAmount", value)} /></Field>
-            <Field label="Airport Parking"><NumberInput value={draft.airportParking} onValueChange={(value) => onFieldChange("airportParking", value)} /></Field>
-            <Field label="Fastag"><NumberInput value={draft.fastag} onValueChange={(value) => onFieldChange("fastag", value)} /></Field>
-            <Field label="Road Parking"><NumberInput value={draft.roadParking} onValueChange={(value) => onFieldChange("roadParking", value)} /></Field>
+            <Field label="Extra KM Rate" field="extraKmRate" error={validation.errors.extraKmRate} onTouched={validation.touch}><NumberInput field="extraKmRate" error={validation.errors.extraKmRate} value={draft.extraKmRate} onValueChange={(value) => onFieldChange("extraKmRate", value)} /></Field>
+            <Field label="Extra KM Amount" field="extraKmAmount" error={validation.errors.extraKmAmount} onTouched={validation.touch}><NumberInput field="extraKmAmount" error={validation.errors.extraKmAmount} value={draft.extraKmAmount} onValueChange={(value) => onFieldChange("extraKmAmount", value)} /></Field>
+            <Field label="Extra Hour Rate" field="extraHourRate" error={validation.errors.extraHourRate} onTouched={validation.touch}><NumberInput field="extraHourRate" error={validation.errors.extraHourRate} value={draft.extraHourRate} onValueChange={(value) => onFieldChange("extraHourRate", value)} /></Field>
+            <Field label="Extra Hour Amount" field="extraHourAmount" error={validation.errors.extraHourAmount} onTouched={validation.touch}><NumberInput field="extraHourAmount" error={validation.errors.extraHourAmount} value={draft.extraHourAmount} onValueChange={(value) => onFieldChange("extraHourAmount", value)} /></Field>
+            <Field label="Airport Parking" field="airportParking" error={validation.errors.airportParking} onTouched={validation.touch}><NumberInput field="airportParking" error={validation.errors.airportParking} value={draft.airportParking} onValueChange={(value) => onFieldChange("airportParking", value)} /></Field>
+            <Field label="Fastag" field="fastag" error={validation.errors.fastag} onTouched={validation.touch}><NumberInput field="fastag" error={validation.errors.fastag} value={draft.fastag} onValueChange={(value) => onFieldChange("fastag", value)} /></Field>
+            <Field label="Road Parking" field="roadParking" error={validation.errors.roadParking} onTouched={validation.touch}><NumberInput field="roadParking" error={validation.errors.roadParking} value={draft.roadParking} onValueChange={(value) => onFieldChange("roadParking", value)} /></Field>
           </div>
         </MobileSection>
       )}
@@ -335,20 +435,20 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
               <div className="col-span-2 rounded-xl bg-blue-50 p-3 dark:bg-blue-950/30"><dt className="font-bold text-[#1E3A8A] dark:text-blue-200">Trip total</dt><dd className="mt-1 text-2xl font-black text-[#1E3A8A] dark:text-blue-200">{currency(draft.totalAmount, settings.currencySymbol)}</dd></div>
             </dl>
           </MobileSection>
-          <MobileSection title="Notes"><Textarea value={draft.notes} onChange={(event) => onFieldChange("notes", event.target.value)} placeholder="Optional trip notes" /></MobileSection>
+          <MobileSection title="Notes"><Field label="" field="notes" error={validation.errors.notes} onTouched={validation.touch}><Textarea aria-label="Notes" className={cn(validation.errors.notes && "border-red-500 ring-red-100 dark:border-red-400")} {...validationProps("notes", validation.errors.notes)} value={draft.notes} onChange={(event) => onFieldChange("notes", event.target.value)} placeholder="Optional trip notes" /></Field></MobileSection>
           <div className="text-right"><Button type="button" variant="ghost" className="min-h-9 px-2 text-xs" onClick={onReset}>Clear form</Button></div>
         </div>
       )}
 
       </div>
 
-      <CreateBillStepActions step={step} canContinue={canContinue} saving={saving} keyboardOpen={keyboardOpen} onBack={() => setStep((current) => current - 1)} onNext={continueStep} onPreview={() => setPreviewOpen(true)} onSave={() => void save()} />
+      <CreateBillStepActions step={step} canContinue={canContinue} saving={saving} keyboardOpen={keyboardOpen} onBack={() => setStep((current) => current - 1)} onNext={continueStep} onPreview={preview} onSave={() => void save()} />
 
       <MobileBottomSheet open={previewOpen} title="Bill Preview" description="Review before saving" onClose={() => setPreviewOpen(false)}>
         <BillPreview draft={displayDraft} settings={settings} onCopy={onCopy} onPdf={onPdf} compact />
       </MobileBottomSheet>
       <MobileBottomSheet open={activeDateField !== null} title={activeDateField === "tripDate" ? "Trip Date" : "Closing Date"} onClose={() => setActiveDateField(null)}>
-        <DayPicker mode="single" selected={activeDateField ? parseInputDate(draft[activeDateField]) : undefined} defaultMonth={activeDateField ? parseInputDate(draft[activeDateField]) : new Date()} fixedWeeks showOutsideDays navLayout="around" className="tripledger-calendar mx-auto" onSelect={(date) => {
+        <DayPicker mode="single" selected={activeDateField ? parseInputDate(draft[activeDateField]) : undefined} defaultMonth={(activeDateField ? parseInputDate(draft[activeDateField]) : undefined) ?? new Date()} fixedWeeks showOutsideDays navLayout="around" className="tripledger-calendar mx-auto" onSelect={(date) => {
           if (!date || !activeDateField) return;
           onFieldChange(activeDateField, inputDate(date));
           setActiveDateField(null);
@@ -365,12 +465,15 @@ export function LoggerPage({ draft, editingBillId, saving, settings, billingPart
   const [quickOwnerName, setQuickOwnerName] = useState("");
   const [quickOwnerBusy, setQuickOwnerBusy] = useState(false);
   const selectedBillingParty = billingParties.find((party) => party.id === draft.billingPartyId);
+  const normalizedDraft = normalizeBillDraft(draft);
   const displayDraft: BillDraft = {
-    ...draft,
+    ...normalizedDraft,
     billingPartyName: selectedBillingParty?.name,
     billingPartyCompanyName: selectedBillingParty?.companyName
   };
   const isMobile = useIsMobile();
+  const reduceMotion = useReducedMotion() ?? false;
+  const validation = useBillValidation(draft, billingParties);
 
   async function createQuickOwner() {
     const name = quickOwnerName.trim();
@@ -382,6 +485,34 @@ export function LoggerPage({ draft, editingBillId, saving, settings, billingPart
     } finally {
       setQuickOwnerBusy(false);
     }
+  }
+
+  function openInvalidDesktopField(field: BillField) {
+    const sectionByStep = ["tripDetails", "tripDetails", "tripTiming", "packageKm", "charges"];
+    const section = sectionByStep[BILL_FIELD_STEPS[field] ?? 0];
+    if (section) setOpenSections((current) => current.includes(section) ? current : [...current, section]);
+    focusBillField(field, reduceMotion);
+  }
+
+  async function saveDesktop() {
+    if (saving) return;
+    const errors = validation.checkAll();
+    const field = firstInvalidBillField(errors);
+    if (field) {
+      openInvalidDesktopField(field);
+      return;
+    }
+    await onSave();
+  }
+
+  function previewDesktop() {
+    const errors = validation.checkAll();
+    const field = firstInvalidBillField(errors);
+    if (field) {
+      openInvalidDesktopField(field);
+      return;
+    }
+    setOpenSections(["preview"]);
   }
 
   if (isMobile) {
@@ -421,8 +552,8 @@ export function LoggerPage({ draft, editingBillId, saving, settings, billingPart
           <CardContent className="space-y-3">
             <AccordionSection id="tripDetails" title="TRIP DETAILS" openSections={openSections} setOpenSections={setOpenSections}>
               <div className="form-grid compact-form-grid">
-                <Field label="Owner / Company">
-                  <Select value={draft.billingPartyId ?? ""} onChange={(event) => onFieldChange("billingPartyId", event.target.value || undefined)}>
+                <Field label="Owner / Company" field="billingPartyId" error={validation.errors.billingPartyId} onTouched={validation.touch}>
+                  <Select className={cn(validation.errors.billingPartyId && "border-red-500 ring-red-100 dark:border-red-400")} {...validationProps("billingPartyId", validation.errors.billingPartyId)} value={draft.billingPartyId ?? ""} onChange={(event) => onFieldChange("billingPartyId", event.target.value || undefined)}>
                     <option value="">Select Owner / Company</option>
                     {billingParties.map((party) => (
                       <option key={party.id} value={party.id}>{party.companyName || party.name}</option>
@@ -435,55 +566,55 @@ export function LoggerPage({ draft, editingBillId, saving, settings, billingPart
                     <Button type="button" onClick={() => void createQuickOwner()} disabled={quickOwnerBusy || !quickOwnerName.trim()}>{quickOwnerBusy ? "Adding..." : "Add"}</Button>
                   </div>
                 </Field>
-                <Field label="Driver"><Input placeholder="e.g. Radha" value={draft.driverName} onChange={(e) => onFieldChange("driverName", e.target.value)} /></Field>
-                <Field label="Vehicle"><Input placeholder="e.g. Innova Crysta" value={draft.vehicleName} onChange={(e) => onFieldChange("vehicleName", e.target.value)} /></Field>
-                <Field label="Vehicle Number"><Input placeholder="e.g. MH03CV4312" value={draft.vehicleNumber} onChange={(e) => onFieldChange("vehicleNumber", e.target.value)} /></Field>
-                <Field label="Guest">
+                <Field label="Driver" field="driverName" error={validation.errors.driverName} onTouched={validation.touch}><Input {...validationProps("driverName", validation.errors.driverName)} placeholder="e.g. Radha" value={draft.driverName} onChange={(e) => onFieldChange("driverName", e.target.value)} /></Field>
+                <Field label="Vehicle" field="vehicleName" error={validation.errors.vehicleName} onTouched={validation.touch}><Input {...validationProps("vehicleName", validation.errors.vehicleName)} placeholder="e.g. Innova Crysta" value={draft.vehicleName} onChange={(e) => onFieldChange("vehicleName", e.target.value)} /></Field>
+                <Field label="Vehicle Number" field="vehicleNumber" error={validation.errors.vehicleNumber} onTouched={validation.touch}><Input {...validationProps("vehicleNumber", validation.errors.vehicleNumber)} placeholder="e.g. MH03CV4312" value={draft.vehicleNumber} onChange={(e) => onFieldChange("vehicleNumber", e.target.value)} /></Field>
+                <Field label="Guest" field="guestName" error={validation.errors.guestName} onTouched={validation.touch}>
                   <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
                     <Select value={draft.guestSalutation === "Miss" ? "Miss." : draft.guestSalutation || "Mr."} onChange={(e) => onFieldChange("guestSalutation", e.target.value as BillDraft["guestSalutation"])}>
                       <option value="Mr.">Mr.</option>
                       <option value="Mrs.">Mrs.</option>
                       <option value="Miss.">Miss.</option>
                     </Select>
-                    <Input placeholder="e.g. X" value={draft.guestName} onChange={(e) => onFieldChange("guestName", e.target.value)} />
+                    <Input {...validationProps("guestName", validation.errors.guestName)} placeholder="e.g. X" value={draft.guestName} onChange={(e) => onFieldChange("guestName", e.target.value)} />
                   </div>
                 </Field>
-                <Field label="Reporting Place"><Input placeholder="e.g. The Leela Mumbai" value={draft.reportingPlace} onChange={(e) => onFieldChange("reportingPlace", e.target.value)} /></Field>
+                <Field label="Reporting Place" field="reportingPlace" error={validation.errors.reportingPlace} onTouched={validation.touch}><Input {...validationProps("reportingPlace", validation.errors.reportingPlace)} placeholder="e.g. The Leela Mumbai" value={draft.reportingPlace} onChange={(e) => onFieldChange("reportingPlace", e.target.value)} /></Field>
               </div>
             </AccordionSection>
 
             <AccordionSection id="tripTiming" title="TRIP TIMING" openSections={openSections} setOpenSections={setOpenSections}>
               <div className="form-grid compact-form-grid">
-                <Field label="Trip Date"><Input type="date" value={draft.tripDate} onChange={(event) => onFieldChange("tripDate", event.target.value)} /></Field>
-                <Field label="Reporting Time"><TimeInput placeholder={settings.timeFormat === "24h" ? "03:00" : "3:00 AM"} value={draft.reportingTime} onChange={(value) => onFieldChange("reportingTime", value)} /></Field>
-                <Field label="Garage Time"><TimeInput placeholder={settings.timeFormat === "24h" ? "02:00" : "2:00 AM"} value={draft.garageTime} onChange={onGarageTimeChange} /></Field>
-                <Field label="Closing Date"><Input type="date" value={draft.closingDate} onChange={(event) => onFieldChange("closingDate", event.target.value)} /></Field>
-                <Field label="Closing Time"><TimeInput placeholder={settings.timeFormat === "24h" ? "23:20" : "11:20 PM"} value={draft.closingTime} onChange={(value) => onFieldChange("closingTime", value)} /></Field>
-                <Field label="Total Hours"><Input value={formatDuration(draft.totalHours)} readOnly /></Field>
-                <Field label="Extra Hours"><Input value={formatDuration(draft.extraHours)} readOnly /></Field>
+                <Field label="Trip Date" field="tripDate" error={validation.errors.tripDate} onTouched={validation.touch}><Input {...validationProps("tripDate", validation.errors.tripDate)} type="date" value={draft.tripDate} onChange={(event) => onFieldChange("tripDate", event.target.value)} /></Field>
+                <Field label="Reporting Time" field="reportingTime" error={validation.errors.reportingTime} onTouched={validation.touch}><TimeInput field="reportingTime" error={validation.errors.reportingTime} placeholder={settings.timeFormat === "24h" ? "03:00" : "3:00 AM"} value={draft.reportingTime} onChange={(value) => onFieldChange("reportingTime", value)} /></Field>
+                <Field label="Garage Time" field="garageTime" error={validation.errors.garageTime} onTouched={validation.touch}><TimeInput field="garageTime" error={validation.errors.garageTime} placeholder={settings.timeFormat === "24h" ? "02:00" : "2:00 AM"} value={draft.garageTime} onChange={onGarageTimeChange} /></Field>
+                <Field label="Closing Date" field="closingDate" error={validation.errors.closingDate} onTouched={validation.touch}><Input {...validationProps("closingDate", validation.errors.closingDate)} type="date" value={draft.closingDate} onChange={(event) => onFieldChange("closingDate", event.target.value)} /></Field>
+                <Field label="Closing Time" field="closingTime" error={validation.errors.closingTime} onTouched={validation.touch}><TimeInput field="closingTime" error={validation.errors.closingTime} placeholder={settings.timeFormat === "24h" ? "23:20" : "11:20 PM"} value={draft.closingTime} onChange={(value) => onFieldChange("closingTime", value)} /></Field>
+                <Field label="Total Hours" field="totalHours" error={validation.errors.totalHours}><Input {...validationProps("totalHours", validation.errors.totalHours)} value={formatDuration(draft.totalHours)} readOnly /></Field>
+                <Field label="Extra Hours" field="extraHours" error={validation.errors.extraHours}><Input {...validationProps("extraHours", validation.errors.extraHours)} value={formatDuration(draft.extraHours)} readOnly /></Field>
               </div>
             </AccordionSection>
 
             <AccordionSection id="packageKm" title="PACKAGE & KM" openSections={openSections} setOpenSections={setOpenSections}>
               <div className="form-grid compact-form-grid">
-                <Field label="Base Package"><Input placeholder="e.g. 8 Hours / 80 KM" value={draft.basePackage} onChange={(e) => onFieldChange("basePackage", e.target.value)} /></Field>
-                <Field label="Base Hours"><NumberInput value={draft.baseHours} onValueChange={(value) => onFieldChange("baseHours", value)} placeholder="e.g. 8" /></Field>
-                <Field label="Base KM"><NumberInput value={draft.baseKm} onValueChange={(value) => onFieldChange("baseKm", value)} placeholder="e.g. 80" /></Field>
-                <Field label="Base Amount"><NumberInput value={draft.baseAmount} onValueChange={(value) => onFieldChange("baseAmount", value)} placeholder="e.g. 2800" /></Field>
-                <Field label="Total KM"><NumberInput value={draft.totalKm} onValueChange={(value) => onFieldChange("totalKm", value)} placeholder="e.g. 80" /></Field>
-                <Field label="Extra KM"><NumberInput value={draft.extraKm} onValueChange={(value) => onFieldChange("extraKm", value)} placeholder="Auto calculated" /></Field>
+                <Field label="Base Package" field="basePackage" error={validation.errors.basePackage} onTouched={validation.touch}><Input {...validationProps("basePackage", validation.errors.basePackage)} placeholder="e.g. 8 Hours / 80 KM" value={draft.basePackage} onChange={(e) => onFieldChange("basePackage", e.target.value)} /></Field>
+                <Field label="Base Hours" field="baseHours" error={validation.errors.baseHours} onTouched={validation.touch}><NumberInput field="baseHours" error={validation.errors.baseHours} value={draft.baseHours} onValueChange={(value) => onFieldChange("baseHours", value)} placeholder="e.g. 8" /></Field>
+                <Field label="Base KM" field="baseKm" error={validation.errors.baseKm} onTouched={validation.touch}><NumberInput field="baseKm" error={validation.errors.baseKm} value={draft.baseKm} onValueChange={(value) => onFieldChange("baseKm", value)} placeholder="e.g. 80" /></Field>
+                <Field label="Base Amount" field="baseAmount" error={validation.errors.baseAmount} onTouched={validation.touch}><NumberInput field="baseAmount" error={validation.errors.baseAmount} value={draft.baseAmount} onValueChange={(value) => onFieldChange("baseAmount", value)} placeholder="e.g. 2800" /></Field>
+                <Field label="Total KM" field="totalKm" error={validation.errors.totalKm} onTouched={validation.touch}><NumberInput field="totalKm" error={validation.errors.totalKm} value={draft.totalKm} onValueChange={(value) => onFieldChange("totalKm", value)} placeholder="e.g. 80" /></Field>
+                <Field label="Extra KM" field="extraKm" error={validation.errors.extraKm} onTouched={validation.touch}><NumberInput field="extraKm" error={validation.errors.extraKm} value={draft.extraKm} onValueChange={(value) => onFieldChange("extraKm", value)} placeholder="Auto calculated" /></Field>
               </div>
             </AccordionSection>
 
             <AccordionSection id="charges" title="CHARGES" openSections={openSections} setOpenSections={setOpenSections}>
               <div className="form-grid compact-form-grid">
-                <Field label="Extra KM Rate"><NumberInput value={draft.extraKmRate} onValueChange={(value) => onFieldChange("extraKmRate", value)} placeholder="e.g. 25" /></Field>
-                <Field label="Extra KM Amount"><NumberInput value={draft.extraKmAmount} onValueChange={(value) => onFieldChange("extraKmAmount", value)} placeholder="Auto calculated" /></Field>
-                <Field label="Extra Hour Rate"><NumberInput value={draft.extraHourRate} onValueChange={(value) => onFieldChange("extraHourRate", value)} placeholder="e.g. 200" /></Field>
-                <Field label="Extra Hour Amount"><NumberInput value={draft.extraHourAmount} onValueChange={(value) => onFieldChange("extraHourAmount", value)} placeholder="Auto calculated" /></Field>
-                <Field label="Airport Parking"><NumberInput value={draft.airportParking} onValueChange={(value) => onFieldChange("airportParking", value)} placeholder="e.g. 300" /></Field>
-                <Field label="Fastag"><NumberInput value={draft.fastag} onValueChange={(value) => onFieldChange("fastag", value)} placeholder="e.g. 150" /></Field>
-                <Field label="Road Parking"><NumberInput value={draft.roadParking} onValueChange={(value) => onFieldChange("roadParking", value)} placeholder="e.g. 100" /></Field>
+                <Field label="Extra KM Rate" field="extraKmRate" error={validation.errors.extraKmRate} onTouched={validation.touch}><NumberInput field="extraKmRate" error={validation.errors.extraKmRate} value={draft.extraKmRate} onValueChange={(value) => onFieldChange("extraKmRate", value)} placeholder="e.g. 25" /></Field>
+                <Field label="Extra KM Amount" field="extraKmAmount" error={validation.errors.extraKmAmount} onTouched={validation.touch}><NumberInput field="extraKmAmount" error={validation.errors.extraKmAmount} value={draft.extraKmAmount} onValueChange={(value) => onFieldChange("extraKmAmount", value)} placeholder="Auto calculated" /></Field>
+                <Field label="Extra Hour Rate" field="extraHourRate" error={validation.errors.extraHourRate} onTouched={validation.touch}><NumberInput field="extraHourRate" error={validation.errors.extraHourRate} value={draft.extraHourRate} onValueChange={(value) => onFieldChange("extraHourRate", value)} placeholder="e.g. 200" /></Field>
+                <Field label="Extra Hour Amount" field="extraHourAmount" error={validation.errors.extraHourAmount} onTouched={validation.touch}><NumberInput field="extraHourAmount" error={validation.errors.extraHourAmount} value={draft.extraHourAmount} onValueChange={(value) => onFieldChange("extraHourAmount", value)} placeholder="Auto calculated" /></Field>
+                <Field label="Airport Parking" field="airportParking" error={validation.errors.airportParking} onTouched={validation.touch}><NumberInput field="airportParking" error={validation.errors.airportParking} value={draft.airportParking} onValueChange={(value) => onFieldChange("airportParking", value)} placeholder="e.g. 300" /></Field>
+                <Field label="Fastag" field="fastag" error={validation.errors.fastag} onTouched={validation.touch}><NumberInput field="fastag" error={validation.errors.fastag} value={draft.fastag} onValueChange={(value) => onFieldChange("fastag", value)} placeholder="e.g. 150" /></Field>
+                <Field label="Road Parking" field="roadParking" error={validation.errors.roadParking} onTouched={validation.touch}><NumberInput field="roadParking" error={validation.errors.roadParking} value={draft.roadParking} onValueChange={(value) => onFieldChange("roadParking", value)} placeholder="e.g. 100" /></Field>
               </div>
             </AccordionSection>
 
@@ -494,10 +625,10 @@ export function LoggerPage({ draft, editingBillId, saving, settings, billingPart
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-[#111827] sm:p-5">
-              <Field label="Notes"><Textarea placeholder="e.g. Airport pickup and local travel" value={draft.notes} onChange={(e) => onFieldChange("notes", e.target.value)} /></Field>
+              <Field label="Notes" field="notes" error={validation.errors.notes} onTouched={validation.touch}><Textarea className={cn(validation.errors.notes && "border-red-500 ring-red-100 dark:border-red-400")} {...validationProps("notes", validation.errors.notes)} placeholder="e.g. Airport pickup and local travel" value={draft.notes} onChange={(e) => onFieldChange("notes", e.target.value)} /></Field>
               <div className="mt-4 grid gap-2 sm:flex sm:justify-end">
                 <Button type="button" variant="neutral" onClick={onReset}>Reset Logger</Button>
-                <Button type="button" variant="primary" className="hidden sm:inline-flex" disabled={saving || !draft.billingPartyId} onClick={() => void onSave()}>{saving ? "Saving..." : editingBillId ? "Update Bill" : "Save Bill"}</Button>
+                <Button type="button" variant="primary" className="hidden sm:inline-flex" disabled={saving} onClick={() => void saveDesktop()}>{saving ? "Saving..." : editingBillId ? "Update Bill" : "Save Bill"}</Button>
               </div>
             </div>
           </CardContent>
@@ -505,8 +636,8 @@ export function LoggerPage({ draft, editingBillId, saving, settings, billingPart
 
         <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-800 dark:bg-[#0b1120]/95 lg:hidden">
           <div className="mx-auto grid max-w-md grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] gap-2">
-            <Button type="button" variant="secondary" onClick={() => setOpenSections(["preview"])}>Preview</Button>
-            <Button type="button" variant="primary" disabled={saving || !draft.billingPartyId} onClick={() => void onSave()}>{saving ? "Saving..." : editingBillId ? "Update Bill" : "Save Bill"}</Button>
+            <Button type="button" variant="secondary" onClick={previewDesktop}>Preview</Button>
+            <Button type="button" variant="primary" disabled={saving} onClick={() => void saveDesktop()}>{saving ? "Saving..." : editingBillId ? "Update Bill" : "Save Bill"}</Button>
           </div>
         </div>
       </div>
