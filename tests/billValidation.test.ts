@@ -10,6 +10,11 @@ function validDraft() {
   return {
     ...createEmptyBillDraft(),
     billingPartyId: "owner-1",
+    guestName: "Customer",
+    reportingPlace: "Airport",
+    driverName: "Driver",
+    vehicleName: "Innova",
+    vehicleNumber: "KL 01 AB 1234",
     reportingTime: "09:00",
     garageTime: "08:00",
     closingTime: "17:00"
@@ -17,8 +22,8 @@ function validDraft() {
 }
 
 test("requires a valid selected owner", () => {
-  assert.equal(validateBillDraft(validDraft(), { validBillingPartyIds: new Set() }).billingPartyId, "Select or add an owner/company.");
-  assert.equal(validateBillDraft(validDraft(), { validBillingPartyIds: new Set(["owner-1"]) }).billingPartyId, undefined);
+  assert.equal(validateBillDraft(validDraft(), { validBillingPartyIds: new Set() }).billingPartyId, "Select a company or owner.");
+  assert.deepEqual(validateBillDraft(validDraft(), { validBillingPartyIds: new Set(["owner-1"]) }), {});
 });
 
 test("quick-add text alone cannot satisfy the owner reference", () => {
@@ -26,13 +31,20 @@ test("quick-add text alone cannot satisfy the owner reference", () => {
   assert.ok(validateBillStep(0, draft, { validBillingPartyIds: new Set(["owner-1"]) }).billingPartyId);
 });
 
-test("requires complete dates and times", () => {
+test("requires the approved customer, reporting, driver, and vehicle fields", () => {
   const draft = validDraft();
-  assert.ok(validateBillDraft({ ...draft, tripDate: "" }).tripDate);
+  const fields = ["guestName", "reportingPlace", "driverName", "vehicleName", "vehicleNumber"] as const;
+  for (const field of fields) assert.ok(validateBillDraft({ ...draft, [field]: "   " })[field]);
+});
+
+test("requires complete times without making dates compulsory", () => {
+  const draft = validDraft();
   assert.ok(validateBillDraft({ ...draft, reportingTime: "" }).reportingTime);
+  assert.ok(validateBillDraft({ ...draft, reportingTime: "25:00" }).reportingTime);
   assert.ok(validateBillDraft({ ...draft, garageTime: "" }).garageTime);
-  assert.ok(validateBillDraft({ ...draft, closingDate: "" }).closingDate);
   assert.ok(validateBillDraft({ ...draft, closingTime: "" }).closingTime);
+  assert.equal(validateBillDraft({ ...draft, tripDate: "", closingDate: "" }).tripDate, undefined);
+  assert.equal(validateBillDraft({ ...draft, tripDate: "", closingDate: "" }).closingDate, undefined);
 });
 
 test("rejects reversed times but accepts overnight trips on a later date", () => {

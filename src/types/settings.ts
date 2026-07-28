@@ -9,5 +9,8 @@ export interface AppSettings {
   defaultBaseAmount: number;
   defaultExtraHourRate: number;
   defaultExtraKmRate: number;
+  defaultDriverName: string;
+  defaultVehicleModel: string;
+  defaultVehicleNumber: string;
   businessName: string;
 }

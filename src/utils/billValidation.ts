@@ -51,6 +51,14 @@ const textLimits: Partial<Record<BillField, number>> = {
   notes: 2000
 };
 
+const requiredText: Partial<Record<BillField, string>> = {
+  guestName: "Enter the customer name.",
+  reportingPlace: "Enter the reporting place.",
+  driverName: "Enter the driver name.",
+  vehicleName: "Enter the vehicle model.",
+  vehicleNumber: "Enter the vehicle number."
+};
+
 const numericLimits: Partial<Record<BillField, number>> = {
   baseHours: 10_000,
   totalHours: 10_000,
@@ -117,7 +125,11 @@ export function validateBillDraft(draft: BillDraft, options: ValidationOptions =
   const errors: BillValidationErrors = {};
   const ownerId = draft.billingPartyId?.trim();
   if (!ownerId || (options.validBillingPartyIds && !options.validBillingPartyIds.has(ownerId))) {
-    errors.billingPartyId = "Select or add an owner/company.";
+    errors.billingPartyId = "Select a company or owner.";
+  }
+
+  for (const [field, message] of Object.entries(requiredText) as Array<[BillField, string]>) {
+    if (!String(draft[field] ?? "").trim()) errors[field] = message;
   }
 
   for (const [field, maximum] of Object.entries(textLimits) as Array<[BillField, number]>) {
@@ -125,10 +137,8 @@ export function validateBillDraft(draft: BillDraft, options: ValidationOptions =
     if (value.length > maximum) errors[field] = `Use ${maximum.toLocaleString("en-IN")} characters or fewer.`;
   }
 
-  if (!validDate(draft.tripDate)) errors.tripDate = "Select the trip date.";
   if (parseTimeToMinutes(draft.reportingTime) === null) errors.reportingTime = "Enter the reporting time.";
   if (parseTimeToMinutes(draft.garageTime) === null) errors.garageTime = "Enter the garage time.";
-  if (!validDate(draft.closingDate)) errors.closingDate = "Select the closing date.";
   if (parseTimeToMinutes(draft.closingTime) === null) errors.closingTime = "Enter the closing time.";
 
   const reporting = localDateTime(draft.tripDate, draft.reportingTime);

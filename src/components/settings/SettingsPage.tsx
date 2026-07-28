@@ -65,6 +65,22 @@ function SettingsSection({ id, title, openSection, setOpenSection, children }: {
 export function SettingsPage({ settings, userEmail, isDarkMode, onToggleDarkMode, onSave }: Props) {
   const [draft, setDraft] = useState<AppSettings>(settings);
   const [openSection, setOpenSection] = useState<SettingsSectionId | null>(null);
+  const [defaultsSaving, setDefaultsSaving] = useState(false);
+
+  async function saveBillingDefaults() {
+    if (defaultsSaving) return;
+    setDefaultsSaving(true);
+    try {
+      await onSave({
+        ...settings,
+        defaultDriverName: draft.defaultDriverName,
+        defaultVehicleModel: draft.defaultVehicleModel,
+        defaultVehicleNumber: draft.defaultVehicleNumber
+      });
+    } finally {
+      setDefaultsSaving(false);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
@@ -106,6 +122,16 @@ export function SettingsPage({ settings, userEmail, isDarkMode, onToggleDarkMode
       <SettingsSection id="preferences" title="App Preferences" openSection={openSection} setOpenSection={setOpenSection}>
         <div className="space-y-6">
           <p className="text-sm text-slate-500 dark:text-slate-400">Set the defaults used when starting a new bill.</p>
+          <section aria-labelledby="billing-defaults-title" className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40">
+            <h3 id="billing-defaults-title" className="text-sm font-black text-slate-900 dark:text-slate-100">Driver & Vehicle Defaults</h3>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Prefill new bills while keeping every bill editable.</p>
+            <div className="mt-4 form-grid">
+              <Field label="Default Driver Name"><Input maxLength={120} value={draft.defaultDriverName} onChange={(event) => setDraft({ ...draft, defaultDriverName: event.target.value })} /></Field>
+              <Field label="Default Vehicle Model"><Input maxLength={120} value={draft.defaultVehicleModel} onChange={(event) => setDraft({ ...draft, defaultVehicleModel: event.target.value })} /></Field>
+              <Field label="Default Vehicle Number"><Input maxLength={32} value={draft.defaultVehicleNumber} onChange={(event) => setDraft({ ...draft, defaultVehicleNumber: event.target.value })} /></Field>
+            </div>
+            <Button type="button" variant="primary" className="mt-4" disabled={defaultsSaving} onClick={() => void saveBillingDefaults()}>{defaultsSaving ? "Saving..." : "Save Defaults"}</Button>
+          </section>
           <div className="form-grid">
             <Field label="Time Format">
               <Select value={draft.timeFormat} onChange={(e) => setDraft({ ...draft, timeFormat: e.target.value as TimeFormat })}>

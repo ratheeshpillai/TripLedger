@@ -25,7 +25,13 @@ export const localStorageSettingsService: SettingsService = {
     }
   },
   async saveSettings(userId, settings) {
-    localStorage.setItem(settingsKey(userId), JSON.stringify(settings));
-    return settings;
+    const normalized = {
+      ...settings,
+      defaultDriverName: settings.defaultDriverName.trim(),
+      defaultVehicleModel: settings.defaultVehicleModel.trim(),
+      defaultVehicleNumber: settings.defaultVehicleNumber.trim()
+    };
+    localStorage.setItem(settingsKey(userId), JSON.stringify(normalized));
+    return normalized;
   }
 };

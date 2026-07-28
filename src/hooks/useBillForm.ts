@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { createEmptyBillDraft } from "../constants/defaults";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { applyBillingDefaults, createEmptyBillDraft } from "../constants/defaults";
 import type { Bill, BillDraft } from "../types/bill";
 import type { AppSettings } from "../types/settings";
 import { calculateBillDraft, calculateBillTotal } from "../utils/calculations";
@@ -9,10 +9,12 @@ export function useBillForm(settings: AppSettings) {
   const [draft, setDraft] = useState<BillDraft>(() => createEmptyBillDraft(settings));
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [garageAutoMode, setGarageAutoMode] = useState(true);
+  const acceptsDefaultsRef = useRef(true);
 
   useEffect(() => {
+    if (!acceptsDefaultsRef.current) return;
     setDraft((current) => ({
-      ...current,
+      ...applyBillingDefaults(current, settings),
       basePackage: current.basePackage || settings.defaultBasePackage,
       baseHours: current.baseHours || settings.defaultBaseHours,
       baseKm: current.baseKm || settings.defaultBaseKm,
@@ -25,6 +27,7 @@ export function useBillForm(settings: AppSettings) {
   const calculatedDraft = useMemo(() => calculateBillDraft(draft), [draft]);
 
   function updateField<K extends keyof BillDraft>(field: K, value: BillDraft[K]) {
+    acceptsDefaultsRef.current = false;
     setDraft((current) => {
       const next = { ...current, [field]: value };
       if (field === "reportingTime" && garageAutoMode) {
@@ -53,6 +56,7 @@ export function useBillForm(settings: AppSettings) {
   }
 
   function loadForEdit(bill: Bill) {
+    acceptsDefaultsRef.current = false;
     setEditingBillId(bill.id);
     setGarageAutoMode(true);
     const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...billDraft } = bill;
@@ -60,6 +64,7 @@ export function useBillForm(settings: AppSettings) {
   }
 
   function duplicateBill(bill: Bill) {
+    acceptsDefaultsRef.current = false;
     const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...billDraft } = bill;
     setEditingBillId(null);
     setGarageAutoMode(true);
@@ -67,6 +72,7 @@ export function useBillForm(settings: AppSettings) {
   }
 
   function resetLogger() {
+    acceptsDefaultsRef.current = true;
     setDraft(createEmptyBillDraft(settings));
     setEditingBillId(null);
     setGarageAutoMode(true);

@@ -10,6 +10,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultBaseAmount: 2800,
   defaultExtraHourRate: 200,
   defaultExtraKmRate: 0,
+  defaultDriverName: "",
+  defaultVehicleModel: "",
+  defaultVehicleNumber: "",
   businessName: "Your Business Name"
 };
 
@@ -30,9 +33,9 @@ export function createEmptyBillDraft(settings: AppSettings = DEFAULT_SETTINGS): 
     driverId: undefined,
     vehicleId: undefined,
     guestId: undefined,
-    driverName: "",
-    vehicleName: "",
-    vehicleNumber: "",
+    driverName: settings.defaultDriverName,
+    vehicleName: settings.defaultVehicleModel,
+    vehicleNumber: settings.defaultVehicleNumber,
     guestSalutation: "Mr.",
     guestName: "",
     reportingPlace: "",
@@ -61,5 +64,14 @@ export function createEmptyBillDraft(settings: AppSettings = DEFAULT_SETTINGS): 
     totalAmount: settings.defaultBaseAmount,
     notes: "",
     whatsappNumber: ""
+  };
+}
+
+export function applyBillingDefaults(draft: BillDraft, settings: AppSettings): BillDraft {
+  return {
+    ...draft,
+    driverName: draft.driverName.trim() ? draft.driverName : settings.defaultDriverName,
+    vehicleName: draft.vehicleName.trim() ? draft.vehicleName : settings.defaultVehicleModel,
+    vehicleNumber: draft.vehicleNumber.trim() ? draft.vehicleNumber : settings.defaultVehicleNumber
   };
 }
