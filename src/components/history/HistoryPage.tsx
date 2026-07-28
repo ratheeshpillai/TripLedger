@@ -1,13 +1,11 @@
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
-import type { Bill } from "../../types/bill";
+import type { Bill, BillSummaryTotals } from "../../types/bill";
 import type { BillingParty } from "../../types/billingParty";
 import type { AppSettings } from "../../types/settings";
 import { calculateCombinedSummary } from "../../utils/calculations";
-import { amountOrNA, currency, guestDisplay } from "../../utils/formatters";
-import { exportCombinedSummaryPdf, exportIndividualSummaryPdf, exportSingleBillPdf } from "../../utils/pdf";
-import { formatDuration } from "../../utils/timeUtils";
+import { currency, guestDisplay } from "../../utils/formatters";
 import { buildCombinedSummaryText, buildCombinedSummaryWhatsAppText, buildIndividualSummaryText, buildIndividualSummaryWhatsAppText, buildSingleBillText, buildSingleBillWhatsAppText, createWhatsAppUrl } from "../../utils/whatsapp";
 import { ConfirmationDialog } from "../shared/ConfirmationDialog";
 import { EmptyState } from "../shared/EmptyState";
@@ -18,6 +16,7 @@ import { Textarea } from "../ui/Textarea";
 import { cn } from "../ui/cn";
 import { useDialogFocus } from "../ui/useDialogFocus";
 import { useOverlayPlacement } from "../ui/useOverlayPlacement";
+import { MobileBottomSheet, useIsMobile } from "../mobile/MobilePrimitives";
 
 type Props = {
   bills: Bill[];
@@ -57,7 +56,7 @@ const rowsPerPageOptions = [20, 50, 100];
 const HISTORY_SORT_KEY_PREFIX = "tripledger.history.sort";
 
 const outlineActionClass = "inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl border border-[#1E3A8A] bg-white px-4 py-2 text-sm font-semibold text-[#1E3A8A] hover:bg-[#1E3A8A] hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-blue-400 dark:bg-[#111827] dark:text-blue-200 dark:hover:bg-blue-600 dark:hover:text-white dark:focus:ring-offset-slate-950";
-const iconButtonClass = "grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-[#1E3A8A] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-slate-700 dark:bg-[#111827] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-blue-200 dark:focus:ring-offset-slate-950";
+const iconButtonClass = "grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-[#1E3A8A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-[#111827] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-blue-200 dark:focus-visible:ring-offset-slate-950";
 const toolbarControlClass = "min-h-11 gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 shadow-none hover:border-[#1E3A8A] hover:bg-[#1E3A8A] hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 data-[active=true]:border-[#1E3A8A] data-[active=true]:bg-[#1E3A8A] data-[active=true]:text-white dark:border-slate-700 dark:bg-[#111827] dark:text-slate-200 dark:hover:border-blue-600 dark:hover:bg-blue-700 dark:hover:text-white dark:data-[active=true]:border-blue-600 dark:data-[active=true]:bg-blue-700 dark:data-[active=true]:text-white dark:focus:ring-offset-slate-950";
 const menuItemClass = "flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200 dark:hover:bg-slate-800";
 
@@ -85,6 +84,18 @@ function Icon({ name }: { name: "search" | "x" | "filter" | "sort" | "calendar" 
 
 function ownerName(bill: Bill): string {
   return bill.billingPartyCompanyName || bill.billingPartyName || "Unassigned";
+}
+
+function exportSingleBillPdf(bill: Bill, settings: AppSettings) {
+  void import("../../utils/pdf").then((module) => module.exportSingleBillPdf(bill, settings));
+}
+
+function exportIndividualSummaryPdf(bills: Bill[], settings: AppSettings) {
+  void import("../../utils/pdf").then((module) => module.exportIndividualSummaryPdf(bills, settings));
+}
+
+function exportCombinedSummaryPdf(summary: BillSummaryTotals, settings: AppSettings) {
+  void import("../../utils/pdf").then((module) => module.exportCombinedSummaryPdf(summary, settings));
 }
 
 function ownerGroupKey(bill: Bill): string {
@@ -250,21 +261,21 @@ function paginationPages(currentPage: number, pageCount: number): number[] {
   return Array.from({ length: totalVisible }, (_, index) => start + index);
 }
 
-function Modal({ title, description, headerActions, maxWidth = "max-w-3xl", onClose, children }: { title: string; description?: string; headerActions?: ReactNode; maxWidth?: string; onClose: () => void; children: ReactNode }) {
+function Modal({ title, description, headerActions, closeLabel, initialFocusRef, maxWidth = "max-w-3xl", onClose, children }: { title: string; description?: string; headerActions?: ReactNode; closeLabel?: string; initialFocusRef?: RefObject<HTMLElement | null>; maxWidth?: string; onClose: () => void; children: ReactNode }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
-  useDialogFocus(true, dialogRef, onClose);
+  useDialogFocus(true, dialogRef, onClose, initialFocusRef);
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-3 sm:p-4" onMouseDown={onClose}>
       <Card ref={dialogRef} className={cn("max-h-[92vh] w-full overflow-hidden focus:outline-none", maxWidth)} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="history-modal-title" tabIndex={-1}>
-        <div className="flex flex-col gap-4 border-b border-slate-100 p-4 dark:border-slate-700 sm:flex-row sm:items-start sm:justify-between sm:p-5">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-4 dark:border-slate-700 sm:p-5">
           <div className="min-w-0">
             <h2 id="history-modal-title" className="text-base font-black text-slate-950 dark:text-slate-50">{title}</h2>
             {description && <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</p>}
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {headerActions}
-            <button type="button" className={iconButtonClass} aria-label="Close modal" title="Close" onClick={onClose}><Icon name="x" /></button>
+            <button type="button" className={iconButtonClass} aria-label={closeLabel || `Close ${title}`} title="Close" onClick={onClose}><Icon name="x" /></button>
           </div>
         </div>
         <div className="max-h-[calc(92vh-90px)] overflow-y-auto p-4 sm:p-5">{children}</div>
@@ -297,6 +308,7 @@ function ActionMenu({
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const { style } = useOverlayPlacement(isOpen, triggerRef, overlayRef);
+  const isMobile = useIsMobile();
 
   function close(restoreFocus = true) {
     onActiveMenuChange(null);
@@ -304,7 +316,7 @@ function ActionMenu({
   }
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isMobile) return;
 
     function handlePointerDown(event: PointerEvent) {
       if (!rootRef.current?.contains(event.target as Node)) close(false);
@@ -323,7 +335,7 @@ function ActionMenu({
       document.removeEventListener("pointerdown", handlePointerDown, true);
       document.removeEventListener("keydown", handleKeyDown, true);
     };
-  }, [isOpen]);
+  }, [isMobile, isOpen]);
 
   function handleMenuKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
@@ -355,7 +367,7 @@ function ActionMenu({
       >
         {trigger}
       </button>
-      {isOpen && (
+      {isOpen && !isMobile && (
         <div
           ref={overlayRef}
           role="menu"
@@ -369,6 +381,9 @@ function ActionMenu({
           {children(close)}
         </div>
       )}
+      <MobileBottomSheet open={isOpen && isMobile} title={triggerLabel} onClose={() => close(true)}>
+        <div role="menu" aria-label={triggerLabel} className="space-y-1">{children(close)}</div>
+      </MobileBottomSheet>
     </div>
   );
 }
@@ -401,6 +416,7 @@ function ToolbarPopover({
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const { style } = useOverlayPlacement(isOpen, triggerRef, overlayRef, { estimatedHeight: wide ? 430 : 240 });
+  const isMobile = useIsMobile();
 
   function close(restoreFocus = false) {
     onActivePopoverChange(null);
@@ -408,7 +424,7 @@ function ToolbarPopover({
   }
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isMobile) return;
 
     function handlePointerDown(event: PointerEvent) {
       if (!rootRef.current?.contains(event.target as Node)) close(false);
@@ -426,7 +442,7 @@ function ToolbarPopover({
       document.removeEventListener("pointerdown", handlePointerDown, true);
       document.removeEventListener("keydown", handleKeyDown, true);
     };
-  }, [isOpen]);
+  }, [isMobile, isOpen]);
 
   return (
     <div className="relative" ref={rootRef}>
@@ -449,7 +465,7 @@ function ToolbarPopover({
       >
         {trigger}
       </button>
-      {isOpen && (
+      {isOpen && !isMobile && (
         <div
           ref={overlayRef}
           role="dialog"
@@ -465,19 +481,23 @@ function ToolbarPopover({
           {children(close)}
         </div>
       )}
+      <MobileBottomSheet open={isOpen && isMobile} title={triggerLabel} onClose={() => close(true)}>
+        {children(close)}
+      </MobileBottomSheet>
     </div>
   );
 }
 
 type HistorySelectOption = { value: string; label: string };
 
-function HistorySelect({ label, value, options, onChange, leadingIcon, className }: {
+function HistorySelect({ label, value, options, onChange, leadingIcon, className, iconOnly = false }: {
   label: string;
   value: string;
   options: HistorySelectOption[];
   onChange: (value: string) => void;
   leadingIcon?: ReactNode;
   className?: string;
+  iconOnly?: boolean;
 }) {
   const listboxId = useId();
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -486,6 +506,7 @@ function HistorySelect({ label, value, options, onChange, leadingIcon, className
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(selectedIndex);
   const selectedOption = options[selectedIndex] ?? options[0];
+  const isMobile = useIsMobile();
 
   function close(restoreFocus = false) {
     setIsOpen(false);
@@ -505,13 +526,13 @@ function HistorySelect({ label, value, options, onChange, leadingIcon, className
   }
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isMobile) return;
     function handlePointerDown(event: PointerEvent) {
       if (!rootRef.current?.contains(event.target as Node)) close(false);
     }
     document.addEventListener("pointerdown", handlePointerDown, true);
     return () => document.removeEventListener("pointerdown", handlePointerDown, true);
-  }, [isOpen]);
+  }, [isMobile, isOpen]);
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (event.key === "Escape" && isOpen) {
@@ -545,8 +566,8 @@ function HistorySelect({ label, value, options, onChange, leadingIcon, className
       <button
         ref={triggerRef}
         type="button"
-        className="inline-flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 hover:border-[#1E3A8A] hover:bg-blue-50 hover:text-[#1E3A8A] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 data-[open=true]:border-[#1E3A8A] data-[open=true]:ring-2 data-[open=true]:ring-blue-100 dark:border-slate-700 dark:bg-[#111827] dark:text-slate-200 dark:hover:border-blue-600 dark:hover:bg-slate-800 dark:hover:text-blue-100 dark:data-[open=true]:border-blue-500 dark:data-[open=true]:ring-blue-950 dark:focus:ring-offset-slate-950"
-        aria-label={label}
+        className={cn("inline-flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 hover:border-[#1E3A8A] hover:bg-blue-50 hover:text-[#1E3A8A] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 data-[open=true]:border-[#1E3A8A] data-[open=true]:ring-2 data-[open=true]:ring-blue-100 dark:border-slate-700 dark:bg-[#111827] dark:text-slate-200 dark:hover:border-blue-600 dark:hover:bg-slate-800 dark:hover:text-blue-100 dark:data-[open=true]:border-blue-500 dark:data-[open=true]:ring-blue-950 dark:focus:ring-offset-slate-950", iconOnly && "w-11 justify-center p-0")}
+        aria-label={`${label}: ${selectedOption?.label}`}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-controls={listboxId}
@@ -555,10 +576,10 @@ function HistorySelect({ label, value, options, onChange, leadingIcon, className
         onClick={() => isOpen ? close() : open()}
       >
         {leadingIcon && <span className="shrink-0 text-slate-400">{leadingIcon}</span>}
-        <span className="min-w-0 flex-1 truncate text-left">{selectedOption?.label}</span>
-        <span className={cn("shrink-0 text-slate-400 transition-transform", isOpen && "rotate-180")}><Icon name="chevronDown" /></span>
+        <span className={cn("min-w-0 flex-1 truncate text-left", iconOnly && "sr-only")}>{selectedOption?.label}</span>
+        {!iconOnly && <span className={cn("shrink-0 text-slate-400 transition-transform", isOpen && "rotate-180")}><Icon name="chevronDown" /></span>}
       </button>
-      {isOpen && (
+      {isOpen && !isMobile && (
         <div id={listboxId} role="listbox" aria-label={label} className="absolute right-0 z-50 mt-2 max-h-64 w-full max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-900/10 dark:border-slate-700 dark:bg-[#111827] dark:shadow-black/30">
           {options.map((option, index) => {
             const selected = option.value === value;
@@ -583,6 +604,18 @@ function HistorySelect({ label, value, options, onChange, leadingIcon, className
           })}
         </div>
       )}
+      <MobileBottomSheet open={isOpen && isMobile} title={label} onClose={() => close(true)}>
+        <div role="listbox" aria-label={label} className="space-y-1">
+          {options.map((option, index) => {
+            const selected = option.value === value;
+            return (
+              <button key={option.value} type="button" role="option" aria-selected={selected} className={cn("flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-bold", selected ? "bg-blue-50 text-[#1E3A8A] dark:bg-blue-950/40 dark:text-blue-200" : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")} onClick={() => selectOption(index)}>
+                <span className="truncate">{option.label}</span>{selected && <Icon name="check" />}
+              </button>
+            );
+          })}
+        </div>
+      </MobileBottomSheet>
     </div>
   );
 }
@@ -614,6 +647,7 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
   });
   const [activeToolbarPopover, setActiveToolbarPopover] = useState<"date-range" | "filter" | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | null>(null);
+  const [mobileDateFilterEnabled, setMobileDateFilterEnabled] = useState(false);
   const [customFromDate, setCustomFromDate] = useState(() => inputDate(new Date()));
   const [customToDate, setCustomToDate] = useState(() => inputDate(new Date()));
   const [activeDatePicker, setActiveDatePicker] = useState<"from" | "to" | null>(null);
@@ -624,6 +658,7 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
   const [summaryChoiceOpen, setSummaryChoiceOpen] = useState(false);
   const [multiOwnerChoiceOpen, setMultiOwnerChoiceOpen] = useState(false);
   const [summaryDraftMode, setSummaryDraftMode] = useState<"combined" | "individual">("combined");
+  const summaryChoiceFocusRef = useRef<HTMLInputElement | null>(null);
   const [summaryMode, setSummaryMode] = useState<SummaryMode | null>(null);
   const [shareNumber, setShareNumber] = useState("");
   const [deleteBill, setDeleteBill] = useState<Bill | null>(null);
@@ -632,6 +667,7 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [page, setPage] = useState(1);
+  const isMobile = useIsMobile();
 
   const billingPartyNameById = useMemo(() => new Map(billingParties.map((party) => [party.id, party.companyName || party.name])), [billingParties]);
   const billingPartyOptions = useMemo<HistorySelectOption[]>(() => [
@@ -769,6 +805,13 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
     return true;
   }
 
+  function applyMobileFilters(): boolean {
+    if (mobileDateFilterEnabled && !applyCustomDateRange()) return false;
+    if (!mobileDateFilterEnabled) setDateRange(null);
+    applyFilters();
+    return true;
+  }
+
   function prepareDateRangeDraft() {
     const today = inputDate(new Date());
     setCustomFromDate(dateRange?.fromDate || today);
@@ -858,6 +901,9 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
             <button type="button" role="menuitem" className={menuItemClass} onClick={() => runMenuAction(close, () => setPreviewBill(bill))}><Icon name="eye" /> Preview</button>
             <button type="button" role="menuitem" className={menuItemClass} onClick={() => runMenuAction(close, () => onEdit(bill))}><Icon name="edit" /> Edit</button>
             <button type="button" role="menuitem" className={menuItemClass} onClick={() => runMenuAction(close, () => onDuplicate(bill))}><Icon name="duplicate" /> Duplicate</button>
+            <button type="button" role="menuitem" className={menuItemClass} onClick={() => runMenuAction(close, () => onCopy(buildSingleBillWhatsAppText(bill, settings)))}><Icon name="copy" /> Copy Bill</button>
+            <a role="menuitem" className={menuItemClass} href={createWhatsAppUrl(buildSingleBillWhatsAppText(bill, settings))} target="_blank" rel="noreferrer" onClick={() => close()}><Icon name="share" /> Share on WhatsApp</a>
+            <button type="button" role="menuitem" className={menuItemClass} onClick={() => runMenuAction(close, () => exportSingleBillPdf(bill, settings))}><Icon name="download" /> Export PDF</button>
             <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
             <button type="button" role="menuitem" className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-bold text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-red-300 dark:hover:bg-red-950/40" onClick={() => runMenuAction(close, () => setDeleteBill(bill))}><Icon name="trash" /> Delete</button>
           </>
@@ -867,7 +913,7 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
   }
 
   return (
-    <div className="tripledgerListPage">
+    <div className="tripledgerListPage min-w-0 max-w-full">
       <header className="tripledgerListMobileHeader">
         <h1 className="text-xl font-black text-slate-950 dark:text-slate-50">Bill History</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">Search, review and manage saved bills</p>
@@ -875,7 +921,74 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
 
       <Card className="tripledgerListToolbar">
         <CardContent className="tripledgerListToolbarContent space-y-3">
-          <div className="tripledgerListToolbarGrid lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] lg:items-center">
+          {isMobile && (
+            <div className="grid grid-cols-[minmax(0,1fr)_2.75rem_2.75rem] gap-2">
+              <label className="relative block">
+                <span className="sr-only">Search bills</span>
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="search" /></span>
+                <Input className="pl-10 pr-9" placeholder="Search bills..." value={search} onChange={(event) => setSearch(event.target.value)} />
+                {search && (
+                  <button type="button" className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-slate-400" aria-label="Clear search" onClick={() => setSearch("")}>
+                    <Icon name="x" />
+                  </button>
+                )}
+              </label>
+              <ToolbarPopover
+                popoverId="filter"
+                activePopover={activeToolbarPopover}
+                onActivePopoverChange={setActiveToolbarPopover}
+                onOpen={() => {
+                  closeActionMenus();
+                  setDraftFilters(appliedFilters);
+                  setMobileDateFilterEnabled(Boolean(dateRange));
+                  prepareDateRangeDraft();
+                }}
+                trigger={<Icon name="filter" />}
+                triggerClassName={cn(toolbarControlClass, "inline-flex w-11 items-center justify-center p-0")}
+                triggerLabel="Filter bills"
+                isActive={activeFilters + (dateRange ? 1 : 0) > 0}
+              >
+                {(close) => (
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm font-black text-slate-950 dark:text-slate-50">Filter Bills</p>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Narrow by date or Owner / Company.</p>
+                    </div>
+                    <fieldset>
+                      <legend className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">Date range</legend>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <button type="button" className={cn("min-h-10 rounded-xl border px-3 text-sm font-bold", !mobileDateFilterEnabled ? "border-[#1E3A8A] bg-[#1E3A8A] text-white" : "border-slate-200 text-slate-700 dark:border-slate-700 dark:text-slate-200")} onClick={() => setMobileDateFilterEnabled(false)}>Any date</button>
+                        {quickDatePresets.map((preset) => {
+                          const selected = mobileDateFilterEnabled && customFromDate === preset.range.fromDate && customToDate === preset.range.toDate;
+                          return (
+                            <button key={preset.id} type="button" className={cn("min-h-10 rounded-xl border px-3 text-sm font-bold", selected ? "border-[#1E3A8A] bg-[#1E3A8A] text-white" : "border-slate-200 text-slate-700 dark:border-slate-700 dark:text-slate-200")} aria-pressed={selected} onClick={() => { setMobileDateFilterEnabled(true); setCustomFromDate(preset.range.fromDate); setCustomToDate(preset.range.toDate); setDateRangeError(""); }}>
+                              {preset.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </fieldset>
+                    {mobileDateFilterEnabled && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="field-label"><span>From</span><Input type="date" value={customFromDate} max={customToDate} onChange={(event) => { setCustomFromDate(event.target.value); setDateRangeError(""); }} /></label>
+                        <label className="field-label"><span>To</span><Input type="date" value={customToDate} min={customFromDate} onChange={(event) => { setCustomToDate(event.target.value); setDateRangeError(""); }} /></label>
+                      </div>
+                    )}
+                    {dateRangeError && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 dark:bg-red-950/40 dark:text-red-200" role="alert">{dateRangeError}</p>}
+                    <label className="field-label"><span>Owner / Company</span>
+                      <HistorySelect label="Owner / Company" value={draftFilters.billingPartyId} options={billingPartyOptions} onChange={(value) => setDraftFilters({ ...draftFilters, billingPartyId: value })} />
+                    </label>
+                    <div className="flex justify-end gap-2">
+                      <Button type="button" onClick={() => { clearFilters(); clearDateRange(); setMobileDateFilterEnabled(false); close(true); }}>Clear</Button>
+                      <Button type="button" variant="primary" onClick={() => { if (applyMobileFilters()) close(true); }}>Apply</Button>
+                    </div>
+                  </div>
+                )}
+              </ToolbarPopover>
+              <HistorySelect label="Sort bills" value={sort} options={sortOptions} onChange={(value) => changeSort(value as SortOption)} leadingIcon={<Icon name="sort" />} iconOnly />
+            </div>
+          )}
+          {!isMobile && <div className="tripledgerListToolbarGrid lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] lg:items-center">
             <label className="relative block">
               <span className="sr-only">Search bills</span>
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="search" /></span>
@@ -984,7 +1097,7 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
               )}
             </ToolbarPopover>
             <HistorySelect label="Sort bills" value={sort} options={sortOptions} onChange={(value) => changeSort(value as SortOption)} leadingIcon={<Icon name="sort" />} className="w-full sm:w-56 lg:w-56" />
-          </div>
+          </div>}
 
           {activeFilters > 0 && (
             <div className="flex flex-wrap items-center gap-2">
@@ -1000,30 +1113,40 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
         </CardContent>
       </Card>
 
-      <div className={cn("tripledgerListSummary sticky top-[89px] z-10", selectionMode && "border-blue-200 shadow-sm dark:border-blue-900")}>
+      <div className={cn(isMobile ? "sticky top-[74px] z-10 bg-slate-50/95 px-1 py-1 backdrop-blur dark:bg-slate-950/95" : "tripledgerListSummary sticky top-[89px] z-10", selectionMode && (isMobile ? "rounded-xl border border-blue-200 bg-blue-50/70 p-2 shadow-sm dark:border-blue-900 dark:bg-blue-950/20" : "border-blue-200 shadow-sm dark:border-blue-900"))}>
         {selectionMode ? (
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <p className="text-sm font-black text-slate-950 dark:text-slate-50" aria-live="polite">{selectedIds.length} {selectedIds.length === 1 ? "bill" : "bills"} selected</p>
+          <div className="grid gap-2 lg:flex lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-center justify-between gap-3 lg:justify-start">
+              <p className="text-sm font-black text-slate-950 dark:text-slate-50" aria-live="polite">{selectedIds.length} selected</p>
               {allFilteredSelected ? (
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">All bills selected</span>
+                <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-slate-500 dark:text-slate-400">All selected <Icon name="check" /></span>
               ) : (
-                <button type="button" className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-xl px-2.5 text-xs font-black text-[#1E3A8A] hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-blue-200 dark:hover:bg-slate-800" aria-label={`Select all ${filtered.length} filtered bills`} onClick={selectAllFilteredBills}>
-                  <Icon name="check" /> Select all {filtered.length}
+                <button type="button" className="inline-flex min-h-9 shrink-0 cursor-pointer items-center rounded-xl px-2 text-xs font-black text-[#1E3A8A] hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-200 dark:hover:bg-slate-800" aria-label={`Select all ${filtered.length} filtered bills`} onClick={selectAllFilteredBills}>
+                  Select all {filtered.length}
                 </button>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="primary" className="gap-2 px-3" aria-label="Generate summary for selected bills" title="Generate Summary" disabled={selectedIds.length === 0} onClick={() => { setSummaryDraftMode("combined"); setSummaryChoiceOpen(true); }}><Icon name="document" /> Generate Summary</Button>
-              <Button type="button" variant="secondary" className="gap-2 px-3" aria-label="Export selected bills" title="Export" disabled={selectedBills.length === 0} onClick={() => selectedBills.length > 0 && exportIndividualSummaryPdf(selectedBills, settings)}><Icon name="download" /> Export</Button>
-              <Button type="button" variant="danger" className="gap-2 px-3" aria-label={`Delete ${selectedIds.length} selected bills`} title="Delete" disabled={selectedIds.length === 0 || Boolean(bulkDeleteIds)} onClick={openBulkDeleteConfirmation}><Icon name="trash" /> Delete</Button>
-              <Button type="button" variant="ghost" className="gap-2 px-3 text-slate-500 hover:text-[#1E3A8A] dark:text-slate-300 dark:hover:text-blue-200" aria-label="Clear selected bills" title="Clear" onClick={clearSelectionMode}><Icon name="x" /> Clear</Button>
+            <div className="flex items-center justify-end gap-2">
+              <Button type="button" variant="primary" className="min-h-11 w-fit gap-1.5 px-3" aria-label="Generate summary for selected bills" title="Generate Summary" disabled={selectedIds.length === 0} onClick={() => { setSummaryDraftMode("combined"); setSummaryChoiceOpen(true); }}><Icon name="document" /> Summary</Button>
+              {isMobile ? (
+                <ActionMenu menuId="selected-bill-actions" activeMenu={activeMenu} onActiveMenuChange={setActiveMenu} trigger={<Icon name="more" />} triggerClassName={iconButtonClass} triggerLabel="More selected bill actions">
+                  {(close) => <>
+                    <button type="button" role="menuitem" className={menuItemClass} disabled={selectedBills.length === 0} onClick={() => { if (selectedBills.length > 0) exportIndividualSummaryPdf(selectedBills, settings); close(); }}><Icon name="download" /> Export selected</button>
+                    <button type="button" role="menuitem" className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-300 dark:hover:bg-red-950/40" disabled={selectedIds.length === 0 || Boolean(bulkDeleteIds)} onClick={() => { close(); openBulkDeleteConfirmation(); }}><Icon name="trash" /> Delete selected</button>
+                    <button type="button" role="menuitem" className={menuItemClass} onClick={() => { close(); clearSelectionMode(); }}><Icon name="x" /> Clear selection</button>
+                  </>}
+                </ActionMenu>
+              ) : <>
+                <Button type="button" variant="secondary" className="gap-2 px-3" aria-label="Export selected bills" title="Export" disabled={selectedBills.length === 0} onClick={() => selectedBills.length > 0 && exportIndividualSummaryPdf(selectedBills, settings)}><Icon name="download" /> Export</Button>
+                <Button type="button" variant="danger" className="gap-2 px-3" aria-label={`Delete ${selectedIds.length} selected bills`} title="Delete" disabled={selectedIds.length === 0 || Boolean(bulkDeleteIds)} onClick={openBulkDeleteConfirmation}><Icon name="trash" /> Delete</Button>
+                <Button type="button" variant="ghost" className="gap-2 px-3 text-slate-500 hover:text-[#1E3A8A] dark:text-slate-300 dark:hover:text-blue-200" aria-label="Clear selected bills" title="Clear" onClick={clearSelectionMode}><Icon name="x" /> Clear</Button>
+              </>}
             </div>
           </div>
         ) : (
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{filtered.length} bills{hasSearchOrFilters ? " found" : ""} <span className="font-semibold text-slate-400 dark:text-slate-500">| Total: {currency(filteredTotal, settings.currencySymbol)}</span></p>
-            <Button type="button" variant="secondary" className="w-fit gap-2 px-3" aria-label="Select bills" title="Select bills" onClick={enterSelectionMode}><Icon name="check" /> Select bills</Button>
+          <div className="flex items-center justify-between gap-3">
+            <p className="truncate text-sm font-bold text-slate-700 dark:text-slate-300">{filtered.length} bills{hasSearchOrFilters ? " found" : ""} <span className="font-semibold text-slate-400 dark:text-slate-500">· Total {currency(filteredTotal, settings.currencySymbol)}</span></p>
+            <Button type="button" variant={isMobile ? "ghost" : "secondary"} className="w-fit shrink-0 gap-2 px-3" aria-label="Select bills" title="Select bills" onClick={enterSelectionMode}>{!isMobile && <Icon name="check" />} {isMobile ? "Select" : "Select bills"}</Button>
           </div>
         )}
       </div>
@@ -1103,23 +1226,26 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
               const selected = selectedIds.includes(bill.id);
               const vehicleLabel = [bill.vehicleName, bill.vehicleNumber].filter(Boolean).join(" | ") || "Vehicle";
               return (
-                <article key={bill.id} className={cn("tripledgerListMobileRow", selectionMode && selected && "border-blue-300 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-950/20")} aria-selected={selectionMode ? selected : undefined} role="listitem">
-                  <div className="historyBillGrid historyBillRow tripledgerListMobileRowContent">
-                    {selectionMode && <div className="historyCheckboxCell">
-                      <input className="h-5 w-5 rounded border-slate-300" type="checkbox" aria-label={`Select bill for ${guestDisplay(bill)}`} checked={selected} onChange={() => onToggleSelected(bill.id)} />
-                    </div>}
-                    <div className="historyCustomerCell">
-                      <p className="truncate text-sm font-black text-slate-950 dark:text-slate-50">{guestDisplay(bill)}</p>
-                      <p className="truncate text-xs font-semibold text-slate-500 dark:text-slate-400">{vehicleLabel}</p>
+                <article key={bill.id} className={cn("tripledgerListMobileRow tripledgerListMobileRowContent", selectionMode && selected && "border-blue-300 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-950/20")} aria-selected={selectionMode ? selected : undefined} role="listitem">
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      {selectionMode && <input className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300" type="checkbox" aria-label={`Select bill for ${guestDisplay(bill)}`} checked={selected} onChange={() => onToggleSelected(bill.id)} />}
+                      <div className="min-w-0">
+                        <h2 className="truncate font-black text-slate-950 dark:text-slate-50">{guestDisplay(bill)}</h2>
+                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{formatHistoryDate(bill.tripDate)}</p>
+                      </div>
                     </div>
-                    <div className="historyOwnerCell truncate text-sm font-semibold text-slate-700 dark:text-slate-200" title={ownerName(bill)}>{ownerName(bill)}</div>
-                    <div className="historyDateCell whitespace-nowrap text-sm font-semibold text-slate-600 dark:text-slate-300">{formatHistoryDate(bill.tripDate)}</div>
-                    <div className="historyPlaceCell truncate text-sm text-slate-500 dark:text-slate-400" title={bill.reportingPlace || "NA"}>{bill.reportingPlace || "NA"}</div>
-                    <div className="historyAmountCell text-base font-black text-[#1E3A8A] dark:text-blue-200"><span className="historyAmountValue">{currency(bill.totalAmount, settings.currencySymbol)}</span></div>
-                    {!selectionMode && <div className="historyActionsCell">
-                      <BillActionsMenu bill={bill} surface="mobile" />
-                    </div>}
+                    <p className="shrink-0 text-base font-black text-[#1E3A8A] dark:text-blue-200">{currency(bill.totalAmount, settings.currencySymbol)}</p>
                   </div>
+                  <dl className="mt-3 space-y-1.5 text-sm">
+                    <div><dt className="inline font-semibold text-slate-500 dark:text-slate-400">Owner: </dt><dd className="inline font-bold text-slate-800 dark:text-slate-100">{ownerName(bill)}</dd></div>
+                    <div className="truncate text-slate-600 dark:text-slate-300" title={vehicleLabel}>{vehicleLabel}</div>
+                    <div className="truncate"><dt className="inline font-semibold text-slate-500 dark:text-slate-400">Reporting place: </dt><dd className="inline text-slate-700 dark:text-slate-200">{bill.reportingPlace || "NA"}</dd></div>
+                  </dl>
+                  {!selectionMode && <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-2.5 dark:border-slate-800">
+                    <button type="button" className="min-h-10 text-sm font-black text-[#1E3A8A] dark:text-blue-200" onClick={() => setPreviewBill(bill)}>View details</button>
+                    <BillActionsMenu bill={bill} surface="mobile" />
+                  </div>}
                 </article>
               );
             })}
@@ -1197,15 +1323,15 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
       )}
 
       {summaryChoiceOpen && (
-        <Modal title="Generate Bill Summary" description={`${selectedBills.length} bills selected`} maxWidth="max-w-lg" onClose={() => setSummaryChoiceOpen(false)}>
+        <Modal title="Generate Bill Summary" description={`${selectedBills.length} selected`} initialFocusRef={summaryChoiceFocusRef} maxWidth="max-w-lg" onClose={() => setSummaryChoiceOpen(false)}>
           <div className="space-y-4">
             <div className="grid gap-2">
               <label className={cn("flex cursor-pointer items-center gap-3 rounded-2xl border p-3 text-sm font-bold", summaryDraftMode === "combined" ? "border-blue-300 bg-blue-50 text-[#1E3A8A] dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-200" : "border-slate-200 text-slate-700 dark:border-slate-700 dark:text-slate-200")}>
-                <input className="h-4 w-4" type="radio" name="summary-mode" checked={summaryDraftMode === "combined"} onChange={() => setSummaryDraftMode("combined")} />
+                <input ref={summaryDraftMode === "combined" ? summaryChoiceFocusRef : undefined} className="h-4 w-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" type="radio" name="summary-mode" checked={summaryDraftMode === "combined"} onChange={() => setSummaryDraftMode("combined")} />
                 Combined Summary
               </label>
               <label className={cn("flex cursor-pointer items-center gap-3 rounded-2xl border p-3 text-sm font-bold", summaryDraftMode === "individual" ? "border-blue-300 bg-blue-50 text-[#1E3A8A] dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-200" : "border-slate-200 text-slate-700 dark:border-slate-700 dark:text-slate-200")}>
-                <input className="h-4 w-4" type="radio" name="summary-mode" checked={summaryDraftMode === "individual"} onChange={() => setSummaryDraftMode("individual")} />
+                <input ref={summaryDraftMode === "individual" ? summaryChoiceFocusRef : undefined} className="h-4 w-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" type="radio" name="summary-mode" checked={summaryDraftMode === "individual"} onChange={() => setSummaryDraftMode("individual")} />
                 Individual Summaries
               </label>
             </div>
@@ -1228,16 +1354,17 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
 
       {summaryMode && (
         <Modal
-          title={summaryMode === "individual" ? "Individual Summaries" : summaryMode === "grouped" ? "Grouped Owner Summaries" : "Combined Summary"}
-          description={summaryMode === "individual" ? `${selectedBills.length} bills shown separately` : `${selectedBills.length} bills | ${formatDateRange(selectedBills)} | ${currency(summaryTotals.grandTotal, settings.currencySymbol)}`}
+          title={summaryMode === "individual" ? "Individual summaries" : summaryMode === "grouped" ? "Grouped Owner Summaries" : "Combined summary"}
+          description={summaryMode === "individual" ? `${selectedBills.length} bills` : `${selectedBills.length} bills | ${formatDateRange(selectedBills)} | ${currency(summaryTotals.grandTotal, settings.currencySymbol)}`}
+          closeLabel={summaryMode === "individual" ? "Close individual summaries" : "Close combined summary"}
           maxWidth="max-w-5xl"
           onClose={() => { closeActionMenus(); setSummaryMode(null); }}
           headerActions={(
             <>
-              <Button type="button" className="gap-2" onClick={() => { closeActionMenus(); onCopy(summaryMode === "individual" ? allIndividualText : summaryShareText); }}><Icon name="copy" /> Copy</Button>
-              <ActionMenu menuId="summary-actions" activeMenu={activeMenu} onActiveMenuChange={setActiveMenu} trigger={<><Icon name="more" /> Actions</>} triggerClassName={cn(outlineActionClass, "gap-2")} triggerLabel={`${summaryMode === "individual" ? "Individual" : "Combined"} summary actions`} menuClassName="w-72">
+              <ActionMenu menuId="summary-actions" activeMenu={activeMenu} onActiveMenuChange={setActiveMenu} trigger={<Icon name="more" />} triggerClassName={iconButtonClass} triggerLabel={summaryMode === "individual" ? "More individual summary actions" : "More combined summary actions"} menuClassName="w-72">
                 {(close) => (
                   <div className="space-y-2">
+                    <button type="button" role="menuitem" className={menuItemClass} onClick={() => { onCopy(summaryMode === "individual" ? allIndividualText : summaryShareText); close(); }}><Icon name="copy" /> {summaryMode === "individual" ? "Copy all summaries" : "Copy summary"}</button>
                     <label className="block px-2 pb-1 text-xs font-bold text-slate-500 dark:text-slate-400">WhatsApp Number
                       <Input className="mt-1" placeholder="e.g. 919876543210" inputMode="tel" value={shareNumber} onChange={(event) => setShareNumber(event.target.value)} />
                     </label>
@@ -1249,16 +1376,8 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
             </>
           )}
         >
-          <div className="space-y-4">
-            {summaryMode !== "individual" && (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Card className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Bills</p><p className="mt-2 text-lg font-bold text-slate-950 dark:text-slate-50">{summaryTotals.selectedBillsCount}</p></CardContent></Card>
-                <Card className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Total Hours</p><p className="mt-2 text-lg font-bold text-slate-950 dark:text-slate-50">{formatDuration(summaryTotals.totalHours)}</p></CardContent></Card>
-                <Card className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Extra Charges</p><p className="mt-2 text-lg font-bold text-slate-950 dark:text-slate-50">{amountOrNA(summaryTotals.totalExtraHourAmount + summaryTotals.totalExtraKmAmount, settings.currencySymbol)}</p></CardContent></Card>
-                <Card className="shadow-none"><CardContent className="p-4"><p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Grand Total</p><p className="mt-2 text-lg font-bold text-slate-950 dark:text-slate-50">{currency(summaryTotals.grandTotal, settings.currencySymbol)}</p></CardContent></Card>
-              </div>
-            )}
-            <Textarea value={summaryDisplayText} readOnly className="min-h-[55vh] font-mono text-xs leading-5" aria-label={summaryMode === "individual" ? "All selected bills as individual summaries" : "Bill summary text"} />
+          <div className="min-w-0 max-w-full">
+            <Textarea value={summaryDisplayText} readOnly className="min-h-[55vh] max-w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere] font-mono text-xs leading-5" aria-label={summaryMode === "individual" ? "All selected bills as individual summaries" : "Bill summary text"} />
           </div>
         </Modal>
       )}

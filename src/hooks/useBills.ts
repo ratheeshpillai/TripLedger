@@ -91,7 +91,7 @@ export function useBills(userId: string | null, service: BillService = billServi
           logDevError("Bill update failed", billError);
           throw billError;
         }
-        if (requestGuardRef.current.isOwnerActive(userId)) await refresh();
+        if (requestGuardRef.current.isOwnerActive(userId)) void refresh();
         return saved;
       }
 
@@ -112,7 +112,7 @@ export function useBills(userId: string | null, service: BillService = billServi
         logDevError("Bill save failed", billError);
         throw billError;
       }
-      if (requestGuardRef.current.isOwnerActive(userId)) await refresh();
+      if (requestGuardRef.current.isOwnerActive(userId)) void refresh();
       return saved;
     })();
 

@@ -6,7 +6,6 @@ import type { OwnerPayment, OwnerPaymentDraft, OwnerPaymentMethod, OwnerPaymentT
 import type { AppSettings } from "../../types/settings";
 import { todayInputDate } from "../../constants/defaults";
 import { currency } from "../../utils/formatters";
-import { exportOwnerStatementPdf } from "../../utils/pdf";
 import { buildOwnerStatementText, buildOwnerStatementWhatsAppText, createWhatsAppUrl } from "../../utils/whatsapp";
 import { ConfirmationDialog } from "../shared/ConfirmationDialog";
 import { EmptyState } from "../shared/EmptyState";
@@ -19,6 +18,7 @@ import { Textarea } from "../ui/Textarea";
 import { cn } from "../ui/cn";
 import { useDialogFocus } from "../ui/useDialogFocus";
 import { useOverlayPlacement } from "../ui/useOverlayPlacement";
+import { MobileBottomSheet, useIsMobile } from "../mobile/MobilePrimitives";
 
 type Props = {
   parties: BillingParty[];
@@ -40,6 +40,7 @@ type Props = {
   onSavePayment: (draft: OwnerPaymentDraft, editingId?: string | null) => Promise<OwnerPayment>;
   onDeletePayment: (id: string) => Promise<void>;
   onCreateBillForOwner: (party: BillingParty) => void;
+  onMobileDetailChange?: (party: BillingParty | null, onBack?: () => void) => void;
 };
 
 type SortOption = "recent" | "highest" | "name-asc" | "name-desc";
@@ -58,7 +59,7 @@ const emptyPartyDraft: BillingPartyDraft = {
   notes: ""
 };
 
-const iconButtonClass = "grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-[#1E3A8A] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-slate-700 dark:bg-[#111827] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-blue-200 dark:focus:ring-offset-slate-950";
+const iconButtonClass = "grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-[#1E3A8A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-[#111827] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-blue-200 dark:focus-visible:ring-offset-slate-950";
 const menuItemClass = "flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200 dark:hover:bg-slate-800";
 const destructiveMenuItemClass = "flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-red-200 dark:hover:bg-red-950/40";
 const ownerTableHeaderClass = "px-4 py-3 text-left text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400";
@@ -223,7 +224,7 @@ function Modal({ title, description, maxWidth = "max-w-2xl", onClose, children }
             <h2 id="owner-modal-title" className="text-base font-black text-slate-950 dark:text-slate-50">{title}</h2>
             {description && <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</p>}
           </div>
-          <button type="button" className={iconButtonClass} aria-label="Close modal" title="Close" onClick={onClose}><Icon name="x" /></button>
+          <button type="button" className={iconButtonClass} aria-label={`Close ${title}`} title="Close" onClick={onClose}><Icon name="x" /></button>
         </div>
         <div className="max-h-[calc(92vh-90px)] overflow-y-auto p-4 sm:p-5">{children}</div>
       </Card>
@@ -231,12 +232,13 @@ function Modal({ title, description, maxWidth = "max-w-2xl", onClose, children }
   );
 }
 
-function ActionMenu({ menuId, activeMenu, onActiveMenuChange, triggerLabel, trigger, children }: {
+function ActionMenu({ menuId, activeMenu, onActiveMenuChange, triggerLabel, trigger, iconOnly = false, children }: {
   menuId: string;
   activeMenu: string | null;
   onActiveMenuChange: (menuId: string | null) => void;
   triggerLabel: string;
   trigger: ReactNode;
+  iconOnly?: boolean;
   children: (close: (restoreFocus?: boolean) => void) => ReactNode;
 }) {
   const isOpen = activeMenu === menuId;
@@ -244,6 +246,7 @@ function ActionMenu({ menuId, activeMenu, onActiveMenuChange, triggerLabel, trig
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const { style } = useOverlayPlacement(isOpen, triggerRef, overlayRef);
+  const isMobile = useIsMobile();
 
   function close(restoreFocus = true) {
     onActiveMenuChange(null);
@@ -251,7 +254,7 @@ function ActionMenu({ menuId, activeMenu, onActiveMenuChange, triggerLabel, trig
   }
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isMobile) return;
     function handlePointerDown(event: PointerEvent) {
       if (!rootRef.current?.contains(event.target as Node)) close(false);
     }
@@ -267,7 +270,7 @@ function ActionMenu({ menuId, activeMenu, onActiveMenuChange, triggerLabel, trig
       document.removeEventListener("pointerdown", handlePointerDown, true);
       document.removeEventListener("keydown", handleKeyDown, true);
     };
-  }, [isOpen]);
+  }, [isMobile, isOpen]);
 
   function handleMenuKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
@@ -290,7 +293,7 @@ function ActionMenu({ menuId, activeMenu, onActiveMenuChange, triggerLabel, trig
       <button
         ref={triggerRef}
         type="button"
-        className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-[#1E3A8A] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-slate-700 dark:bg-[#111827] dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-200 dark:focus:ring-offset-slate-950"
+        className={cn("inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-[#1E3A8A] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-slate-700 dark:bg-[#111827] dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-200 dark:focus:ring-offset-slate-950", iconOnly && "h-11 w-11 p-0")}
         aria-label={triggerLabel}
         title={triggerLabel}
         aria-haspopup="menu"
@@ -299,7 +302,7 @@ function ActionMenu({ menuId, activeMenu, onActiveMenuChange, triggerLabel, trig
       >
         {trigger}
       </button>
-      {isOpen && (
+      {isOpen && !isMobile && (
         <div
           ref={overlayRef}
           role="menu"
@@ -313,13 +316,16 @@ function ActionMenu({ menuId, activeMenu, onActiveMenuChange, triggerLabel, trig
           {children(close)}
         </div>
       )}
+      <MobileBottomSheet open={isOpen && isMobile} title={triggerLabel} onClose={() => close(true)}>
+        <div role="menu" aria-label={triggerLabel} className="space-y-1">{children(close)}</div>
+      </MobileBottomSheet>
     </div>
   );
 }
 
 type SelectOption<T extends string = string> = { value: T; label: string };
 
-function CustomSelect<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: SelectOption<T>[]; onChange: (value: T) => void }) {
+function CustomSelect<T extends string>({ label, value, options, onChange, iconOnly = false }: { label: string; value: T; options: SelectOption<T>[]; onChange: (value: T) => void; iconOnly?: boolean }) {
   const listboxId = useId();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -327,6 +333,7 @@ function CustomSelect<T extends string>({ label, value, options, onChange }: { l
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(selectedIndex);
   const selectedOption = options[selectedIndex] ?? options[0];
+  const isMobile = useIsMobile();
 
   function close(restoreFocus = false) {
     setIsOpen(false);
@@ -346,13 +353,13 @@ function CustomSelect<T extends string>({ label, value, options, onChange }: { l
   }
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isMobile) return;
     function handlePointerDown(event: PointerEvent) {
       if (!rootRef.current?.contains(event.target as Node)) close(false);
     }
     document.addEventListener("pointerdown", handlePointerDown, true);
     return () => document.removeEventListener("pointerdown", handlePointerDown, true);
-  }, [isOpen]);
+  }, [isMobile, isOpen]);
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (event.key === "Escape" && isOpen) {
@@ -386,8 +393,8 @@ function CustomSelect<T extends string>({ label, value, options, onChange }: { l
       <button
         ref={triggerRef}
         type="button"
-        className="inline-flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 hover:border-[#1E3A8A] hover:bg-blue-50 hover:text-[#1E3A8A] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 data-[open=true]:border-[#1E3A8A] dark:border-slate-700 dark:bg-[#111827] dark:text-slate-200 dark:hover:border-blue-600 dark:hover:bg-slate-800 dark:hover:text-blue-100 dark:focus:ring-offset-slate-950"
-        aria-label={label}
+        className={cn("inline-flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 hover:border-[#1E3A8A] hover:bg-blue-50 hover:text-[#1E3A8A] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 data-[open=true]:border-[#1E3A8A] dark:border-slate-700 dark:bg-[#111827] dark:text-slate-200 dark:hover:border-blue-600 dark:hover:bg-slate-800 dark:hover:text-blue-100 dark:focus:ring-offset-slate-950", iconOnly && "w-11 justify-center p-0")}
+        aria-label={`${label}: ${selectedOption?.label}`}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-controls={listboxId}
@@ -396,10 +403,10 @@ function CustomSelect<T extends string>({ label, value, options, onChange }: { l
         onClick={() => isOpen ? close() : open()}
       >
         <span className="shrink-0 text-slate-400"><Icon name="sort" /></span>
-        <span className="min-w-0 flex-1 truncate text-left">{selectedOption?.label}</span>
-        <span className={cn("shrink-0 text-slate-400 transition-transform", isOpen && "rotate-180")}><Icon name="chevronDown" /></span>
+        <span className={cn("min-w-0 flex-1 truncate text-left", iconOnly && "sr-only")}>{selectedOption?.label}</span>
+        {!iconOnly && <span className={cn("shrink-0 text-slate-400 transition-transform", isOpen && "rotate-180")}><Icon name="chevronDown" /></span>}
       </button>
-      {isOpen && (
+      {isOpen && !isMobile && (
         <div id={listboxId} role="listbox" aria-label={label} className="absolute right-0 z-40 mt-2 max-h-64 w-full min-w-52 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-900/10 dark:border-slate-700 dark:bg-[#111827] dark:shadow-black/30">
           {options.map((option, index) => {
             const selected = option.value === value;
@@ -423,6 +430,18 @@ function CustomSelect<T extends string>({ label, value, options, onChange }: { l
           })}
         </div>
       )}
+      <MobileBottomSheet open={isOpen && isMobile} title={label} onClose={() => close(true)}>
+        <div role="listbox" aria-label={label} className="space-y-1">
+          {options.map((option, index) => {
+            const selected = option.value === value;
+            return (
+              <button key={option.value} type="button" role="option" aria-selected={selected} className={cn("flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-bold", selected ? "bg-blue-50 text-[#1E3A8A] dark:bg-blue-950/40 dark:text-blue-200" : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")} onClick={() => selectOption(index)}>
+                <span className="truncate">{option.label}</span>{selected && <Icon name="check" />}
+              </button>
+            );
+          })}
+        </div>
+      </MobileBottomSheet>
     </div>
   );
 }
@@ -508,14 +527,14 @@ function CustomDatePicker({ label, value, min, max, open, align, compact = false
   );
 }
 
-function OwnerAccordion({ module, title, description, icon, openModule, onToggle, children }: { module: Exclude<OwnerModule, null>; title: string; description: string; icon: "ledger" | "statement" | "wallet"; openModule: OwnerModule; onToggle: (module: Exclude<OwnerModule, null>) => void; children: ReactNode }) {
+function OwnerAccordion({ module, title, description, icon, openModule, onToggle, mobileTabMode = false, children }: { module: Exclude<OwnerModule, null>; title: string; description: string; icon: "ledger" | "statement" | "wallet"; openModule: OwnerModule; onToggle: (module: Exclude<OwnerModule, null>) => void; mobileTabMode?: boolean; children: ReactNode }) {
   const open = openModule === module;
   const contentId = `owner-${module}-section`;
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30 dark:border-slate-700 dark:bg-[#111827] dark:shadow-black/20">
+    <section className={cn("rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30 dark:border-slate-700 dark:bg-[#111827] dark:shadow-black/20", mobileTabMode && !open && "max-lg:hidden")}>
       <button
         type="button"
-        className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-t-2xl bg-slate-50 px-4 py-4 text-left hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset dark:bg-[#0f172a] dark:hover:bg-slate-800 sm:px-5"
+        className={cn("flex w-full cursor-pointer items-center justify-between gap-3 rounded-t-2xl bg-slate-50 px-4 py-4 text-left hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset dark:bg-[#0f172a] dark:hover:bg-slate-800 sm:px-5", mobileTabMode && "max-lg:hidden")}
         aria-expanded={open}
         aria-controls={contentId}
         onClick={() => onToggle(module)}
@@ -529,7 +548,7 @@ function OwnerAccordion({ module, title, description, icon, openModule, onToggle
         </span>
         <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500 transition-transform dark:bg-slate-800 dark:text-slate-300", open && "rotate-180")}><Icon name="chevronDown" /></span>
       </button>
-      {open && <div id={contentId} className="rounded-b-2xl border-t border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-[#111827] sm:p-5">{children}</div>}
+      {open && <div id={contentId} className={cn("rounded-b-2xl border-t border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-[#111827] sm:p-5", mobileTabMode && "max-lg:rounded-2xl max-lg:border-t-0")}>{children}</div>}
     </section>
   );
 }
@@ -556,12 +575,13 @@ function DateRangeControls({ fromDate, toDate, activeDatePicker, onActiveDatePic
   ];
 
   return (
-    <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-[#0f172a]">
+    <div className="space-y-4 lg:rounded-xl lg:border lg:border-slate-200 lg:bg-slate-50/70 lg:p-4 lg:dark:border-slate-700 lg:dark:bg-[#0f172a]">
       <div className="min-w-0">
         <h3 className="text-sm font-bold text-slate-950 dark:text-slate-50">Generate Account Statement</h3>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Choose a date range to preview, copy, share, or export a statement.</p>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="overflow-x-auto pb-1 lg:overflow-visible lg:pb-0">
+      <div className="grid min-w-[20rem] grid-cols-4 gap-1 lg:flex lg:min-w-0 lg:flex-wrap lg:gap-2">
         {quickRanges.map((range) => {
           const quick = quickDateRange(range.id);
           const selected = quick.fromDate === fromDate && quick.toDate === toDate;
@@ -570,7 +590,7 @@ function DateRangeControls({ fromDate, toDate, activeDatePicker, onActiveDatePic
               key={range.id}
               type="button"
               className={cn(
-                "min-h-9 cursor-pointer rounded-lg border px-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-950",
+                "min-h-11 cursor-pointer rounded-lg border px-1 text-[11px] font-semibold whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-950 lg:min-h-9 lg:px-2.5 lg:text-xs",
                 selected
                   ? "border-[#1E3A8A] bg-[#1E3A8A] text-white dark:border-blue-600 dark:bg-blue-600"
                   : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-[#1E3A8A] dark:border-slate-700 dark:bg-[#0f172a] dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-200"
@@ -582,6 +602,7 @@ function DateRangeControls({ fromDate, toDate, activeDatePicker, onActiveDatePic
             </button>
           );
         })}
+      </div>
       </div>
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
         <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Period</span>
@@ -637,7 +658,8 @@ export function OwnerCompanyPage({
   onDeleteParty,
   onSavePayment,
   onDeletePayment,
-  onCreateBillForOwner
+  onCreateBillForOwner,
+  onMobileDetailChange
 }: Props) {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortOption>(() => {
@@ -662,10 +684,13 @@ export function OwnerCompanyPage({
   const [activeDatePicker, setActiveDatePicker] = useState<DatePickerTarget>(null);
   const [statement, setStatement] = useState<BillingPartyStatement | null>(null);
   const [statementLoading, setStatementLoading] = useState(false);
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const isMobile = useIsMobile();
 
   const summaryById = useMemo(() => new Map(summaries.map((summary) => [summary.billingPartyId, summary])), [summaries]);
   const selectedParty = parties.find((party) => party.id === selectedId) ?? null;
   const selectedSummary = selectedParty ? summaryById.get(selectedParty.id) : undefined;
+  const selectedStatus = balanceStatus(selectedSummary, settings.currencySymbol);
   const selectedLedger = selectedParty ? ledgerByPartyId[selectedParty.id] ?? [] : [];
   const sortedLedger = useMemo(() => {
     const rows = selectedLedger.map((entry, index) => ({ entry, index }));
@@ -709,9 +734,15 @@ export function OwnerCompanyPage({
     }
     setStatementsTab("transactions");
     setStatement(null);
+    setSummaryExpanded(false);
     setActiveMenu(null);
     setLocalError("");
-    setOpenModule(null);
+    setOpenModule(isMobile && selectedId ? "statements" : null);
+  }, [isMobile, selectedId]);
+
+  useEffect(() => {
+    onMobileDetailChange?.(selectedParty, selectedParty ? () => setSelectedId(null) : undefined);
+    return () => onMobileDetailChange?.(null);
   }, [selectedId]);
 
   function openOwner(party: BillingParty) {
@@ -746,9 +777,10 @@ export function OwnerCompanyPage({
     }
   }
 
-  function exportStatementPdf() {
+  async function exportStatementPdf() {
     if (!statement) return;
     try {
+      const { exportOwnerStatementPdf } = await import("../../utils/pdf");
       exportOwnerStatementPdf(statement, settings);
     } catch {
       setLocalError("Unable to export the statement.");
@@ -800,8 +832,8 @@ export function OwnerCompanyPage({
     }
   }
 
-  function startPayment(payment?: OwnerPayment) {
-    if (!selectedParty) return;
+  function startPayment(payment?: OwnerPayment, party = selectedParty) {
+    if (!party) return;
     setPaymentDraft(payment ? {
       userId: payment.userId,
       billingPartyId: payment.billingPartyId,
@@ -811,7 +843,7 @@ export function OwnerCompanyPage({
       paymentMethod: payment.paymentMethod,
       reference: payment.reference,
       notes: payment.notes
-    } : emptyPaymentDraft(selectedParty.id));
+    } : emptyPaymentDraft(party.id));
     setEditingPaymentId(payment?.id ?? null);
     setActiveMenu(null);
     setLocalError("");
@@ -824,7 +856,7 @@ export function OwnerCompanyPage({
       await onSavePayment(paymentDraft, editingPaymentId);
       setPaymentDraft(null);
       setEditingPaymentId(null);
-      if (paymentDraft.billingPartyId) await onLoadLedger(paymentDraft.billingPartyId);
+      if (paymentDraft.billingPartyId) void onLoadLedger(paymentDraft.billingPartyId);
     } catch {
       setLocalError("Unable to save payment.");
     }
@@ -896,9 +928,9 @@ export function OwnerCompanyPage({
     setOpenModule((current) => current === module ? null : module);
   }
 
-  function renderOwnerActions(party: BillingParty, includeView = true) {
+  function renderOwnerActions(party: BillingParty, includeView = true, iconOnly = false) {
     return (
-      <ActionMenu menuId={`owner-${party.id}`} activeMenu={activeMenu} onActiveMenuChange={setActiveMenu} triggerLabel={`Actions for ${partyDisplayName(party)}`} trigger={<Icon name="more" />}>
+      <ActionMenu menuId={`owner-${party.id}`} activeMenu={activeMenu} onActiveMenuChange={setActiveMenu} triggerLabel={`Actions for ${partyDisplayName(party)}`} trigger={<Icon name="more" />} iconOnly={iconOnly}>
         {(close) => (
           <>
             {includeView && <button type="button" role="menuitem" className={menuItemClass} onClick={() => { close(); openOwner(party); }}><Icon name="eye" /> View Owner</button>}
@@ -914,7 +946,7 @@ export function OwnerCompanyPage({
   const shownError = localError || error;
 
   return (
-    <div className="tripledgerListPage">
+    <div className="tripledgerListPage min-w-0 max-w-full">
       <header className="tripledgerListMobileHeader">
         <h1 className="text-xl font-black text-slate-950 dark:text-slate-50">Owners & Payments</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">Track owner balances, bills and payments</p>
@@ -931,26 +963,26 @@ export function OwnerCompanyPage({
       {!selectedParty ? (
         <>
           <Card className="tripledgerListToolbar">
-            <CardContent className="tripledgerListToolbarContent">
-            <div className="tripledgerListToolbarGrid lg:grid-cols-[minmax(0,1fr)_14rem]">
+            <CardContent className={cn("tripledgerListToolbarContent", isMobile && "p-2.5")}>
+            <div className={cn("tripledgerListToolbarGrid", isMobile ? "grid-cols-[minmax(0,1fr)_2.75rem] gap-2" : "lg:grid-cols-[minmax(0,1fr)_14rem]")}>
               <label className="relative block">
                 <span className="sr-only">Search owners or companies</span>
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="search" /></span>
-                <Input className="min-h-11 pl-10 pr-10" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search owners or companies..." />
+                <Input className="min-h-11 pl-10 pr-10" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={isMobile ? "Search owners..." : "Search owners or companies..."} />
                 {search && (
                   <button type="button" className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200" aria-label="Clear owner search" onClick={() => setSearch("")}>
                     <Icon name="x" />
                   </button>
                 )}
               </label>
-              <CustomSelect label="Sort owners" value={sort} options={sortOptions} onChange={changeOwnerSort} />
+              <CustomSelect label="Sort owners" value={sort} options={sortOptions} onChange={changeOwnerSort} iconOnly={isMobile} />
             </div>
             </CardContent>
           </Card>
 
-          <div className="tripledgerListSummary flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className={cn(isMobile ? "flex min-h-11 items-center justify-between gap-3 px-1" : "tripledgerListSummary flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between")}>
             <p className="text-sm font-black text-slate-700 dark:text-slate-200">{filteredParties.length} owners</p>
-            <Button type="button" variant="primary" className="w-fit gap-2" onClick={startCreateParty}><Icon name="plus" /> Add Owner</Button>
+            <Button type="button" variant="primary" className={cn("w-fit gap-2", isMobile && "min-h-10 px-3")} onClick={startCreateParty}><Icon name="plus" /> Add Owner</Button>
           </div>
 
           {loading ? (
@@ -1016,21 +1048,25 @@ export function OwnerCompanyPage({
                   {filteredParties.map((party) => {
                     const summary = summaryById.get(party.id);
                     const latest = latestActivity(summary);
+                    const status = balanceStatus(summary, settings.currencySymbol);
                     return (
                       <article key={party.id} className="tripledgerListMobileRow tripledgerListMobileRowContent">
                         <div className="flex min-w-0 items-start justify-between gap-3">
-                          <button type="button" className="min-w-0 flex-1 cursor-pointer text-left" onClick={() => openOwner(party)}>
-                            <span className="block truncate font-black text-slate-950 dark:text-slate-50">{partyDisplayName(party)}</span>
-                            {(party.phone || party.email) && <span className="mt-1 block truncate text-xs font-semibold text-slate-500 dark:text-slate-400">{[party.phone, party.email].filter(Boolean).join(" | ")}</span>}
-                          </button>
+                          <div className="min-w-0 flex-1">
+                            <h2 className="truncate font-black text-slate-950 dark:text-slate-50">{partyDisplayName(party)}</h2>
+                            {(party.phone || party.email) && <p className="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-slate-400">{[party.phone, party.email].filter(Boolean).join(" | ")}</p>}
+                          </div>
                           {renderOwnerActions(party)}
                         </div>
-                        <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
-                          <StatusBadge summary={summary} symbol={settings.currencySymbol} />
-                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{plural(summary?.billCount, "bill")}</span>
-                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{plural(summary?.paymentCount, "payment")}</span>
+                        <div className="mt-3">
+                          <p className={cn("text-xs font-black uppercase tracking-wide", status.tone === "danger" ? "text-red-600 dark:text-red-300" : status.tone === "success" ? "text-emerald-700 dark:text-emerald-300" : "text-slate-500 dark:text-slate-400")}>{status.label}</p>
+                          <p className="mt-0.5 text-xl font-black text-[#1E3A8A] dark:text-blue-200">{status.amountLabel || currency(0, settings.currencySymbol)}</p>
                         </div>
-                        <p className="mt-3 text-xs font-semibold text-slate-500 dark:text-slate-400">Last activity: {latest ? ownerDateDisplay(latest) : "NA"}</p>
+                        <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400">{plural(summary?.billCount, "bill")} · {plural(summary?.paymentCount, "payment")} · Last activity {latest ? ownerDateDisplay(latest) : "NA"}</p>
+                        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-2.5 dark:border-slate-800">
+                          <Button type="button" variant="ghost" className="px-2" onClick={() => openOwner(party)}>View Account</Button>
+                          <Button type="button" variant="secondary" className="px-2" onClick={() => { openOwner(party); startPayment(undefined, party); }}>Record Payment</Button>
+                        </div>
                       </article>
                     );
                   })}
@@ -1039,16 +1075,50 @@ export function OwnerCompanyPage({
           )}
         </>
       ) : (
-        <div className="space-y-5">
-          <Card>
+        <div className="space-y-4 lg:space-y-5">
+          <Card className="lg:hidden">
+            <CardContent className="space-y-3 p-3.5">
+              <div className="min-w-0">
+                <div>
+                  <p className={cn("text-xs font-black uppercase tracking-wide", selectedStatus.tone === "danger" ? "text-red-600 dark:text-red-300" : selectedStatus.tone === "success" ? "text-emerald-700 dark:text-emerald-300" : "text-slate-500 dark:text-slate-400")}>{selectedStatus.label}</p>
+                  <p className="mt-0.5 text-2xl font-black text-[#1E3A8A] dark:text-blue-200">{selectedStatus.amountLabel || currency(0, settings.currencySymbol)}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 border-t border-slate-100 pt-3 text-sm dark:border-slate-800">
+                <div><p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total billed</p><p className="font-black text-slate-900 dark:text-slate-50">{currency(selectedSummary?.totalBilled ?? 0, settings.currencySymbol)}</p></div>
+                <div><p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total received</p><p className="font-black text-slate-900 dark:text-slate-50">{currency(selectedSummary?.totalReceived ?? 0, settings.currencySymbol)}</p></div>
+              </div>
+              <button type="button" className="flex min-h-10 w-full items-center justify-between rounded-xl px-1 text-left text-sm font-black text-[#1E3A8A] focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-blue-200" aria-expanded={summaryExpanded} onClick={() => setSummaryExpanded((current) => !current)}>
+                View full summary <span className={cn("transition-transform", summaryExpanded && "rotate-180")}><Icon name="chevronDown" /></span>
+              </button>
+              {summaryExpanded && (
+                <dl className="grid grid-cols-2 gap-x-3 gap-y-2 rounded-xl bg-slate-50 p-3 text-xs dark:bg-slate-900">
+                  <div><dt className="text-slate-500 dark:text-slate-400">Outstanding</dt><dd className="mt-0.5 font-black text-slate-900 dark:text-slate-50">{currency(selectedSummary?.outstandingAmount ?? 0, settings.currencySymbol)}</dd></div>
+                  <div><dt className="text-slate-500 dark:text-slate-400">Advance available</dt><dd className="mt-0.5 font-black text-slate-900 dark:text-slate-50">{currency(selectedSummary?.advanceCredit ?? 0, settings.currencySymbol)}</dd></div>
+                  <div><dt className="text-slate-500 dark:text-slate-400">Bills</dt><dd className="mt-0.5 font-black text-slate-900 dark:text-slate-50">{plural(selectedSummary?.billCount, "bill")}</dd></div>
+                  <div><dt className="text-slate-500 dark:text-slate-400">Payments</dt><dd className="mt-0.5 font-black text-slate-900 dark:text-slate-50">{plural(selectedSummary?.paymentCount, "payment")}</dd></div>
+                  <div><dt className="text-slate-500 dark:text-slate-400">Last bill</dt><dd className="mt-0.5 font-black text-slate-900 dark:text-slate-50">{selectedSummary?.latestBillDate ? ownerDateDisplay(selectedSummary.latestBillDate) : "NA"}</dd></div>
+                  <div><dt className="text-slate-500 dark:text-slate-400">Last payment</dt><dd className="mt-0.5 font-black text-slate-900 dark:text-slate-50">{selectedSummary?.latestPaymentDate ? ownerDateDisplay(selectedSummary.latestPaymentDate) : "NA"}</dd></div>
+                  <div className="col-span-2 min-w-0"><dt className="text-slate-500 dark:text-slate-400">Contact</dt><dd className="mt-0.5 break-words font-black text-slate-900 dark:text-slate-50">{[selectedParty.phone, selectedParty.email].filter(Boolean).join(" · ") || "No contact details"}</dd></div>
+                </dl>
+              )}
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.75rem] gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+                <Button type="button" variant="primary" className="min-w-0 px-2 text-xs" onClick={() => startPayment()}>Record Payment</Button>
+                <Button type="button" variant="secondary" className="min-w-0 px-2 text-xs" title={`Create a bill for ${partyDisplayName(selectedParty)}`} onClick={() => onCreateBillForOwner(selectedParty)}>Create Bill</Button>
+                {renderOwnerActions(selectedParty, false, true)}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="hidden lg:block">
             <CardContent className="space-y-4">
-              <button type="button" className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-xl px-1 text-sm font-black text-[#1E3A8A] hover:text-[#1D4ED8] focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-blue-200" onClick={backToOwners}>
+              <button type="button" className="hidden min-h-10 cursor-pointer items-center gap-2 rounded-xl px-1 text-sm font-black text-[#1E3A8A] hover:text-[#1D4ED8] focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-blue-200 lg:inline-flex" onClick={backToOwners}>
                 <Icon name="back" /> Back to Owners
               </button>
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="truncate text-2xl font-black text-slate-950 dark:text-slate-50">{partyDisplayName(selectedParty)}</h2>
+                    <h2 className="hidden truncate text-2xl font-black text-slate-950 dark:text-slate-50 lg:block">{partyDisplayName(selectedParty)}</h2>
                     <StatusBadge summary={selectedSummary} symbol={settings.currencySymbol} />
                   </div>
                   <p className="mt-2 text-sm font-semibold text-slate-500 dark:text-slate-400">{[selectedParty.phone, selectedParty.email].filter(Boolean).join(" | ") || "No contact details added"}</p>
@@ -1062,7 +1132,7 @@ export function OwnerCompanyPage({
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="hidden lg:block">
             <CardContent className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <MetricCard label="Total Billed" value={currency(selectedSummary?.totalBilled ?? 0, settings.currencySymbol)} />
@@ -1076,9 +1146,33 @@ export function OwnerCompanyPage({
             </CardContent>
           </Card>
 
-          <OwnerAccordion module="statements" title="Statements & Transactions" description="Review transactions and generate account statements" icon="statement" openModule={openModule} onToggle={toggleModule}>
+          <div role="tablist" aria-label="Owner account views" className="grid grid-cols-3 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-[#0f172a] lg:hidden">
+            {(["transactions", "statements", "payments"] as const).map((tab) => {
+              const selected = tab === "payments" ? openModule === "payments" : openModule === "statements" && statementsTab === tab;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  className={cn("min-h-11 rounded-lg px-2 text-xs font-black capitalize focus:outline-none focus:ring-2 focus:ring-blue-500", selected ? "bg-white text-[#1E3A8A] shadow-sm dark:bg-[#111827] dark:text-blue-200" : "text-slate-500 dark:text-slate-400")}
+                  onClick={() => {
+                    if (tab === "payments") setOpenModule("payments");
+                    else {
+                      setOpenModule("statements");
+                      setStatementsTab(tab);
+                    }
+                  }}
+                >
+                  {tab}
+                </button>
+              );
+            })}
+          </div>
+
+          <OwnerAccordion mobileTabMode module="statements" title="Statements & Transactions" description="Review transactions and generate account statements" icon="statement" openModule={openModule} onToggle={toggleModule}>
             <div className="space-y-5">
-              <div role="tablist" aria-label="Statements and transactions views" className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-[#0f172a]" onKeyDown={handleStatementsTabKeyDown}>
+              <div role="tablist" aria-label="Statements and transactions views" className="hidden rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-[#0f172a] lg:inline-flex" onKeyDown={handleStatementsTabKeyDown}>
                 {(["transactions", "statements"] as StatementsTab[]).map((tab) => (
                   <button
                     key={tab}
@@ -1148,22 +1242,24 @@ export function OwnerCompanyPage({
                         </table>
                       </div>
                       <div className="grid gap-3 lg:hidden">
-                        {sortedLedger.map((entry) => (
-                          <article key={`${entry.entryType}-${entry.referenceId}`} className="min-w-0 max-w-full rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-[#111827]">
+                        {sortedLedger.map((entry) => {
+                          const isBill = entry.entryType === "bill";
+                          const amount = isBill ? entry.debitAmount : entry.creditAmount;
+                          return (
+                          <article key={`${entry.entryType}-${entry.referenceId}`} className="min-w-0 max-w-full rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-[#111827]">
                             <div className="flex min-w-0 items-start justify-between gap-3">
-                              <div>
-                                <p className="font-bold text-slate-950 dark:text-slate-50">{labelize(entry.entryType)}</p>
-                                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{ownerDateDisplay(entry.entryDate)}</p>
+                              <div className="min-w-0">
+                                <p className="truncate font-black text-slate-950 dark:text-slate-50">{isBill ? entryCustomer(entry) : "Payment received"}</p>
+                                <p className="mt-0.5 text-xs font-semibold text-slate-500 dark:text-slate-400">{labelize(entry.entryType)} · {ownerDateDisplay(entry.entryDate)}</p>
                               </div>
-                              <span className={cn("text-sm", ownerAmountClass)}>{runningBalanceDisplay(entry.runningBalance, settings.currencySymbol)}</span>
+                              <span className={cn("shrink-0 text-sm", ownerAmountClass)}>{currency(amount, settings.currencySymbol)}</span>
                             </div>
-                            <p className="mt-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Customer: {entryCustomer(entry)}</p>
-                            <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                              <span>Bill: <b className={entry.debitAmount > 0 ? ownerAmountClass : undefined}>{entry.debitAmount > 0 ? currency(entry.debitAmount, settings.currencySymbol) : "—"}</b></span>
-                              <span>Payment: <b className={entry.creditAmount > 0 ? ownerAmountClass : undefined}>{entry.creditAmount > 0 ? currency(entry.creditAmount, settings.currencySymbol) : "—"}</b></span>
+                            <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-2.5 text-xs dark:border-slate-800">
+                              <div><p className="font-semibold text-slate-500 dark:text-slate-400">{isBill ? "Bill amount" : "Payment amount"}</p><p className={cn("mt-0.5 text-sm", ownerAmountClass)}>{currency(amount, settings.currencySymbol)}</p></div>
+                              <div><p className="font-semibold text-slate-500 dark:text-slate-400">Balance after</p><p className={cn("mt-0.5 text-sm", ownerAmountClass)}>{runningBalanceDisplay(entry.runningBalance, settings.currencySymbol)}</p></div>
                             </div>
                           </article>
-                        ))}
+                        );})}
                       </div>
                     </>
                   )}
@@ -1174,13 +1270,13 @@ export function OwnerCompanyPage({
                 <div id="owner-statements-panel" role="tabpanel" aria-labelledby="owner-statements-tab" className="space-y-4">
                   <DateRangeControls fromDate={statementFromDate} toDate={statementToDate} activeDatePicker={activeDatePicker} onActiveDatePickerChange={setActiveDatePicker} onRangeChange={handleRangeChange} onGenerate={() => void generateStatement()} loading={statementLoading} />
                   {!statement && (
-                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-5 text-center dark:border-slate-700 dark:bg-[#111827]">
+                    <div className="px-1 py-2 text-left lg:rounded-xl lg:border lg:border-slate-200 lg:bg-white lg:px-4 lg:py-5 lg:text-center lg:dark:border-slate-700 lg:dark:bg-[#111827]">
                       <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50">No statement generated</h3>
                       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Select a period and generate a statement to preview or share it.</p>
                     </div>
                   )}
                   {statement && (
-                    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-[#111827]">
+                    <div className="min-w-0 max-w-full lg:rounded-xl lg:border lg:border-slate-200 lg:bg-white lg:p-4 lg:dark:border-slate-700 lg:dark:bg-[#111827]">
                   <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 dark:border-slate-700 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <h3 className="font-black text-slate-950 dark:text-slate-50">Statement: {ownerDateDisplay(statement.fromDate)} - {ownerDateDisplay(statement.toDate)}</h3>
@@ -1198,14 +1294,21 @@ export function OwnerCompanyPage({
                       </ActionMenu>
                     </div>
                   </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="mt-4 hidden gap-3 sm:grid-cols-2 lg:grid xl:grid-cols-4">
                     <MetricCard label={statement.summary.openingBalance < 0 ? "Opening Advance" : "Opening Balance"} value={runningBalanceDisplay(statement.summary.openingBalance, settings.currencySymbol)} />
                     <MetricCard label="Bills During Period" value={currency(statement.summary.totalBilled, settings.currencySymbol)} />
                     <MetricCard label="Payments Received" value={currency(statement.summary.totalReceived, settings.currencySymbol)} />
                     <MetricCard label={statement.summary.closingBalance < 0 ? "Advance Available" : "Closing Balance"} value={runningBalanceDisplay(statement.summary.closingBalance, settings.currencySymbol)} />
                   </div>
+                  <dl className="mt-3 grid grid-cols-2 gap-3 border-y border-slate-100 py-3 text-xs dark:border-slate-800 lg:hidden">
+                    <div className="min-w-0"><dt className="text-slate-500 dark:text-slate-400">{statement.summary.openingBalance < 0 ? "Opening advance" : "Opening balance"}</dt><dd className="mt-0.5 break-words font-black text-slate-900 dark:text-slate-50">{runningBalanceDisplay(statement.summary.openingBalance, settings.currencySymbol)}</dd></div>
+                    <div className="min-w-0"><dt className="text-slate-500 dark:text-slate-400">Bills during period</dt><dd className="mt-0.5 break-words font-black text-slate-900 dark:text-slate-50">{currency(statement.summary.totalBilled, settings.currencySymbol)}</dd></div>
+                    <div className="min-w-0"><dt className="text-slate-500 dark:text-slate-400">Payments received</dt><dd className="mt-0.5 break-words font-black text-slate-900 dark:text-slate-50">{currency(statement.summary.totalReceived, settings.currencySymbol)}</dd></div>
+                    <div className="min-w-0"><dt className="text-slate-500 dark:text-slate-400">{statement.summary.closingBalance < 0 ? "Advance available" : "Closing balance"}</dt><dd className="mt-0.5 break-words font-black text-slate-900 dark:text-slate-50">{runningBalanceDisplay(statement.summary.closingBalance, settings.currencySymbol)}</dd></div>
+                  </dl>
                   {statement.entries.length > 0 && (
-                    <div className="mt-4 max-h-[26rem] overflow-auto pb-2">
+                    <>
+                    <div className="mt-4 hidden max-h-[26rem] overflow-auto pb-2 lg:block">
                       <table className="w-full min-w-[760px] table-fixed text-left text-sm">
                         <colgroup>
                           <col className="w-1/6" />
@@ -1239,6 +1342,24 @@ export function OwnerCompanyPage({
                         </tbody>
                       </table>
                     </div>
+                    <div className="mt-4 grid min-w-0 gap-2 lg:hidden" role="list" aria-label="Statement transactions">
+                      {statement.entries.map((entry, index) => {
+                        const isBill = entry.entryType === "bill";
+                        const amount = isBill ? entry.debitAmount : entry.creditAmount;
+                        return (
+                        <article key={`${entry.entryType}-${entry.entryDate}-${index}`} role="listitem" className="min-w-0 max-w-full rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                          <div className="flex min-w-0 items-start justify-between gap-3">
+                            <div className="min-w-0"><p className="truncate font-black text-slate-950 dark:text-slate-50">{isBill ? entryCustomer(entry) : "Payment received"}</p><p className="mt-0.5 break-words text-xs font-semibold text-slate-500 dark:text-slate-400">{labelize(entry.entryType)} · {ownerDateDisplay(entry.entryDate)}</p></div>
+                            <p className={cn("shrink-0 whitespace-nowrap", ownerAmountClass)}>{currency(amount, settings.currencySymbol)}</p>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-2.5 text-xs dark:border-slate-800">
+                            <div><p className="font-semibold text-slate-500 dark:text-slate-400">{isBill ? "Bill amount" : "Payment amount"}</p><p className={cn("mt-0.5 text-sm", ownerAmountClass)}>{currency(amount, settings.currencySymbol)}</p></div>
+                            <div><p className="font-semibold text-slate-500 dark:text-slate-400">Balance after</p><p className={cn("mt-0.5 text-sm", ownerAmountClass)}>{runningBalanceDisplay(entry.runningBalance, settings.currencySymbol)}</p></div>
+                          </div>
+                        </article>
+                      );})}
+                    </div>
+                    </>
                   )}
                 </div>
               )}
@@ -1247,11 +1368,11 @@ export function OwnerCompanyPage({
             </div>
           </OwnerAccordion>
 
-          <OwnerAccordion module="payments" title="Payments" description={`${selectedPayments.length} payment${selectedPayments.length === 1 ? "" : "s"} • ${currency(selectedPaymentsTotal, settings.currencySymbol)} received`} icon="wallet" openModule={openModule} onToggle={toggleModule}>
+          <OwnerAccordion mobileTabMode module="payments" title="Payments" description={`${selectedPayments.length} payment${selectedPayments.length === 1 ? "" : "s"} • ${currency(selectedPaymentsTotal, settings.currencySymbol)} received`} icon="wallet" openModule={openModule} onToggle={toggleModule}>
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="font-black text-slate-950 dark:text-slate-50">Payments</h3>
-                <Button type="button" variant="primary" className="gap-2" onClick={() => startPayment()}><Icon name="wallet" /> Record Payment</Button>
+                <Button type="button" variant="primary" className="hidden gap-2 lg:inline-flex" onClick={() => startPayment()}><Icon name="wallet" /> Record Payment</Button>
               </div>
               {selectedPayments.length === 0 ? (
                 <EmptyState title="No payments recorded" description="Record the first payment received from this Owner / Company." />

@@ -9,7 +9,7 @@ const focusableSelector = [
   "[tabindex]:not([tabindex='-1'])"
 ].join(",");
 
-export function useDialogFocus(open: boolean, dialogRef: RefObject<HTMLElement>, onClose: () => void) {
+export function useDialogFocus(open: boolean, dialogRef: RefObject<HTMLElement>, onClose: () => void, initialFocusRef?: RefObject<HTMLElement | null>) {
   const onCloseRef = useRef(onClose);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
@@ -32,7 +32,7 @@ export function useDialogFocus(open: boolean, dialogRef: RefObject<HTMLElement>,
 
     const frame = window.requestAnimationFrame(() => {
       if (!dialogRef.current?.isConnected) return;
-      (focusables()[0] ?? dialogRef.current).focus();
+      (initialFocusRef?.current ?? dialogRef.current).focus();
     });
 
     function handleKeyDown(event: KeyboardEvent) {

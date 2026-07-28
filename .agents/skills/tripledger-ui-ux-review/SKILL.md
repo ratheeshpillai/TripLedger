@@ -335,6 +335,444 @@ Checklist:
 - Make Needs Attention rows individually actionable; avoid generic View All links where each item has a specific destination.
 - Do not add empty routes solely to support Dashboard links.
 
+## Mobile-First Presentation
+
+- Design mobile around the user's task instead of stacking or shrinking desktop layouts.
+- Reuse shared data, business logic, calculations, validation, mutations, sorting, filtering, persistence, and routes.
+- Replace wide tables with cards, timelines, tabs, or detail views where appropriate.
+- Use progressive disclosure to show essential information first.
+- Preserve every supported desktop action.
+
+Checklist:
+
+- Verify mobile is not compressed desktop.
+- Verify no supported functionality is lost.
+- Verify business logic is not duplicated.
+
+## Mobile Navigation
+
+- Use Home, History, Create, Owners, and More as the five persistent mobile destinations.
+- Keep Create as the elevated central primary action and one tap away.
+- Place future modules under More rather than adding persistent items.
+- Include safe-area padding and enough page padding that content is never obscured.
+- Make the active destination clear with both visual treatment and `aria-current`.
+
+Checklist:
+
+- Verify Create is one tap away.
+- Verify the active route is clear.
+- Verify bottom navigation does not overlap content.
+
+## Mobile Create Bill
+
+- Use a guided step flow that reuses existing state, defaults, validation, and calculations.
+- Preserve values when moving backward and use sticky Back and Continue actions.
+- Support create, edit, and duplicate modes.
+- Put preview and save on the final step.
+- Do not introduce unsupported fields.
+
+Checklist:
+
+- Verify all current fields remain available.
+- Verify edit and duplicate flows work.
+- Verify defaults from settings still apply.
+
+## Mobile History
+
+- Use bill cards rather than the desktop table.
+- Preserve search, sorting, filters, persistence, and every bill action.
+- Use the shared mobile sheet for filters, sorting, and action menus.
+- Prioritize customer, amount, date, owner, reporting place, and vehicle.
+- Keep monetary values left-aligned.
+
+Checklist:
+
+- Verify Edit, Duplicate, Copy, Share, PDF, and Delete remain accessible.
+- Verify no horizontal table scanning is required.
+
+## Mobile Owners
+
+- Use owner account cards and show balance status prominently.
+- Preserve search, sorting, persistence, add, edit, delete, and payment workflows.
+- Keep Record Payment accessible without overloading each card.
+
+Checklist:
+
+- Verify all owner workflows remain available.
+- Verify status and balance are immediately understandable.
+
+## Mobile Owner Account
+
+- Prioritize current balance, total billed, total received, counts, and key actions.
+- Use Transactions, Statements, and Payments tabs.
+- Use cards or timeline rows instead of wide tables.
+- Preserve statement generation, sharing, export, and payment workflows.
+- Keep all financial values left-aligned.
+
+Checklist:
+
+- Verify Transactions, Statements, and Payments are complete.
+- Verify Record Payment is not duplicated.
+
+## Mobile Settings
+
+- More must expose existing User Information, Billing Defaults, Appearance, Settings, and Logout.
+- Reuse existing storage and handlers.
+- Confirm billing defaults continue to populate Create Bill.
+
+Checklist:
+
+- Verify setting changes affect the mobile bill flow.
+
+## Mobile Overlay Consistency
+
+- Use one accessible bottom-sheet pattern for mobile filters, sorting, and action menus.
+- Trap and restore focus, prevent background scrolling, support Escape, and include safe-area padding.
+- Provide a visible close action, backdrop, accessible label, and internal scrolling.
+
+Checklist:
+
+- Verify filters, sorts, and action sheets behave consistently.
+
+## Mobile Above-the-Fold Priority
+
+- Reveal primary list content quickly; utility controls must not consume most of the initial viewport.
+- History should reveal the first bill near the initial viewport.
+- Owners should reveal the first owner near the initial viewport.
+- Owner Account should reveal tabs and content without scrolling through multiple summary cards.
+- Avoid large standalone cards for utility information.
+
+Checklist:
+
+- Verify meaningful content appears above the fold.
+- Verify utility controls remain compact.
+- Verify summary cards do not block task content.
+
+## Mobile Action Duplication
+
+- Do not repeat persistent bottom-navigation actions on the Dashboard unless they are contextually essential.
+- Avoid large duplicate Create, History, and Owners action blocks.
+
+Checklist:
+
+- Verify Dashboard does not repeat bottom navigation unnecessarily.
+
+## Mobile Financial Meaning
+
+- Give every primary amount an explicit label.
+- Distinguish bill amount, payment amount, total billed, outstanding, advance, running balance, and closing balance.
+- Never show multiple unlabeled monetary values in one component.
+- Prioritize customer identity over a generic transaction type where appropriate.
+
+Checklist:
+
+- Verify every monetary value has clear meaning.
+- Verify transaction value and running balance are distinguishable.
+
+## Mobile Compact Control Bars
+
+- Keep search, filter, and sort in one compact toolbar.
+- Put date range inside the filter sheet unless it is the page's primary task.
+- Keep count and selection actions in one compact utility row.
+- Avoid separate full-width rows for each utility control.
+
+Checklist:
+
+- Verify History and Owners controls do not consume excessive vertical space.
+
+## Mobile Summary Progressive Disclosure
+
+- Keep the primary financial state visible and move secondary metrics into compact expandable summaries.
+- Do not hide all financial context by default.
+- Do not render every financial metric as a separate large card.
+- Use compact grids or collapsible summaries for statements.
+
+Checklist:
+
+- Verify the primary balance remains immediately visible.
+- Verify secondary information is available on demand.
+- Verify transactions appear earlier.
+
+## Mobile Action Hierarchy
+
+- Match button size and emphasis to task importance.
+- Back must not be larger than Continue or Save Bill.
+- Keep Record Payment, Create Bill, and More aligned in one row where possible.
+- Do not make secondary actions full-width merely because space exists.
+
+Checklist:
+
+- Verify Save Bill is visually primary.
+- Verify Back is tertiary.
+- Verify Owner Account actions align consistently.
+
+## Mobile Transaction Identity
+
+- Use the customer or meaningful transaction identity as the primary heading.
+- Keep generic types such as Bill as supporting metadata.
+- Explicitly label transaction amount and balance-after values.
+- Do not show ambiguous duplicate monetary values.
+
+Checklist:
+
+- Verify the customer is easy to scan.
+- Verify bill or payment amount and running balance are distinguishable.
+
+## Mobile Financial Metric Grids
+
+- Present related financial metrics in one consistent structure; Dashboard billing may use a compact 2 × 2 grid.
+- Every metric needs a visible label, including the main total.
+- Keep values and labels aligned across all grid cells; do not detach a single unexplained amount.
+
+Checklist:
+
+- Verify Dashboard shows Total billed, Bills created, Payments received, and Current outstanding.
+- Verify period-sensitive total labels explain the selected period.
+
+## Mobile Step Navigation
+
+- Multi-step forms use Cancel or Back plus Next; Reset or Clear is never the primary navigation action.
+- The final step uses Back, Preview, and Save Bill, with Save Bill visually primary.
+- Preserve entered data while navigating backward; destructive clearing requires deliberate confirmation.
+
+Checklist:
+
+- Verify all steps preserve form state and validation.
+- Verify sticky actions fit above bottom navigation without obscuring content.
+
+## Mobile Overlay Close Convention
+
+- Every modal, sheet, preview, and confirmation dialog places one accessible close control in the top-right header.
+- Use a consistent close icon and a specific accessible label.
+- Preserve focus restoration, Escape handling, background-scroll prevention, and internal scrolling.
+
+Checklist:
+
+- Verify no overlay creates a separate close row below its title.
+
+## Mobile Snackbar Placement
+
+- Center mobile snackbars horizontally with fixed viewport positioning.
+- Keep them above bottom navigation, safe-area insets, and sticky form actions.
+- Long messages must wrap safely and retain live-region behavior.
+
+Checklist:
+
+- Verify snackbars never overlap the central Create control.
+
+## Mobile Responsive Containment
+
+- Mobile content must remain within the viewport with `min-width: 0` on flex and grid children.
+- Avoid desktop minimum widths below desktop breakpoints; long optional values must truncate or wrap intentionally.
+- Keep form text at a mobile-safe size so iOS does not automatically zoom focused inputs.
+
+Checklist:
+
+- Verify no horizontal page scrolling or zoom-out is required at 375px.
+
+## Mobile Interaction Responsiveness
+
+- Primary taps must receive immediate pressed, disabled, loading, or route-transition feedback when work is asynchronous.
+- Do not await nonessential background refreshes before closing a successful form or route transition.
+- Avoid duplicate mutation submission and unnecessary refetches.
+
+Checklist:
+
+- Verify Create Bill, Record Payment, navigation, tabs, and sheets do not appear frozen.
+
+## Mobile Statement Containment
+
+- Generated statement content stays within the mobile viewport and must not shift the Owner Account page.
+- Desktop table widths never leak below the desktop breakpoint; use wrapping and `min-width: 0` on mobile result rows.
+- Preserve the exported PDF layout separately from the mobile presentation.
+
+Checklist:
+
+- Verify generated statements do not create horizontal page movement or require zoom-out.
+- Verify the generated result shares the Owner Account content boundary.
+
+## Mobile Modal Header Density
+
+- Modal title, concise subtitle, More, and Close must fit without overlap.
+- Avoid labelled header actions on narrow screens; icon actions need accessible labels.
+- Remove redundant explanatory subtitles and make content visible quickly.
+
+Checklist:
+
+- Verify Individual Summary title and controls remain readable.
+- Verify modal content wraps without scrolling the page behind it.
+
+## Mobile Contextual Selection Bars
+
+- Bulk selection uses one compact contextual toolbar with its primary action visible.
+- Move secondary and destructive actions into More; remove the toolbar when selection mode ends.
+
+Checklist:
+
+- Verify History selection controls do not consume excessive height.
+- Verify Delete remains available but not visually dominant.
+
+## Mobile Date and Time Control Consistency
+
+- Date and time fields use the same height, padding, alignment, and typography.
+- Native mobile inputs must not visually break the system or trigger iOS zoom.
+
+Checklist:
+
+- Verify all trip-timing controls match and remain contained.
+
+## Mobile Step Direction
+
+- Use Back and Next labels with directional icons; Step 1 uses Cancel and Next.
+- The final footer contains Preview and Save Bill only; Back belongs above the review content.
+
+Checklist:
+
+- Verify directional flow is obvious and Save Bill remains primary.
+
+## Mobile Quick-Range Controls
+
+- Common date presets stay in one horizontal row at supported mobile widths.
+- Prefer compact equal controls and horizontal scrolling over wrapping below the support target.
+
+Checklist:
+
+- Verify Today, This Week, This Month, and Last Month remain in one row.
+
+## Mobile Card Nesting
+
+- Avoid card-inside-card nesting when one surface is sufficient.
+- Utility forms and empty states should not each require a large separate card.
+
+Checklist:
+
+- Verify Statement generation uses one clear mobile surface.
+
+## Mobile Icon-Only Step Navigation
+
+- Mobile Create Bill may use icon-only previous and next controls.
+- Previous stays left and next stays right; both use equal physical dimensions and familiar arrows.
+- Step 1 hides the previous control instead of substituting Cancel or Reset.
+- Icon-only controls need explicit accessible labels and visible focus states.
+- The final footer keeps Preview and Save Bill only.
+
+Checklist:
+
+- Verify no Back, Next, or Cancel text remains in the step footer.
+- Verify backward navigation preserves entered values.
+
+## Mobile Contextual Action Sizing
+
+- Do not stretch contextual buttons merely to fill available space.
+- Summary actions remain content-sized; secondary and destructive actions belong in More.
+- Keep contextual toolbars compact enough that selected content appears quickly.
+
+Checklist:
+
+- Verify Summary and More remain compact on History.
+
+## Unified Summary Headers
+
+- Combined and Individual Summary use one title, compact metadata, More, and Close pattern.
+- More appears immediately before Close; Copy, Share, and Export belong in More unless genuinely primary.
+- Icon controls must have specific accessible labels and practical touch targets.
+
+Checklist:
+
+- Verify summary titles never collide with actions.
+- Verify Combined and Individual Summary use the same convention.
+
+## Summary Redundancy
+
+- Do not repeat values as overview cards and again in the summary body.
+- Use compact metadata, then show the actual detailed summary immediately.
+
+Checklist:
+
+- Verify Combined Summary metric cards are removed without losing summary data.
+
+## Mobile Summary Containment
+
+- Preformatted summary content wraps safely with vertical modal scrolling.
+- Summary presentation must not create page-level horizontal movement or alter copied/exported text.
+
+Checklist:
+
+- Verify Combined and Individual Summary fit a 375px viewport without zoom-out.
+
+## Mobile Selection-State Hierarchy
+
+- Selected count is the primary status; Select All is actionable only while some bills remain unselected.
+- All selected is muted supporting status, not a disabled action.
+- Narrow mobile toolbars may use an intentional two-row layout with Summary and More grouped on the second row.
+
+Checklist:
+
+- Verify selection state reads in a clear sequence without competing messages.
+- Verify Summary and More stay together without accidental wrapping.
+
+## Modal Initial Focus
+
+- Do not automatically focus Close when an overlay opens.
+- Focus the selected option or another meaningful control; otherwise focus the dialog container.
+- Use `:focus-visible` for keyboard focus styling and restore trigger focus after close.
+
+Checklist:
+
+- Verify Close does not appear highlighted on touch open.
+- Verify keyboard users still see focus rings and focus remains trapped.
+
+## Mobile Step Action Dock
+
+- Multi-step navigation stays in a compact bottom dock above persistent navigation.
+- Previous remains left and Next remains right with equal dimensions; Step 1 has Next only.
+- Keep the center empty and ensure the dock does not obscure fields or bottom navigation.
+
+Checklist:
+
+- Verify compact dock height and reachable controls.
+
+## Validity-Driven Step Progression
+
+- Reserve the Next position to avoid layout shifts.
+- Disable Next until the current step meets its existing mandatory requirements.
+- Disabled and enabled states must be clearly distinct without adding validation rules.
+
+Checklist:
+
+- Verify Step 1 Next activates after a valid Owner selection.
+
+## Icon-Only Navigation Polish
+
+- Use familiar chevrons with approximately 48px or larger equal touch targets.
+- Active, disabled, dark-mode, pressed, and focus-visible states must be clear.
+
+Checklist:
+
+- Verify arrow controls are intentional rather than oversized rectangular buttons.
+
+## Floating Create Bill Navigation
+
+- Mobile Create Bill navigation may use compact floating actions above the persistent bottom navigation instead of a full-width dock.
+- Step 1 shows no navigation until its existing mandatory Owner or Company selection is valid; then it shows Next only.
+- Intermediate steps place circular Back and Next actions at opposite edges, with concise text labels beneath the icons.
+- Final review uses compact Preview and Save Bill pills.
+- Floating actions must use safe-area-aware positioning and the scrollable page must retain only the padding needed to reveal final content above them.
+
+Checklist:
+
+- Verify no blank action area appears before Step 1 is valid.
+- Verify controls stay above bottom navigation, never cover the final field, and respect reduced motion.
+
+## Desktop Regression Protection
+
+- Mobile changes must not alter approved desktop layouts.
+- Validate desktop after every phase and explicitly review shared changes.
+
+Checklist:
+
+- Verify all approved desktop pages remain unchanged.
+
 ## Dashboard Column Balance
 
 - Balance a taller activity card by stacking compact, useful cards alongside it.

@@ -8,6 +8,7 @@ import { currency } from "../../utils/formatters";
 import { Button } from "../ui/Button";
 import { Card, CardContent, CardHeader } from "../ui/Card";
 import { cn } from "../ui/cn";
+import { useIsMobile } from "../mobile/MobilePrimitives";
 
 type Props = {
   bills: Bill[];
@@ -35,6 +36,12 @@ const periodBillingLabels: Record<DashboardPeriod, string> = {
   today: "Today's Billing",
   week: "This Week's Billing",
   month: "This Month's Billing"
+};
+
+const periodTotalLabels: Record<DashboardPeriod, string> = {
+  today: "Total billed today",
+  week: "Total billed this week",
+  month: "Total billed this month"
 };
 
 function DashboardIcon({ name, className }: { name: "bill" | "wallet" | "alert" | "owner" | "check" | "plus" | "arrow" | "history"; className?: string }) {
@@ -112,6 +119,7 @@ export function DashboardPage({
   onRetry
 }: Props) {
   const [period, setPeriod] = useState<DashboardPeriod>("today");
+  const isMobile = useIsMobile();
   const data = useMemo(
     () => buildDashboardData(bills, ownerPayments, billingParties, ownerSummaries, period),
     [bills, ownerPayments, billingParties, ownerSummaries, period]
@@ -130,7 +138,7 @@ export function DashboardPage({
   if (loading) return <DashboardSkeleton />;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 lg:space-y-4">
       {error && (
         <div role="alert" className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200 sm:flex-row sm:items-center sm:justify-between">
           <span>Some Dashboard data could not be loaded.</span>
@@ -138,7 +146,7 @@ export function DashboardPage({
         </div>
       )}
 
-      <section className="overflow-hidden rounded-2xl border border-blue-800/40 bg-[#1E3A8A] p-5 shadow-lg shadow-blue-950/10 dark:border-blue-700/50 dark:bg-[#172554] dark:shadow-black/20 sm:p-6" aria-labelledby="dashboard-billing-title">
+      <section className="overflow-hidden rounded-2xl border border-blue-800/40 bg-[#1E3A8A] p-4 shadow-lg shadow-blue-950/10 dark:border-blue-700/50 dark:bg-[#172554] dark:shadow-black/20 sm:p-5 lg:p-6" aria-labelledby="dashboard-billing-title">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 id="dashboard-billing-title" className="text-sm font-bold text-blue-100">{periodBillingLabels[period]}</h2>
           <label className="shrink-0">
@@ -152,6 +160,14 @@ export function DashboardPage({
             </select>
           </label>
         </div>
+        {isMobile ? (
+          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-white/20 pt-3">
+            <div className="min-w-0"><p className="text-xs font-semibold leading-4 text-blue-100">{periodTotalLabels[period]}</p><p className="mt-1 truncate text-xl font-black leading-none text-white">{currency(data.billingTotal, settings.currencySymbol)}</p></div>
+            <div className="min-w-0"><p className="text-xs font-semibold leading-4 text-blue-100">Bills created</p><p className="mt-1 text-xl font-black leading-none text-white">{data.billsCreated}</p></div>
+            <div className="min-w-0"><p className="text-xs font-semibold leading-4 text-blue-100">Payments received</p><p className="mt-1 truncate text-xl font-black leading-none text-white">{currency(data.paymentsReceived, settings.currencySymbol)}</p></div>
+            <div className="min-w-0"><p className="text-xs font-semibold leading-4 text-blue-100">Current outstanding</p><p className="mt-1 truncate text-xl font-black leading-none text-white">{currency(data.currentOutstanding, settings.currencySymbol)}</p></div>
+          </div>
+        ) : (
         <div className="mt-3 grid grid-cols-2 gap-4 lg:grid-cols-[1.2fr_repeat(3,minmax(0,1fr))] lg:items-center">
           <div className="col-span-2 flex min-w-0 items-center gap-4 py-1 lg:col-span-1">
             <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-white/15 text-white sm:h-16 sm:w-16">
@@ -165,9 +181,10 @@ export function DashboardPage({
           <SummaryMetric icon="wallet" value={currency(data.paymentsReceived, settings.currencySymbol)} label="payments received" />
           <SummaryMetric icon="alert" value={currency(data.currentOutstanding, settings.currencySymbol)} label="current outstanding" className="col-span-2 lg:col-span-1" />
         </div>
+        )}
       </section>
 
-      <div className="flex flex-wrap items-center gap-2.5">
+      <div className="hidden flex-wrap items-center gap-2.5 lg:flex">
         <Button type="button" variant="primary" className="min-h-11 w-full gap-2 sm:w-auto" onClick={onCreateBill}><DashboardIcon name="plus" /> Create Bill</Button>
         <Button type="button" variant="secondary" className="min-h-11 gap-2" onClick={onRecordPayment}><DashboardIcon name="wallet" /> Record Payment</Button>
         <Button type="button" variant="ghost" className="min-h-11 gap-1.5 px-2" onClick={onViewHistory}>View History <DashboardIcon name="arrow" className="h-4 w-4" /></Button>
@@ -209,7 +226,7 @@ export function DashboardPage({
           </CardContent>
         </Card>
 
-        <Card className="min-w-0 shadow-none">
+        <Card className="hidden min-w-0 shadow-none lg:block">
           <CardHeader className="p-4">
             <h2 className="text-base font-black text-slate-950 dark:text-slate-50">Quick Overview</h2>
           </CardHeader>

@@ -98,7 +98,7 @@ export function useBillingParties(userId: string | null, service: BillingPartySe
       const saved = existing
         ? await service.updateBillingParty(userId, { ...existing, ...draft, id: editingId!, createdAt: existing.createdAt, updatedAt: existing.updatedAt })
         : await service.saveBillingParty(userId, draft);
-      await refresh();
+      void refresh();
       return saved;
     })();
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "TripLedger UI/UX Review"
+  short_description: "Review and improve TripLedger frontend UX"
+  default_prompt: "Use $tripledger-ui-ux-review to review and improve this TripLedger interface."

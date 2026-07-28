@@ -14,6 +14,7 @@ type Props = {
   userEmail?: string;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
+  onLogout: () => void;
   onSave: (settings: AppSettings) => Promise<void>;
 };
 
@@ -51,7 +52,7 @@ function NumberInput({ value, onValueChange }: { value: number; onValueChange: (
   );
 }
 
-function SettingsSection({ id, title, openSection, setOpenSection, children }: { id: SettingsSectionId; title: string; openSection: SettingsSectionId | null; setOpenSection: (section: SettingsSectionId | null) => void; children: ReactNode }) {
+function SettingsSection({ id, title, openSection, setOpenSection, children }: { id: SettingsSectionId; title: ReactNode; openSection: SettingsSectionId | null; setOpenSection: (section: SettingsSectionId | null) => void; children: ReactNode }) {
   const isOpen = openSection === id;
   const contentId = `settings-${id}-content`;
 
@@ -62,10 +63,21 @@ function SettingsSection({ id, title, openSection, setOpenSection, children }: {
   );
 }
 
-export function SettingsPage({ settings, userEmail, isDarkMode, onToggleDarkMode, onSave }: Props) {
+export function SettingsPage({ settings, userEmail, isDarkMode, onToggleDarkMode, onLogout, onSave }: Props) {
   const [draft, setDraft] = useState<AppSettings>(settings);
   const [openSection, setOpenSection] = useState<SettingsSectionId | null>(null);
+  const [saving, setSaving] = useState(false);
   const [defaultsSaving, setDefaultsSaving] = useState(false);
+
+  async function save() {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await onSave(draft);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function saveBillingDefaults() {
     if (defaultsSaving) return;
@@ -84,23 +96,23 @@ export function SettingsPage({ settings, userEmail, isDarkMode, onToggleDarkMode
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
-      <div className="pb-2">
+      <div className="hidden pb-2 lg:block">
         <h1 className="text-xl font-black text-slate-950 dark:text-slate-50">Settings</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Manage your account, security, appearance, and billing defaults.</p>
       </div>
 
-      <SettingsSection id="account" title="Account Settings" openSection={openSection} setOpenSection={setOpenSection}>
+      <SettingsSection id="account" title={<><span className="lg:hidden">User Information</span><span className="hidden lg:inline">Account Settings</span></>} openSection={openSection} setOpenSection={setOpenSection}>
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-[#111827]">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Signed-in email</p>
           <p className="mt-1 break-all text-sm font-bold text-slate-900 dark:text-slate-100">{userEmail || "TripLedger user"}</p>
         </div>
       </SettingsSection>
 
-      <SettingsSection id="security" title="Security Settings" openSection={openSection} setOpenSection={setOpenSection}>
+      <SettingsSection id="security" title={<><span className="lg:hidden">Settings & Security</span><span className="hidden lg:inline">Security Settings</span></>} openSection={openSection} setOpenSection={setOpenSection}>
         <ExtraLoginVerificationSettings />
       </SettingsSection>
 
-      <SettingsSection id="appearance" title="Appearance Settings" openSection={openSection} setOpenSection={setOpenSection}>
+      <SettingsSection id="appearance" title={<><span className="lg:hidden">Appearance / Dark Mode</span><span className="hidden lg:inline">Appearance Settings</span></>} openSection={openSection} setOpenSection={setOpenSection}>
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-[#111827]">
           <div>
             <p className="text-sm font-black text-slate-900 dark:text-slate-100">Color theme</p>
@@ -119,7 +131,7 @@ export function SettingsPage({ settings, userEmail, isDarkMode, onToggleDarkMode
         </div>
       </SettingsSection>
 
-      <SettingsSection id="preferences" title="App Preferences" openSection={openSection} setOpenSection={setOpenSection}>
+      <SettingsSection id="preferences" title={<><span className="lg:hidden">Billing Defaults</span><span className="hidden lg:inline">App Preferences</span></>} openSection={openSection} setOpenSection={setOpenSection}>
         <div className="space-y-6">
           <p className="text-sm text-slate-500 dark:text-slate-400">Set the defaults used when starting a new bill.</p>
           <section aria-labelledby="billing-defaults-title" className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40">
@@ -148,9 +160,11 @@ export function SettingsPage({ settings, userEmail, isDarkMode, onToggleDarkMode
             <Field label="Default Extra Hour Rate"><NumberInput value={draft.defaultExtraHourRate} onValueChange={(value) => setDraft({ ...draft, defaultExtraHourRate: value })} /></Field>
             <Field label="Default Extra KM Rate"><NumberInput value={draft.defaultExtraKmRate} onValueChange={(value) => setDraft({ ...draft, defaultExtraKmRate: value })} /></Field>
           </div>
-          <Button type="button" variant="primary" onClick={() => void onSave(draft)}>Save Settings</Button>
+          <Button type="button" variant="primary" disabled={saving} onClick={() => void save()}>{saving ? "Saving..." : "Save Settings"}</Button>
         </div>
       </SettingsSection>
+
+      <Button type="button" variant="danger" className="min-h-11 w-full lg:hidden" onClick={onLogout}>Logout</Button>
     </div>
   );
 }

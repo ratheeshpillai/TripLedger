@@ -69,7 +69,7 @@ export function useOwnerPayments(userId: string | null, service: OwnerPaymentSer
           createRequestIdRef.current = null;
           return created;
         })();
-      await refresh();
+      void refresh();
       return saved;
     })();
 

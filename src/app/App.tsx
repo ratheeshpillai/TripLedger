@@ -19,14 +19,13 @@ import { useSettings } from "../hooks/useSettings";
 import { useOwnerPayments } from "../hooks/useOwnerPayments";
 import { clearLegacyLocalBillData } from "../services/privacyMigrationService";
 import { getSafeErrorMessage, logDevError } from "../utils/errors";
-import { exportSingleBillPdf } from "../utils/pdf";
 
 function pageFromPath(pathname: string): AppPage {
   const normalized = pathname.replace(/\/+$/, "") || "/";
   if (normalized === "/history") return "history";
   if (normalized === "/owners" || normalized === "/owner-company") return "owners";
   if (normalized === "/logger" || normalized === "/create-bill") return "logger";
-  if (normalized === "/settings") return "settings";
+  if (normalized === "/settings" || normalized === "/more") return "settings";
   return "dashboard";
 }
 
@@ -34,7 +33,7 @@ function pagePath(page: AppPage): string {
   if (page === "history") return "/history";
   if (page === "owners") return "/owners";
   if (page === "logger") return "/create-bill";
-  if (page === "settings") return "/settings";
+  if (page === "settings") return "/more";
   return "/dashboard";
 }
 
@@ -49,7 +48,9 @@ export default function App() {
   const [page, setPage] = useState<AppPage>(() => pageFromPath(window.location.pathname));
   const [toast, setToast] = useState("");
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [cancelLoggerConfirmOpen, setCancelLoggerConfirmOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [mobileOwnerHeader, setMobileOwnerHeader] = useState<{ title: string; onBack: () => void } | null>(null);
   const [authCallbackHandled, setAuthCallbackHandled] = useState(false);
   const previousUserIdRef = useRef<string | null>(null);
   const saveActionPromiseRef = useRef<Promise<unknown> | null>(null);
@@ -106,7 +107,7 @@ export default function App() {
       if (previousUserIdRef.current !== actionUserId) return saved;
       form.setEditingBillId(null);
       showToast(form.editingBillId ? "Bill updated" : "Bill saved");
-      await billingPartiesApi.refresh();
+      void billingPartiesApi.refresh();
       return saved;
     })();
 
@@ -132,6 +133,13 @@ export default function App() {
     form.resetLogger();
     setResetConfirmOpen(false);
     showToast("Logger reset");
+  }
+
+  function confirmCancelLogger() {
+    form.resetLogger();
+    setCancelLoggerConfirmOpen(false);
+    navigateToPage("dashboard");
+    showToast("Bill discarded");
   }
 
   async function handleLogout() {
@@ -206,7 +214,17 @@ export default function App() {
   }
 
   return (
-    <AppShell page={page} setPage={navigateToPage} userEmail={auth.user.email} isDarkMode={theme.isDarkMode} onToggleDarkMode={theme.toggleDarkMode} onLogout={() => setLogoutConfirmOpen(true)}>
+    <AppShell
+      page={page}
+      setPage={navigateToPage}
+      userEmail={auth.user.email}
+      isDarkMode={theme.isDarkMode}
+      mobileTitle={page === "logger" && form.editingBillId ? "Edit Bill" : page === "owners" ? mobileOwnerHeader?.title : undefined}
+      mobileSubtitle={page === "logger" && form.editingBillId ? "Update trip and billing details" : page === "owners" && mobileOwnerHeader ? "Owner Account" : undefined}
+      mobileBack={page === "logger" && form.editingBillId ? () => navigateToPage("history") : page === "owners" ? mobileOwnerHeader?.onBack : undefined}
+      onToggleDarkMode={theme.toggleDarkMode}
+      onLogout={() => setLogoutConfirmOpen(true)}
+    >
       {page === "dashboard" && (
         <DashboardPage
           bills={billsApi.bills}
@@ -259,18 +277,19 @@ export default function App() {
           onGarageTimeChange={form.setGarageTime}
           onSave={handleSave}
           onReset={handleReset}
+          onCancel={() => setCancelLoggerConfirmOpen(true)}
           onCopy={copyText}
           onPdf={() => {
             const now = new Date().toISOString();
             const selectedParty = billingPartiesApi.parties.find((party) => party.id === form.draft.billingPartyId);
-            exportSingleBillPdf({
+            void import("../utils/pdf").then(({ exportSingleBillPdf }) => exportSingleBillPdf({
               ...form.draft,
               billingPartyName: selectedParty?.name,
               billingPartyCompanyName: selectedParty?.companyName,
               id: "preview",
               createdAt: now,
               updatedAt: now
-            }, settings);
+            }, settings));
           }}
         />
       )}
@@ -345,7 +364,7 @@ export default function App() {
           }}
           onSavePayment={async (draft, editingId) => {
             const saved = await ownerPaymentsApi.saveOwnerPayment(draft, editingId);
-            await billingPartiesApi.refresh();
+            void billingPartiesApi.refresh();
             return saved;
           }}
           onDeletePayment={async (id) => {
@@ -358,6 +377,7 @@ export default function App() {
             navigateToPage("logger");
             showToast("Owner / Company selected");
           }}
+          onMobileDetailChange={(party, onBack) => setMobileOwnerHeader(party && onBack ? { title: party.companyName || party.name, onBack } : null)}
         />
       )}
 
@@ -367,6 +387,7 @@ export default function App() {
           userEmail={auth.user.email}
           isDarkMode={theme.isDarkMode}
           onToggleDarkMode={theme.toggleDarkMode}
+          onLogout={() => setLogoutConfirmOpen(true)}
           onSave={async (next) => {
             try {
               await saveSettings(next);
@@ -387,6 +408,16 @@ export default function App() {
         confirmVariant="danger"
         onCancel={() => setResetConfirmOpen(false)}
         onConfirm={confirmReset}
+      />
+
+      <ConfirmationDialog
+        open={cancelLoggerConfirmOpen}
+        title="Discard bill?"
+        message="Leave this bill and discard the current entered details?"
+        confirmLabel="Discard Bill"
+        confirmVariant="danger"
+        onCancel={() => setCancelLoggerConfirmOpen(false)}
+        onConfirm={confirmCancelLogger}
       />
 
       <ConfirmationDialog
