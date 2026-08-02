@@ -3,10 +3,20 @@ import { authService, type AuthService } from "../services/authService";
 import type { AuthSessionState, AuthUser } from "../types/auth";
 import { getSafeErrorMessage, logDevError } from "../utils/errors";
 
+const RECOVERY_FLAG = "tripledger:password-recovery";
+
+function hasRecoveryUrlHint(): boolean {
+  if (window.location.pathname.replace(/\/+$/, "") !== "/reset-password") return false;
+  const search = new URLSearchParams(window.location.search);
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  return search.has("code") || search.get("type") === "recovery" || hash.get("type") === "recovery";
+}
+
 export function useAuth(service: AuthService = authService) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [pendingUser, setPendingUser] = useState<AuthUser | null>(null);
   const [verificationFactorId, setVerificationFactorId] = useState<string | null>(null);
+  const [passwordRecoveryReady, setPasswordRecoveryReady] = useState(() => window.sessionStorage.getItem(RECOVERY_FLAG) === "1");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -43,7 +53,11 @@ export function useAuth(service: AuthService = authService) {
       try {
         setError("");
         applySessionState(await service.getSessionState());
-        unsubscribe = service.onAuthStateChange(() => {
+        unsubscribe = service.onAuthStateChange((event) => {
+          if (event === "PASSWORD_RECOVERY") {
+            window.sessionStorage.setItem(RECOVERY_FLAG, "1");
+            setPasswordRecoveryReady(true);
+          }
           window.setTimeout(() => void refreshSessionState(), 0);
         });
       } catch (authError) {
@@ -90,6 +104,33 @@ export function useAuth(service: AuthService = authService) {
     return nextUser;
   }
 
+  async function resendSignupConfirmation(email: string) {
+    const emailRedirectTo = new URL("/auth/callback", window.location.origin).toString();
+    await service.resendSignupConfirmation(email, emailRedirectTo);
+  }
+
+  async function sendPasswordReset(email: string) {
+    const redirectTo = new URL("/reset-password", window.location.origin).toString();
+    await service.sendPasswordReset(email, redirectTo);
+  }
+
+  async function refreshPasswordRecoveryState() {
+    if (!window.sessionStorage.getItem(RECOVERY_FLAG) && !hasRecoveryUrlHint()) return false;
+    const hasSession = await service.hasActiveSession();
+    setPasswordRecoveryReady(hasSession);
+    if (hasSession) window.sessionStorage.setItem(RECOVERY_FLAG, "1");
+    else window.sessionStorage.removeItem(RECOVERY_FLAG);
+    return hasSession;
+  }
+
+  async function updatePassword(password: string) {
+    setError("");
+    await service.updatePassword(password);
+    window.sessionStorage.removeItem(RECOVERY_FLAG);
+    setPasswordRecoveryReady(false);
+    await logout();
+  }
+
   async function completeEmailVerification(callbackUrl: string) {
     setError("");
     return applySessionState(await service.completeEmailVerification(callbackUrl));
@@ -117,6 +158,11 @@ export function useAuth(service: AuthService = authService) {
     error,
     login,
     signup,
+    resendSignupConfirmation,
+    sendPasswordReset,
+    passwordRecoveryReady,
+    refreshPasswordRecoveryState,
+    updatePassword,
     completeEmailVerification,
     verifyExtraLogin,
     logout

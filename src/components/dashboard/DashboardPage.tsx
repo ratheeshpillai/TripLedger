@@ -3,12 +3,13 @@ import type { Bill } from "../../types/bill";
 import type { BillingParty, BillingPartySummary } from "../../types/billingParty";
 import type { OwnerPayment } from "../../types/ownerPayment";
 import type { AppSettings } from "../../types/settings";
-import { buildDashboardData, type DashboardActivity, type DashboardPeriod } from "../../utils/dashboard";
+import { buildDashboardData, buildMonthlyBillingTrend, type DashboardActivity, type DashboardPeriod } from "../../utils/dashboard";
 import { currency } from "../../utils/formatters";
 import { Button } from "../ui/Button";
 import { Card, CardContent, CardHeader } from "../ui/Card";
 import { cn } from "../ui/cn";
 import { useIsMobile } from "../mobile/MobilePrimitives";
+import { BillingTrendChart } from "./BillingTrendChart";
 
 type Props = {
   bills: Bill[];
@@ -18,10 +19,12 @@ type Props = {
   settings: AppSettings;
   loading: boolean;
   error: string;
+  billError: string;
   onCreateBill: () => void;
   onRecordPayment: () => void;
   onViewHistory: () => void;
   onViewOwners: () => void;
+  onOpenOwner: (billingPartyId: string) => void;
   onOpenBill: (bill: Bill) => void;
   onRetry: () => void;
 };
@@ -69,12 +72,11 @@ function relativeTime(value: string, now = new Date()): string {
 
 function DashboardSkeleton() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-label="Loading Dashboard">
+    <div className="space-y-3" aria-busy="true" aria-label="Loading Dashboard">
       <div className="h-48 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />
       <div className="h-11 w-96 max-w-full animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-4"><div className="h-44 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" /><div className="h-36 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" /></div>
-        <div className="h-72 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />
+      <div className="grid gap-3 lg:grid-cols-2">
+        {Array.from({ length: 4 }, (_, index) => <div key={index} className="h-64 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />)}
       </div>
     </div>
   );
@@ -111,10 +113,12 @@ export function DashboardPage({
   settings,
   loading,
   error,
+  billError,
   onCreateBill,
   onRecordPayment,
   onViewHistory,
   onViewOwners,
+  onOpenOwner,
   onOpenBill,
   onRetry
 }: Props) {
@@ -125,6 +129,7 @@ export function DashboardPage({
     [bills, ownerPayments, billingParties, ownerSummaries, period]
   );
   const billById = useMemo(() => new Map(bills.map((bill) => [bill.id, bill])), [bills]);
+  const monthlyBilling = useMemo(() => buildMonthlyBillingTrend(bills), [bills]);
 
   function openActivity(activity: DashboardActivity) {
     if (activity.type === "bill") {
@@ -138,7 +143,7 @@ export function DashboardPage({
   if (loading) return <DashboardSkeleton />;
 
   return (
-    <div className="space-y-3 lg:space-y-4">
+    <div className="space-y-3">
       {error && (
         <div role="alert" className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200 sm:flex-row sm:items-center sm:justify-between">
           <span>Some Dashboard data could not be loaded.</span>
@@ -190,34 +195,31 @@ export function DashboardPage({
         <Button type="button" variant="ghost" className="min-h-11 gap-1.5 px-2" onClick={onViewHistory}>View History <DashboardIcon name="arrow" className="h-4 w-4" /></Button>
       </div>
 
-      <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <div className="grid min-w-0 gap-4">
+      <div className="grid min-w-0 gap-3 lg:grid-cols-2">
         <Card className="min-w-0 shadow-none">
-          <CardHeader className="flex items-center gap-3 p-4">
-            <div className="flex min-w-0 items-center gap-2">
-              <DashboardIcon name="alert" className="text-red-600 dark:text-red-300" />
-              <h2 className="text-base font-black text-slate-950 dark:text-slate-50">Needs Attention</h2>
-            </div>
+          <CardHeader className="flex items-center gap-2 !p-3">
+            <DashboardIcon name="alert" className="h-4 w-4 text-red-600 dark:text-red-300" />
+            <h2 className="text-base font-black text-slate-950 dark:text-slate-50">Needs Attention</h2>
           </CardHeader>
-          <CardContent className="p-3">
+          <CardContent className="!p-2.5">
             {data.outstandingOwners === 0 && data.advanceOwners === 0 ? (
-              <div className="flex items-start gap-3 rounded-xl bg-emerald-50 p-4 dark:bg-emerald-950/30">
+              <div className="flex items-start gap-2.5 rounded-xl bg-emerald-50 p-3 dark:bg-emerald-950/30">
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-200"><DashboardIcon name="check" className="h-4 w-4" /></span>
-                <div><p className="font-black text-emerald-900 dark:text-emerald-100">You're all caught up</p><p className="mt-1 text-sm text-emerald-700 dark:text-emerald-300">No balance or payment issues need attention right now.</p></div>
+                <div><p className="font-black text-emerald-900 dark:text-emerald-100">You're all caught up</p><p className="mt-0.5 text-sm text-emerald-700 dark:text-emerald-300">No balance or payment issues need attention right now.</p></div>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="grid gap-2">
                 {data.outstandingOwners > 0 && (
-                  <button type="button" aria-label="Review owners with outstanding balances" className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 text-left hover:border-red-200 hover:bg-red-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:hover:border-red-900 dark:hover:bg-red-950/20" onClick={onViewOwners}>
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300"><DashboardIcon name="owner" /></span>
-                    <span className="min-w-0 flex-1"><span className="block font-bold text-slate-950 dark:text-slate-50">{data.outstandingOwners} {data.outstandingOwners === 1 ? "owner has" : "owners have"} outstanding balances</span><span className="mt-0.5 block text-sm text-slate-500 dark:text-slate-400">Total outstanding: {currency(data.currentOutstanding, settings.currencySymbol)}</span></span>
+                  <button type="button" aria-label="Review owners with outstanding balances" className="flex min-h-14 w-full cursor-pointer items-center gap-2.5 rounded-xl border border-slate-200 p-2.5 text-left hover:border-red-200 hover:bg-red-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:hover:border-red-900 dark:hover:bg-red-950/20" onClick={onViewOwners}>
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300"><DashboardIcon name="owner" className="h-4 w-4" /></span>
+                    <span className="min-w-0 flex-1"><span className="block text-sm font-bold text-slate-950 dark:text-slate-50">{data.outstandingOwners} {data.outstandingOwners === 1 ? "owner has" : "owners have"} outstanding balances</span><span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">Total outstanding: {currency(data.currentOutstanding, settings.currencySymbol)}</span></span>
                     <DashboardIcon name="arrow" className="shrink-0 text-slate-400" />
                   </button>
                 )}
                 {data.advanceOwners > 0 && (
-                  <button type="button" aria-label="Review owners with advance available" className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 text-left hover:border-emerald-200 hover:bg-emerald-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:hover:border-emerald-900 dark:hover:bg-emerald-950/20" onClick={onViewOwners}>
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"><DashboardIcon name="wallet" /></span>
-                    <span className="min-w-0 flex-1"><span className="block font-bold text-slate-950 dark:text-slate-50">{data.advanceOwners} {data.advanceOwners === 1 ? "owner has" : "owners have"} advance available</span><span className="mt-0.5 block text-sm text-slate-500 dark:text-slate-400">Advance total: {currency(data.totalAdvance, settings.currencySymbol)}</span></span>
+                  <button type="button" aria-label="Review owners with advance available" className="flex min-h-14 w-full cursor-pointer items-center gap-2.5 rounded-xl border border-slate-200 p-2.5 text-left hover:border-emerald-200 hover:bg-emerald-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:hover:border-emerald-900 dark:hover:bg-emerald-950/20" onClick={onViewOwners}>
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"><DashboardIcon name="wallet" className="h-4 w-4" /></span>
+                    <span className="min-w-0 flex-1"><span className="block text-sm font-bold text-slate-950 dark:text-slate-50">{data.advanceOwners} {data.advanceOwners === 1 ? "owner has" : "owners have"} advance available</span><span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">Advance total: {currency(data.totalAdvance, settings.currencySymbol)}</span></span>
                     <DashboardIcon name="arrow" className="shrink-0 text-slate-400" />
                   </button>
                 )}
@@ -226,43 +228,24 @@ export function DashboardPage({
           </CardContent>
         </Card>
 
-        <Card className="hidden min-w-0 shadow-none lg:block">
-          <CardHeader className="p-4">
-            <h2 className="text-base font-black text-slate-950 dark:text-slate-50">Quick Overview</h2>
-          </CardHeader>
-          <CardContent className="grid gap-2 p-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-            {[
-              { icon: "bill" as const, label: "Bills this week", value: String(data.billsThisWeek), tone: "text-[#1E3A8A] dark:text-blue-200" },
-              { icon: "wallet" as const, label: "Payments this week", value: currency(data.paymentsThisWeek, settings.currencySymbol), tone: "text-emerald-700 dark:text-emerald-300" },
-              { icon: "owner" as const, label: "Outstanding owners", value: String(data.outstandingOwners), tone: "text-orange-700 dark:text-orange-300" }
-            ].map((item) => (
-              <div key={item.label} className="flex min-w-0 items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-[#0f172a]">
-                <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white shadow-sm dark:bg-[#111827]", item.tone)}><DashboardIcon name={item.icon} className="h-4 w-4" /></span>
-                <span className="min-w-0"><span className="block text-xs font-semibold text-slate-500 dark:text-slate-400">{item.label}</span><span className={cn("mt-0.5 block truncate text-base font-black", item.tone)}>{item.value}</span></span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-        </div>
-
         <Card className="min-w-0 shadow-none">
-          <CardHeader className="p-4">
+          <CardHeader className="!p-3">
             <h2 className="text-base font-black text-slate-950 dark:text-slate-50">Recent Activity</h2>
           </CardHeader>
-          <CardContent className="p-3">
+          <CardContent className="!p-2.5">
             {data.recentActivity.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center dark:border-slate-700">
+              <div className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center dark:border-slate-700">
                 <DashboardIcon name="history" className="mx-auto text-slate-400" />
                 <p className="mt-2 font-black text-slate-900 dark:text-slate-100">No recent activity</p>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">New bills, payments and owners will appear here.</p>
               </div>
             ) : (
               <div role="list" className="divide-y divide-slate-100 dark:divide-slate-800">
-                {data.recentActivity.slice(0, 4).map((activity) => (
-                  <button key={activity.id} type="button" role="listitem" className="grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)] gap-3 px-1 py-3 text-left hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:hover:bg-slate-800/60 sm:grid-cols-[auto_minmax(0,1fr)_auto]" onClick={() => openActivity(activity)}>
+                {data.recentActivity.slice(0, 3).map((activity) => (
+                  <button key={activity.id} type="button" role="listitem" className="grid min-h-14 w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-1 py-2 text-left hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:hover:bg-slate-800/60" onClick={() => openActivity(activity)}>
                     <ActivityIcon type={activity.type} />
-                    <span className="min-w-0"><span className="block truncate text-sm font-bold text-slate-950 dark:text-slate-50" title={activity.title}>{activity.title}</span><span className="mt-1 block text-xs font-semibold text-slate-400 dark:text-slate-500">{relativeTime(activity.timestamp)}</span></span>
-                    {activity.amount !== undefined && <span className="col-start-2 whitespace-nowrap text-sm font-black text-[#1E3A8A] dark:text-blue-200 sm:col-start-3 sm:row-start-1 sm:self-center">{currency(activity.amount, settings.currencySymbol)}</span>}
+                    <span className="min-w-0"><span className="block truncate text-sm font-bold text-slate-950 dark:text-slate-50" title={activity.title}>{activity.title}</span><span className="mt-0.5 block text-xs font-semibold text-slate-400 dark:text-slate-500">{relativeTime(activity.timestamp)}</span></span>
+                    {activity.amount !== undefined && <span className="whitespace-nowrap text-xs font-black text-[#1E3A8A] dark:text-blue-200 sm:text-sm">{currency(activity.amount, settings.currencySymbol)}</span>}
                   </button>
                 ))}
               </div>
@@ -270,6 +253,35 @@ export function DashboardPage({
             <button type="button" className="mt-2 inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-sm font-bold text-[#1E3A8A] hover:bg-[#E0E7FF] focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-blue-200 dark:hover:bg-slate-800" onClick={onViewHistory}>View all activity <DashboardIcon name="arrow" className="h-4 w-4" /></button>
           </CardContent>
         </Card>
+
+        <Card className="min-w-0 shadow-none">
+          <CardHeader className="!p-3">
+            <h2 className="text-base font-black text-slate-950 dark:text-slate-50">Top Owners This Month</h2>
+          </CardHeader>
+          <CardContent className="!p-2.5">
+            {data.topOwnersThisMonth.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center dark:border-slate-700">
+                <DashboardIcon name="owner" className="mx-auto text-slate-400" />
+                <p className="mt-2 text-sm font-black text-slate-900 dark:text-slate-100">No owner billing this month</p>
+              </div>
+            ) : (
+              <div role="list" className="divide-y divide-slate-100 dark:divide-slate-800">
+                {data.topOwnersThisMonth.map((owner) => (
+                  <button key={owner.billingPartyId} type="button" role="listitem" className="flex min-h-14 w-full cursor-pointer items-center gap-2 px-1 py-2 text-left hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:hover:bg-slate-800/60" aria-label={`Open ${owner.name} owner details`} onClick={() => onOpenOwner(owner.billingPartyId)}>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-bold text-slate-950 dark:text-slate-50" title={owner.name}>{owner.name}</span>
+                      <span className="mt-0.5 block truncate text-xs text-slate-500 dark:text-slate-400">{currency(owner.billedAmount, settings.currencySymbol)} billed{owner.outstandingAmount > 0 ? ` · ${currency(owner.outstandingAmount, settings.currencySymbol)} outstanding` : ""}</span>
+                    </span>
+                    <DashboardIcon name="arrow" className="h-4 w-4 shrink-0 text-slate-400" />
+                  </button>
+                ))}
+              </div>
+            )}
+            <button type="button" className="mt-2 inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-sm font-bold text-[#1E3A8A] hover:bg-[#E0E7FF] focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-blue-200 dark:hover:bg-slate-800" onClick={onViewOwners}>View all owners <DashboardIcon name="arrow" className="h-4 w-4" /></button>
+          </CardContent>
+        </Card>
+
+        <BillingTrendChart data={monthlyBilling} currencySymbol={settings.currencySymbol} loading={loading} error={billError} />
       </div>
     </div>
   );

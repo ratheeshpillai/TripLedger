@@ -14,6 +14,8 @@ export interface AuthSessionState {
   verificationFactorId?: string;
 }
 
+export type AuthChangeType = "PASSWORD_RECOVERY" | "OTHER";
+
 export interface ExtraLoginVerificationStatus {
   enabled: boolean;
   required: boolean;

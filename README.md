@@ -158,12 +158,14 @@ https://triploggy.netlify.app
 
 Redirect URLs:
 https://triploggy.netlify.app/auth/callback
+https://triploggy.netlify.app/reset-password
 http://localhost:5173/auth/callback
+http://localhost:5173/reset-password
 ```
 
 You may additionally use Supabase-supported wildcards for preview/development URLs, such as `https://triploggy.netlify.app/**` and `http://localhost:5173/**`.
 
-If Vite starts on another port, add that exact callback URL as well (for example, `http://localhost:5175/auth/callback`).
+If Vite starts on another port, add that exact callback and reset URL as well (for example, `http://localhost:5175/auth/callback` and `http://localhost:5175/reset-password`).
 
 Ensure TOTP enrollment is enabled in the project's Supabase MFA settings. No service-role key or additional frontend secret is required.
 

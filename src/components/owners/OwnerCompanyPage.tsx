@@ -41,6 +41,7 @@ type Props = {
   onDeletePayment: (id: string) => Promise<void>;
   onCreateBillForOwner: (party: BillingParty) => void;
   onMobileDetailChange?: (party: BillingParty | null, onBack?: () => void) => void;
+  initialSelectedId?: string | null;
 };
 
 type SortOption = "recent" | "highest" | "name-asc" | "name-desc";
@@ -659,7 +660,8 @@ export function OwnerCompanyPage({
   onSavePayment,
   onDeletePayment,
   onCreateBillForOwner,
-  onMobileDetailChange
+  onMobileDetailChange,
+  initialSelectedId
 }: Props) {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortOption>(() => {
@@ -668,7 +670,7 @@ export function OwnerCompanyPage({
   });
   const [transactionSort, setTransactionSort] = useState<TransactionSortOption>("newest");
   const [statementsTab, setStatementsTab] = useState<StatementsTab>("transactions");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
   const [openModule, setOpenModule] = useState<OwnerModule>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [partyDraft, setPartyDraft] = useState<BillingPartyDraft>(emptyPartyDraft);

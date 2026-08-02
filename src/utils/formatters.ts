@@ -6,6 +6,18 @@ export function currency(value: number, symbol = "₹"): string {
   return `${symbol}${Math.round(value).toLocaleString("en-IN")}`;
 }
 
+export function compactCurrency(value: number, symbol = "₹"): string {
+  const safeValue = Number.isFinite(value) ? value : 0;
+  const absolute = Math.abs(safeValue);
+  const sign = safeValue < 0 ? "-" : "";
+  const compact = (amount: number, suffix: string) => `${Number(amount.toFixed(1))}${suffix}`;
+
+  if (absolute >= 10_000_000) return `${sign}${symbol}${compact(absolute / 10_000_000, "Cr")}`;
+  if (absolute >= 100_000) return `${sign}${symbol}${compact(absolute / 100_000, "L")}`;
+  if (absolute >= 1_000) return `${sign}${symbol}${compact(absolute / 1_000, "K")}`;
+  return `${sign}${symbol}${Math.round(absolute)}`;
+}
+
 export function balanceLabel(value: number, symbol = "₹"): string {
   if (value > 0) return `Outstanding ${currency(value, symbol)}`;
   if (value < 0) return `Advance ${currency(Math.abs(value), symbol)}`;

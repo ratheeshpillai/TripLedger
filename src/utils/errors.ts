@@ -11,6 +11,9 @@ export type SafeErrorContext =
   | "auth.initialize"
   | "auth.login"
   | "auth.signup"
+  | "auth.resend"
+  | "auth.passwordReset"
+  | "auth.passwordUpdate"
   | "auth.logout"
   | "auth.verification"
   | "auth.mfa"
@@ -26,6 +29,9 @@ const CONTEXT_MESSAGES: Record<SafeErrorContext, string> = {
   "auth.initialize": "Unable to verify your session. Please sign in again.",
   "auth.login": "Unable to sign in with those credentials.",
   "auth.signup": "Unable to create your account right now.",
+  "auth.resend": "Unable to send that email right now. Please try again shortly.",
+  "auth.passwordReset": "Unable to send a reset link right now. Please try again shortly.",
+  "auth.passwordUpdate": "Unable to update your password. Please try again.",
   "auth.logout": "Unable to log out. Please try again.",
   "auth.verification": "This verification link is invalid or has expired.",
   "auth.mfa": "Unable to verify that authenticator code.",
@@ -54,10 +60,13 @@ export function getSafeErrorMessage(error: unknown, context: SafeErrorContext = 
   const message = normalizedMessage(error);
 
   if (code === "invalid_credentials" || message.includes("invalid login credentials")) {
-    return "Invalid email or password.";
+    return "The email or password is incorrect.";
   }
   if (code === "email_not_confirmed" || message.includes("email not confirmed")) {
-    return "Verify your email before signing in.";
+    return "Please verify your email before signing in.";
+  }
+  if (code === "over_email_send_rate_limit" || code === "too_many_requests" || status === 429 || message.includes("rate limit") || message.includes("too many")) {
+    return "Too many attempts. Please wait a moment before trying again.";
   }
   if (["session_not_found", "refresh_token_not_found", "refresh_token_already_used", "bad_jwt"].includes(code) || code === "pgrst301") {
     return "Your session has expired. Please sign in again.";
@@ -90,7 +99,7 @@ export function getSafeErrorMessage(error: unknown, context: SafeErrorContext = 
       : "You do not have permission to perform this action.";
   }
   if (error instanceof TypeError || message.includes("failed to fetch") || message.includes("network request failed") || message.includes("networkerror")) {
-    return "Unable to connect. Check your internet connection and try again.";
+    return "We couldn’t connect right now. Please check your internet connection and try again.";
   }
 
   return CONTEXT_MESSAGES[context];

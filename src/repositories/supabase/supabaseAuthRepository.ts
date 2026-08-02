@@ -80,6 +80,31 @@ export const supabaseAuthRepository: AuthRepository = {
     return mapUser(data.session?.user ?? null);
   },
 
+  async resendSignupConfirmation(email: string, emailRedirectTo: string) {
+    const { error } = await getSupabaseClient().auth.resend({
+      type: "signup",
+      email,
+      options: { emailRedirectTo }
+    });
+    if (error) throw error;
+  },
+
+  async sendPasswordReset(email: string, redirectTo: string) {
+    const { error } = await getSupabaseClient().auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw error;
+  },
+
+  async hasActiveSession() {
+    const { data, error } = await getSupabaseClient().auth.getSession();
+    if (error) throw error;
+    return Boolean(data.session?.user);
+  },
+
+  async updatePassword(password: string) {
+    const { error } = await getSupabaseClient().auth.updateUser({ password });
+    if (error) throw error;
+  },
+
   async completeEmailVerification(callbackUrl: string) {
     const client = getSupabaseClient();
     const url = new URL(callbackUrl);
@@ -178,8 +203,8 @@ export const supabaseAuthRepository: AuthRepository = {
   },
 
   onAuthStateChange(callback) {
-    const { data } = getSupabaseClient().auth.onAuthStateChange(() => {
-      callback();
+    const { data } = getSupabaseClient().auth.onAuthStateChange((event) => {
+      callback(event === "PASSWORD_RECOVERY" ? "PASSWORD_RECOVERY" : "OTHER");
     });
 
     return () => data.subscription.unsubscribe();

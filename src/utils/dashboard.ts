@@ -3,9 +3,15 @@ import type { BillingParty, BillingPartySummary } from "../types/billingParty";
 import type { OwnerPayment } from "../types/ownerPayment";
 
 export type MonthlyBillingPoint = {
-  key: string;
-  label: string;
+  monthKey: string;
+  monthLabel: string;
+  fullMonthLabel: string;
   amount: number;
+};
+
+export type MonthlyBillingComparison = {
+  label: string;
+  direction: "higher" | "lower" | "neutral";
 };
 
 export type DashboardSummary = {
@@ -27,6 +33,13 @@ export type DashboardActivity = {
   timestamp: string;
 };
 
+export type DashboardTopOwner = {
+  billingPartyId: string;
+  name: string;
+  billedAmount: number;
+  outstandingAmount: number;
+};
+
 export type DashboardData = {
   billingTotal: number;
   billsCreated: number;
@@ -35,24 +48,20 @@ export type DashboardData = {
   outstandingOwners: number;
   advanceOwners: number;
   totalAdvance: number;
-  billsThisWeek: number;
-  paymentsThisWeek: number;
   recentActivity: DashboardActivity[];
+  topOwnersThisMonth: DashboardTopOwner[];
 };
 
 function parseTripDate(value: string): Date | null {
   if (!value) return null;
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) return null;
-  return new Date(year, month - 1, day);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : null;
 }
 
 function monthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function monthLabel(date: Date): string {
-  return date.toLocaleString("en-IN", { month: "short", year: "numeric" });
 }
 
 function recentMonthStarts(count: number, now = new Date()): Date[] {
@@ -63,8 +72,8 @@ function recentMonthStarts(count: number, now = new Date()): Date[] {
   });
 }
 
-export function buildMonthlyBillingTrend(bills: Bill[], months = 6, now = new Date()): MonthlyBillingPoint[] {
-  const monthStarts = recentMonthStarts(months, now);
+export function buildMonthlyBillingTrend(bills: Bill[], now = new Date()): MonthlyBillingPoint[] {
+  const monthStarts = recentMonthStarts(6, now);
   const totals = new Map(monthStarts.map((date) => [monthKey(date), 0]));
 
   bills.forEach((bill) => {
@@ -72,15 +81,32 @@ export function buildMonthlyBillingTrend(bills: Bill[], months = 6, now = new Da
     if (!tripDate) return;
     const key = monthKey(tripDate);
     if (totals.has(key)) {
-      totals.set(key, (totals.get(key) ?? 0) + bill.totalAmount);
+      const amount = Number(bill.totalAmount);
+      if (Number.isFinite(amount)) totals.set(key, (totals.get(key) ?? 0) + amount);
     }
   });
 
   return monthStarts.map((date) => ({
-    key: monthKey(date),
-    label: monthLabel(date),
+    monthKey: monthKey(date),
+    monthLabel: date.toLocaleString("en-IN", { month: "short" }),
+    fullMonthLabel: date.toLocaleString("en-IN", { month: "long", year: "numeric" }),
     amount: totals.get(monthKey(date)) ?? 0
   }));
+}
+
+export function compareMonthlyBilling(current: number, previous: number): MonthlyBillingComparison | null {
+  const safeCurrent = Number.isFinite(current) ? current : 0;
+  const safePrevious = Number.isFinite(previous) ? previous : 0;
+  if (safeCurrent === 0 && safePrevious === 0) return null;
+  if (safePrevious === 0) return { label: "New billing this month", direction: "higher" };
+
+  const change = ((safeCurrent - safePrevious) / Math.abs(safePrevious)) * 100;
+  const rounded = Math.round(Math.abs(change) * 10) / 10;
+  if (rounded === 0) return { label: "No change from last month", direction: "neutral" };
+  return {
+    label: `${rounded.toLocaleString("en-IN", { maximumFractionDigits: 1 })}% ${change > 0 ? "higher" : "lower"} than last month`,
+    direction: change > 0 ? "higher" : "lower"
+  };
 }
 
 export function buildDashboardSummary(bills: Bill[], now = new Date()): DashboardSummary {
@@ -104,7 +130,7 @@ export function buildDashboardSummary(bills: Bill[], now = new Date()): Dashboar
     totalAmount,
     currentMonthAmount,
     recentBills,
-    monthlyTrend: buildMonthlyBillingTrend(bills, 6, now)
+    monthlyTrend: buildMonthlyBillingTrend(bills, now)
   };
 }
 
@@ -153,10 +179,19 @@ export function buildDashboardData(
   now = new Date()
 ): DashboardData {
   const selectedRange = dateRange(period, now);
-  const weekRange = dateRange("week", now);
+  const currentMonthKey = monthKey(now);
   const periodBills = bills.filter((bill) => isWithin(timestampDate(bill.createdAt), selectedRange));
   const periodPayments = payments.filter((payment) => isWithin(inputDate(payment.paymentDate), selectedRange));
   const partyById = new Map(parties.map((party) => [party.id, party]));
+  const summaryById = new Map(summaries.map((summary) => [summary.billingPartyId, summary]));
+  const monthlyOwnerTotals = new Map<string, number>();
+
+  bills.forEach((bill) => {
+    const amount = Number(bill.totalAmount);
+    const tripDate = parseTripDate(bill.tripDate);
+    if (!bill.billingPartyId || !partyById.has(bill.billingPartyId) || !tripDate || monthKey(tripDate) !== currentMonthKey || !Number.isFinite(amount) || amount <= 0) return;
+    monthlyOwnerTotals.set(bill.billingPartyId, (monthlyOwnerTotals.get(bill.billingPartyId) ?? 0) + amount);
+  });
 
   const billActivities: DashboardActivity[] = bills.map((bill) => ({
     id: `bill-${bill.id}`,
@@ -190,13 +225,18 @@ export function buildDashboardData(
     outstandingOwners: summaries.filter((summary) => summary.outstandingAmount > 0).length,
     advanceOwners: summaries.filter((summary) => summary.advanceCredit > 0).length,
     totalAdvance: summaries.reduce((total, summary) => total + Number(summary.advanceCredit || 0), 0),
-    billsThisWeek: bills.filter((bill) => isWithin(timestampDate(bill.createdAt), weekRange)).length,
-    paymentsThisWeek: payments
-      .filter((payment) => isWithin(inputDate(payment.paymentDate), weekRange))
-      .reduce((total, payment) => total + Number(payment.amount || 0), 0),
     recentActivity: [...billActivities, ...paymentActivities, ...ownerActivities]
       .filter((activity) => timestampDate(activity.timestamp))
       .sort((a, b) => b.timestamp.localeCompare(a.timestamp) || a.id.localeCompare(b.id))
-      .slice(0, 5)
+      .slice(0, 5),
+    topOwnersThisMonth: [...monthlyOwnerTotals.entries()]
+      .map(([billingPartyId, billedAmount]) => ({
+        billingPartyId,
+        name: partyName(partyById.get(billingPartyId)),
+        billedAmount,
+        outstandingAmount: Number(summaryById.get(billingPartyId)?.outstandingAmount ?? 0)
+      }))
+      .sort((a, b) => b.billedAmount - a.billedAmount || a.name.localeCompare(b.name))
+      .slice(0, 3)
   };
 }

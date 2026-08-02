@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { AuthPage } from "../components/auth/AuthPage";
 import { AuthCallbackPage } from "../components/auth/AuthCallbackPage";
+import { ResetPasswordPage } from "../components/auth/ResetPasswordPage";
 import { ExtraLoginVerificationPage } from "../components/auth/ExtraLoginVerificationPage";
 import { AppShell, type AppPage } from "../components/layout/AppShell";
 import { DashboardPage } from "../components/dashboard/DashboardPage";
@@ -37,6 +38,10 @@ function pagePath(page: AppPage): string {
   return "/dashboard";
 }
 
+function authPath(pathname: string): string {
+  return pathname.replace(/\/+$/, "") || "/";
+}
+
 export default function App() {
   const auth = useAuth();
   const theme = useDarkMode();
@@ -51,6 +56,7 @@ export default function App() {
   const [cancelLoggerConfirmOpen, setCancelLoggerConfirmOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [mobileOwnerHeader, setMobileOwnerHeader] = useState<{ title: string; onBack: () => void } | null>(null);
+  const [dashboardOwnerId, setDashboardOwnerId] = useState<string | null>(null);
   const [authCallbackHandled, setAuthCallbackHandled] = useState(false);
   const previousUserIdRef = useRef<string | null>(null);
   const saveActionPromiseRef = useRef<Promise<unknown> | null>(null);
@@ -58,18 +64,23 @@ export default function App() {
   useLayoutEffect(() => {
     const nextUserId = auth.user?.id ?? null;
     if (previousUserIdRef.current !== nextUserId) {
+      const currentPath = authPath(window.location.pathname);
       if (nextUserId) clearLegacyLocalBillData();
       form.resetLogger();
       billsApi.clearSelection();
       setToast("");
-      navigateToPage("dashboard", true);
+      if (currentPath !== "/auth/callback" && currentPath !== "/reset-password") {
+        navigateToPage("dashboard", true);
+      }
       previousUserIdRef.current = nextUserId;
     }
   }, [auth.user?.id]);
 
   useLayoutEffect(() => {
     function syncPageFromHistory() {
-      setPage(pageFromPath(window.location.pathname));
+      const nextPage = pageFromPath(window.location.pathname);
+      if (nextPage !== "owners") setDashboardOwnerId(null);
+      setPage(nextPage);
     }
 
     window.addEventListener("popstate", syncPageFromHistory);
@@ -82,6 +93,7 @@ export default function App() {
       if (replace) window.history.replaceState({}, "", nextPath);
       else window.history.pushState({}, "", nextPath);
     }
+    if (nextPage !== "owners") setDashboardOwnerId(null);
     setPage(nextPage);
   }
 
@@ -164,7 +176,10 @@ export default function App() {
     );
   }
 
-  const isAuthCallback = window.location.pathname.replace(/\/+$/, "") === "/auth/callback" && !authCallbackHandled;
+  const currentAuthPath = authPath(window.location.pathname);
+  const isAuthCallback = currentAuthPath === "/auth/callback" && !authCallbackHandled;
+  const isForgotPassword = currentAuthPath === "/forgot-password";
+  const isResetPassword = currentAuthPath === "/reset-password";
 
   if (isAuthCallback) {
     return (
@@ -179,6 +194,24 @@ export default function App() {
           await auth.logout();
           window.history.replaceState({}, "", "/");
           setAuthCallbackHandled(true);
+        }}
+      />
+    );
+  }
+
+  if (isResetPassword) {
+    return (
+      <ResetPasswordPage
+        recoveryReady={auth.passwordRecoveryReady}
+        onCheckRecovery={auth.refreshPasswordRecoveryState}
+        onUpdatePassword={auth.updatePassword}
+        onBackToLogin={() => {
+          window.history.replaceState({}, "", "/");
+          window.dispatchEvent(new PopStateEvent("popstate"));
+        }}
+        onRequestNewLink={() => {
+          window.history.replaceState({}, "", "/forgot-password");
+          window.dispatchEvent(new PopStateEvent("popstate"));
         }}
       />
     );
@@ -201,13 +234,18 @@ export default function App() {
     return (
       <AuthPage
         authError={auth.error}
+        initialMode={isForgotPassword ? "forgot" : "login"}
         onLogin={async (email, password) => {
           const result = await auth.login(email, password);
           if (!result.extraVerificationRequired) showToast("Logged in");
         }}
         onSignup={async (email, password) => {
           await auth.signup(email, password);
-          showToast("Account created");
+        }}
+        onResendActivation={auth.resendSignupConfirmation}
+        onPasswordReset={auth.sendPasswordReset}
+        onRouteChange={(path) => {
+          window.history.pushState({}, "", path);
         }}
       />
     );
@@ -234,13 +272,21 @@ export default function App() {
           settings={settings}
           loading={billsApi.loading || billingPartiesApi.loading || ownerPaymentsApi.loading}
           error={billsApi.error || billingPartiesApi.error || ownerPaymentsApi.error}
+          billError={billsApi.error}
           onCreateBill={() => navigateToPage("logger")}
           onRecordPayment={() => {
             navigateToPage("owners");
             showToast("Select an owner, then choose Record Payment");
           }}
           onViewHistory={() => navigateToPage("history")}
-          onViewOwners={() => navigateToPage("owners")}
+          onViewOwners={() => {
+            setDashboardOwnerId(null);
+            navigateToPage("owners");
+          }}
+          onOpenOwner={(billingPartyId) => {
+            setDashboardOwnerId(billingPartyId);
+            navigateToPage("owners");
+          }}
           onOpenBill={(bill) => {
             form.loadForEdit(bill);
             navigateToPage("logger");
@@ -354,6 +400,7 @@ export default function App() {
           partyDeletingIds={billingPartiesApi.deletingIds}
           paymentSaving={ownerPaymentsApi.saving}
           paymentDeletingIds={ownerPaymentsApi.deletingIds}
+          initialSelectedId={dashboardOwnerId}
           onLoadLedger={billingPartiesApi.loadLedger}
           onLoadStatement={billingPartiesApi.loadStatement}
           onCopy={copyText}
@@ -390,11 +437,13 @@ export default function App() {
           onLogout={() => setLogoutConfirmOpen(true)}
           onSave={async (next) => {
             try {
-              await saveSettings(next);
-              showToast("Settings saved");
+              const saved = await saveSettings(next);
+              showToast("Settings saved successfully.");
+              return saved;
             } catch (error) {
               logDevError("Settings save failed", error);
               showToast(getSafeErrorMessage(error, "settings.save"));
+              throw error;
             }
           }}
         />
