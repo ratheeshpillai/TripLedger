@@ -13,6 +13,7 @@ import { MetricCard } from "../shared/MetricCard";
 import { Button } from "../ui/Button";
 import { Card, CardContent } from "../ui/Card";
 import { Input } from "../ui/Input";
+import { DecimalInput } from "../ui/DecimalInput";
 import { Select } from "../ui/Select";
 import { Textarea } from "../ui/Textarea";
 import { cn } from "../ui/cn";
@@ -1480,7 +1481,7 @@ export function OwnerCompanyPage({
           <div className="space-y-4">
             <div className="form-grid">
               <label className="field-label">Payment Date<Input type="date" value={paymentDraft.paymentDate} onChange={(event) => setPaymentDraft({ ...paymentDraft, paymentDate: event.target.value })} /></label>
-              <label className="field-label">Amount<Input type="number" inputMode="decimal" value={paymentDraft.amount || ""} onChange={(event) => setPaymentDraft({ ...paymentDraft, amount: Number(event.target.value || 0) })} /></label>
+              <label className="field-label">Amount<DecimalInput value={paymentDraft.amount} onValueChange={(amount) => setPaymentDraft({ ...paymentDraft, amount })} /></label>
               <label className="field-label">Payment Type
                 <Select value={paymentDraft.paymentType} onChange={(event) => setPaymentDraft({ ...paymentDraft, paymentType: event.target.value as OwnerPaymentType })}>
                   <option value="payment_received">Payment Received</option>

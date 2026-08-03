@@ -144,7 +144,7 @@ export function validateBillDraft(draft: BillDraft, options: ValidationOptions =
   const reporting = localDateTime(draft.tripDate, draft.reportingTime);
   const closing = localDateTime(draft.closingDate, draft.closingTime);
   if (reporting !== null && closing !== null && closing <= reporting) {
-    errors.closingTime = "Closing date and time must be after reporting date and time.";
+    errors.closingTime = "Closing must be after reporting.";
   }
 
   for (const field of Object.keys(numericLimits) as BillField[]) validateNumber(field, draft[field], errors);

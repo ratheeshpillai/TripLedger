@@ -1,16 +1,16 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AuthPage } from "../components/auth/AuthPage";
 import { AuthCallbackPage } from "../components/auth/AuthCallbackPage";
 import { ResetPasswordPage } from "../components/auth/ResetPasswordPage";
 import { ExtraLoginVerificationPage } from "../components/auth/ExtraLoginVerificationPage";
 import { AppShell, type AppPage } from "../components/layout/AppShell";
 import { DashboardPage } from "../components/dashboard/DashboardPage";
-import { LoggerPage } from "../components/logger/LoggerPage";
+import { LoggerPage, type SaveBillResult } from "../components/logger/LoggerPage";
 import { HistoryPage } from "../components/history/HistoryPage";
 import { OwnerCompanyPage } from "../components/owners/OwnerCompanyPage";
 import { SettingsPage } from "../components/settings/SettingsPage";
 import { ConfirmationDialog } from "../components/shared/ConfirmationDialog";
-import { Toast } from "../components/shared/Toast";
+import { Toast, type ToastNotification, type ToastTone } from "../components/shared/Toast";
 import { useAuth } from "../hooks/useAuth";
 import { useBillForm } from "../hooks/useBillForm";
 import { useBills } from "../hooks/useBills";
@@ -19,7 +19,7 @@ import { useDarkMode } from "../hooks/useDarkMode";
 import { useSettings } from "../hooks/useSettings";
 import { useOwnerPayments } from "../hooks/useOwnerPayments";
 import { clearLegacyLocalBillData } from "../services/privacyMigrationService";
-import { getSafeErrorMessage, logDevError } from "../utils/errors";
+import { DuplicateBillError, getSafeErrorMessage, logDevError } from "../utils/errors";
 
 function pageFromPath(pathname: string): AppPage {
   const normalized = pathname.replace(/\/+$/, "") || "/";
@@ -51,7 +51,7 @@ export default function App() {
   const ownerPaymentsApi = useOwnerPayments(auth.user?.id ?? null);
   const form = useBillForm(settings);
   const [page, setPage] = useState<AppPage>(() => pageFromPath(window.location.pathname));
-  const [toast, setToast] = useState("");
+  const [notifications, setNotifications] = useState<ToastNotification[]>([]);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [cancelLoggerConfirmOpen, setCancelLoggerConfirmOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
@@ -59,7 +59,9 @@ export default function App() {
   const [dashboardOwnerId, setDashboardOwnerId] = useState<string | null>(null);
   const [authCallbackHandled, setAuthCallbackHandled] = useState(false);
   const previousUserIdRef = useRef<string | null>(null);
-  const saveActionPromiseRef = useRef<Promise<unknown> | null>(null);
+  const nextToastIdRef = useRef(0);
+  const lastBillErrorToastRef = useRef("");
+  const saveActionPromiseRef = useRef<Promise<SaveBillResult> | null>(null);
 
   useLayoutEffect(() => {
     const nextUserId = auth.user?.id ?? null;
@@ -68,7 +70,7 @@ export default function App() {
       if (nextUserId) clearLegacyLocalBillData();
       form.resetLogger();
       billsApi.clearSelection();
-      setToast("");
+      setNotifications([]);
       if (currentPath !== "/auth/callback" && currentPath !== "/reset-password") {
         navigateToPage("dashboard", true);
       }
@@ -97,30 +99,47 @@ export default function App() {
     setPage(nextPage);
   }
 
-  function showToast(message: string) {
-    setToast(message);
-    window.setTimeout(() => setToast(""), 1800);
+  function dismissToast(id: number) {
+    setNotifications((current) => current.filter((notification) => notification.id !== id));
   }
+
+  function showToast(message: string, tone: ToastTone = "info") {
+    const id = ++nextToastIdRef.current;
+    setNotifications((current) => current.some((notification) => notification.message === message)
+      ? current
+      : [...current, { id, message, tone }].slice(-4));
+    window.setTimeout(() => dismissToast(id), tone === "error" ? 4500 : tone === "warning" ? 3000 : 1800);
+  }
+
+  useEffect(() => {
+    if (billsApi.error && billsApi.error !== lastBillErrorToastRef.current) {
+      lastBillErrorToastRef.current = billsApi.error;
+      showToast(billsApi.error, "error");
+    }
+    if (!billsApi.error) lastBillErrorToastRef.current = "";
+  }, [billsApi.error]);
 
   async function copyText(text: string) {
     await navigator.clipboard.writeText(text);
     showToast("Bill text copied");
   }
 
-  async function handleSave() {
-    if (saveActionPromiseRef.current) return saveActionPromiseRef.current as Promise<ReturnType<typeof billsApi.saveBill>>;
+  async function handleSave(): Promise<SaveBillResult> {
+    if (saveActionPromiseRef.current) return saveActionPromiseRef.current;
     const actionUserId = auth.user?.id ?? null;
     const savePromise = (async () => {
       if (!form.draft.billingPartyId) {
-        showToast("Select an Owner / Company before saving.");
+        showToast("Select an Owner / Company before saving.", "warning");
         throw new Error("Owner / Company is required.");
       }
+      const wasEditing = Boolean(form.editingBillId);
       const saved = await billsApi.saveBill(form.draft, form.editingBillId);
-      if (previousUserIdRef.current !== actionUserId) return saved;
-      form.setEditingBillId(null);
-      showToast(form.editingBillId ? "Bill updated" : "Bill saved");
+      const result = { bill: saved, outcome: wasEditing ? "updated" : "created" } as const;
+      if (previousUserIdRef.current !== actionUserId) return result;
+      form.setEditingBillId(saved.id);
+      showToast(wasEditing ? "Bill updated" : "Bill saved", "success");
       void billingPartiesApi.refresh();
-      return saved;
+      return result;
     })();
 
     saveActionPromiseRef.current = savePromise;
@@ -128,8 +147,13 @@ export default function App() {
       return await savePromise;
     } catch (error) {
       logDevError("Save bill action failed", error);
+      if (error instanceof DuplicateBillError && previousUserIdRef.current === actionUserId) {
+        form.loadForEdit(error.existingBill);
+        showToast("A matching bill already exists. Opened it for editing.", "warning");
+        return { bill: error.existingBill, outcome: "duplicate" };
+      }
       if (previousUserIdRef.current === actionUserId) {
-        showToast(getSafeErrorMessage(error, form.editingBillId ? "bill.update" : "bill.save"));
+        showToast(getSafeErrorMessage(error, form.editingBillId ? "bill.update" : "bill.save"), "error");
       }
       throw error;
     } finally {
@@ -164,7 +188,7 @@ export default function App() {
       showToast("Logged out");
     } catch (error) {
       logDevError("Logout failed", error);
-      showToast(getSafeErrorMessage(error, "auth.logout"));
+      showToast(getSafeErrorMessage(error, "auth.logout"), "error");
     }
   }
 
@@ -188,7 +212,7 @@ export default function App() {
         onContinue={() => {
           window.history.replaceState({}, "", "/");
           setAuthCallbackHandled(true);
-          showToast("Email verified successfully");
+          showToast("Email verified successfully", "success");
         }}
         onReturnToLogin={async () => {
           await auth.logout();
@@ -223,7 +247,7 @@ export default function App() {
         email={auth.verificationEmail}
         onVerify={async (code) => {
           await auth.verifyExtraLogin(code);
-          showToast("Login verified");
+          showToast("Login verified", "success");
         }}
         onCancel={auth.logout}
       />
@@ -237,7 +261,7 @@ export default function App() {
         initialMode={isForgotPassword ? "forgot" : "login"}
         onLogin={async (email, password) => {
           const result = await auth.login(email, password);
-          if (!result.extraVerificationRequired) showToast("Logged in");
+          if (!result.extraVerificationRequired) showToast("Logged in", "success");
         }}
         onSignup={async (email, password) => {
           await auth.signup(email, password);
@@ -276,7 +300,7 @@ export default function App() {
           onCreateBill={() => navigateToPage("logger")}
           onRecordPayment={() => {
             navigateToPage("owners");
-            showToast("Select an owner, then choose Record Payment");
+            showToast("Select an owner, then choose Record Payment", "info");
           }}
           onViewHistory={() => navigateToPage("history")}
           onViewOwners={() => {
@@ -305,23 +329,13 @@ export default function App() {
           saving={billsApi.saving}
           settings={settings}
           billingParties={billingPartiesApi.parties}
-          onQuickCreateBillingParty={async (name) => {
-            const saved = await billingPartiesApi.saveBillingParty({
-              userId: auth.user?.id,
-              name,
-              companyName: "",
-              phone: "",
-              email: "",
-              address: "",
-              notes: ""
-            });
-            form.updateField("billingPartyId", saved.id);
-            showToast("Owner / Company created");
-            return saved;
-          }}
           onFieldChange={form.updateField}
           onGarageTimeChange={form.setGarageTime}
           onSave={handleSave}
+          onCreateNew={() => {
+            form.resetLogger();
+            showToast("New bill ready");
+          }}
           onReset={handleReset}
           onCancel={() => setCancelLoggerConfirmOpen(true)}
           onCopy={copyText}
@@ -364,10 +378,10 @@ export default function App() {
             const actionUserId = auth.user?.id ?? null;
             try {
               await billsApi.deleteBill(id);
-              if (previousUserIdRef.current === actionUserId) showToast("Bill deleted");
+              if (previousUserIdRef.current === actionUserId) showToast("Bill deleted", "success");
             } catch (error) {
               logDevError("Delete bill action failed", error);
-              if (previousUserIdRef.current === actionUserId) showToast(getSafeErrorMessage(error, "bill.delete"));
+              if (previousUserIdRef.current === actionUserId) showToast(getSafeErrorMessage(error, "bill.delete"), "error");
               throw error;
             }
           }}
@@ -375,10 +389,10 @@ export default function App() {
             const actionUserId = auth.user?.id ?? null;
             try {
               await billsApi.deleteBills(ids);
-              if (previousUserIdRef.current === actionUserId) showToast(ids.length === 1 ? "Bill deleted" : `${ids.length} bills deleted`);
+              if (previousUserIdRef.current === actionUserId) showToast(ids.length === 1 ? "Bill deleted" : `${ids.length} bills deleted`, "success");
             } catch (error) {
               logDevError("Delete selected bills action failed", error);
-              if (previousUserIdRef.current === actionUserId) showToast(getSafeErrorMessage(error, "bill.delete"));
+              if (previousUserIdRef.current === actionUserId) showToast(getSafeErrorMessage(error, "bill.delete"), "error");
               throw error;
             }
           }}
@@ -404,19 +418,46 @@ export default function App() {
           onLoadLedger={billingPartiesApi.loadLedger}
           onLoadStatement={billingPartiesApi.loadStatement}
           onCopy={copyText}
-          onSaveParty={billingPartiesApi.saveBillingParty}
+          onSaveParty={async (draft, editingId) => {
+            try {
+              const saved = await billingPartiesApi.saveBillingParty(draft, editingId);
+              showToast(editingId ? "Owner / Company updated" : "Owner / Company added", "success");
+              return saved;
+            } catch (error) {
+              showToast(getSafeErrorMessage(error, editingId ? "owner.update" : "owner.save"), "error");
+              throw error;
+            }
+          }}
           onDeleteParty={async (id) => {
-            await billingPartiesApi.deleteBillingParty(id);
-            if (form.draft.billingPartyId === id) form.updateField("billingPartyId", undefined);
+            try {
+              await billingPartiesApi.deleteBillingParty(id);
+              if (form.draft.billingPartyId === id) form.updateField("billingPartyId", undefined);
+              showToast("Owner / Company deleted", "success");
+            } catch (error) {
+              showToast(getSafeErrorMessage(error, "owner.delete"), "error");
+              throw error;
+            }
           }}
           onSavePayment={async (draft, editingId) => {
-            const saved = await ownerPaymentsApi.saveOwnerPayment(draft, editingId);
-            void billingPartiesApi.refresh();
-            return saved;
+            try {
+              const saved = await ownerPaymentsApi.saveOwnerPayment(draft, editingId);
+              void billingPartiesApi.refresh();
+              showToast(editingId ? "Payment updated" : "Payment recorded", "success");
+              return saved;
+            } catch (error) {
+              showToast(getSafeErrorMessage(error, editingId ? "payment.update" : "payment.save"), "error");
+              throw error;
+            }
           }}
           onDeletePayment={async (id) => {
-            await ownerPaymentsApi.deleteOwnerPayment(id);
-            await billingPartiesApi.refresh();
+            try {
+              await ownerPaymentsApi.deleteOwnerPayment(id);
+              await billingPartiesApi.refresh();
+              showToast("Payment deleted", "success");
+            } catch (error) {
+              showToast(getSafeErrorMessage(error, "payment.delete"), "error");
+              throw error;
+            }
           }}
           onCreateBillForOwner={(party) => {
             form.resetLogger();
@@ -438,11 +479,11 @@ export default function App() {
           onSave={async (next) => {
             try {
               const saved = await saveSettings(next);
-              showToast("Settings saved successfully.");
+              showToast("Settings saved successfully.", "success");
               return saved;
             } catch (error) {
               logDevError("Settings save failed", error);
-              showToast(getSafeErrorMessage(error, "settings.save"));
+              showToast(getSafeErrorMessage(error, "settings.save"), "error");
               throw error;
             }
           }}
@@ -479,7 +520,7 @@ export default function App() {
         onConfirm={handleLogout}
       />
 
-      <Toast message={toast || billsApi.error} />
+      <Toast notifications={notifications} onDismiss={dismissToast} />
     </AppShell>
   );
 }

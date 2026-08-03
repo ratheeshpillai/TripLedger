@@ -49,7 +49,7 @@ test("requires complete times without making dates compulsory", () => {
 
 test("rejects reversed times but accepts overnight trips on a later date", () => {
   const draft = validDraft();
-  assert.ok(validateBillDraft({ ...draft, reportingTime: "18:00", closingTime: "17:00" }).closingTime);
+  assert.equal(validateBillDraft({ ...draft, reportingTime: "18:00", closingTime: "17:00" }).closingTime, "Closing must be after reporting.");
   assert.equal(validateBillDraft({ ...draft, reportingTime: "18:00", closingDate: "2099-01-02", closingTime: "01:00" }).closingTime, undefined);
 });
 

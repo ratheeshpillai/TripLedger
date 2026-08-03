@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { billService, type BillService } from "../services/billService";
 import type { Bill, BillDraft } from "../types/bill";
 import { calculateBillDraft, calculateBillTotal } from "../utils/calculations";
-import { getSafeErrorMessage, logDevError } from "../utils/errors";
+import { DuplicateBillError, getSafeErrorMessage, logDevError } from "../utils/errors";
 import { LatestRequestGuard } from "../utils/latestRequestGuard";
 import { createRequestId } from "../utils/requestId";
 
@@ -109,6 +109,7 @@ export function useBills(userId: string | null, service: BillService = billServi
         saved = await service.saveBill(userId, bill, createRequestIdRef.current);
         createRequestIdRef.current = null;
       } catch (billError) {
+        if (billError instanceof DuplicateBillError) createRequestIdRef.current = null;
         logDevError("Bill save failed", billError);
         throw billError;
       }

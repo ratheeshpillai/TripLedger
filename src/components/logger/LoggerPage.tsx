@@ -17,6 +17,7 @@ import { CollapsibleSection } from "../shared/CollapsibleSection";
 import { Button } from "../ui/Button";
 import { Card, CardContent, CardHeader } from "../ui/Card";
 import { Input } from "../ui/Input";
+import { DecimalInput } from "../ui/DecimalInput";
 import { Select } from "../ui/Select";
 import { Textarea } from "../ui/Textarea";
 import { cn } from "../ui/cn";
@@ -33,19 +34,20 @@ type Props = {
   saving: boolean;
   settings: AppSettings;
   billingParties: BillingParty[];
-  onQuickCreateBillingParty: (name: string) => Promise<BillingParty>;
   onFieldChange: <K extends keyof BillDraft>(field: K, value: BillDraft[K]) => void;
   onGarageTimeChange: (value: string) => void;
-  onSave: () => Promise<Bill>;
+  onSave: () => Promise<SaveBillResult>;
+  onCreateNew: () => void;
   onReset: () => void;
   onCancel?: () => void;
   onCopy: (text: string) => void;
   onPdf: () => void;
 };
 
-function num(value: string): number {
-  return Number(value || 0);
-}
+export type SaveBillResult = {
+  bill: Bill;
+  outcome: "created" | "updated" | "duplicate";
+};
 
 function validationProps(field: BillField, error?: string) {
   return {
@@ -60,7 +62,17 @@ function Field({ label, field, error, onTouched, children }: { label: string; fi
     <label className="field-label" onBlurCapture={field && onTouched ? () => onTouched(field) : undefined}>
       {label}
       {children}
-      {field && error && <span id={`bill-${field}-error`} role="alert" className="text-xs font-semibold text-red-600 dark:text-red-300">{error}</span>}
+      {field && (
+        <span
+          id={`bill-${field}-error`}
+          role={error ? "alert" : undefined}
+          aria-hidden={error ? undefined : true}
+          title={error}
+          className="field-validation-message text-xs font-semibold text-red-600 dark:text-red-300"
+        >
+          {error || "\u00a0"}
+        </span>
+      )}
     </label>
   );
 }
@@ -110,7 +122,7 @@ function useBillValidation(draft: BillDraft, billingParties: BillingParty[]) {
     return all;
   }
 
-  return { errors, touch, checkStep, checkAll, ownerIsValid: !validateBillDraft(draft, options).billingPartyId };
+  return { errors, touch, checkStep, checkAll, reset: () => setErrors({}), ownerIsValid: !validateBillDraft(draft, options).billingPartyId };
 }
 
 function focusBillField(field: BillField, reduceMotion: boolean) {
@@ -172,35 +184,14 @@ function MobileDateInput({ value, onOpen, field, error }: { value: string; onOpe
   return <button type="button" className="flex min-h-12 w-full min-w-0 max-w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 text-left text-base text-slate-950 outline-none focus:border-[#1E3A8A] focus:ring-4 focus:ring-blue-100 aria-invalid:border-red-500 aria-invalid:ring-red-100 dark:border-slate-700 dark:bg-[#0f172a] dark:text-slate-100 dark:focus:border-blue-400 dark:focus:ring-blue-950/70" onClick={onOpen} aria-haspopup="dialog" {...validationProps(field, error)}><span>{mobileDateDisplay(value)}</span><svg className="h-5 w-5 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 3v4M16 3v4M3 10h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg></button>;
 }
 
-function numberInputValue(value: number) {
-  return Number.isFinite(value) && value !== 0 ? String(value) : "";
-}
-
 function NumberInput({ value, onValueChange, placeholder, readOnly = false, field, error }: { value: number; onValueChange?: (value: number) => void; placeholder?: string; readOnly?: boolean; field?: BillField; error?: string }) {
-  const [inputValue, setInputValue] = useState(numberInputValue(value));
-  const [isEditing, setIsEditing] = useState(false);
-
-  useEffect(() => {
-    if (!isEditing) {
-      setInputValue(numberInputValue(value));
-    }
-  }, [isEditing, value]);
-
   return (
-    <Input
-      type="number"
-      inputMode="decimal"
+    <DecimalInput
       placeholder={placeholder}
       readOnly={readOnly}
-      value={inputValue}
+      value={value}
       {...(field ? validationProps(field, error) : {})}
-      onFocus={() => setIsEditing(true)}
-      onBlur={() => setIsEditing(false)}
-      onChange={(event) => {
-        const nextValue = event.target.value;
-        setInputValue(nextValue);
-        onValueChange?.(/^-?\d*(?:\.\d*)?$/.test(nextValue) ? num(nextValue) : Number.NaN);
-      }}
+      onValueChange={onValueChange}
     />
   );
 }
@@ -232,7 +223,7 @@ function useSoftwareKeyboardOpen() {
   return keyboardOpen;
 }
 
-function CreateBillStepActions({ step, canContinue, saving, keyboardOpen, onBack, onNext, onPreview, onSave }: { step: number; canContinue: boolean; saving: boolean; keyboardOpen: boolean; onBack: () => void; onNext: () => void; onPreview: () => void; onSave: () => void }) {
+function CreateBillStepActions({ step, canContinue, saving, saveLabel, keyboardOpen, onBack, onNext, onPreview, onSave }: { step: number; canContinue: boolean; saving: boolean; saveLabel: string; keyboardOpen: boolean; onBack: () => void; onNext: () => void; onPreview: () => void; onSave: () => void }) {
   const reduceMotion = useReducedMotion();
   const actionMotion = { opacity: 1, y: 0 };
   const initialMotion = reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 };
@@ -244,7 +235,7 @@ function CreateBillStepActions({ step, canContinue, saving, keyboardOpen, onBack
       <motion.div initial={initialMotion} animate={actionMotion} transition={{ duration: 0.18 }} className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+5.05rem)] z-10 px-4 lg:hidden">
         <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
           <Button type="button" variant="secondary" className="pointer-events-auto h-11 w-36 gap-2 rounded-full shadow-sm" onClick={onPreview}><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="2" /></svg> Preview</Button>
-          <Button type="button" variant="primary" className="pointer-events-auto h-11 w-36 gap-2 rounded-full shadow-md shadow-blue-950/15" disabled={saving || !canContinue} onClick={onSave}><span aria-hidden="true">✓</span> {saving ? "Saving..." : "Save Bill"}</Button>
+          <Button type="button" variant="primary" className="pointer-events-auto h-11 w-36 gap-2 rounded-full shadow-md shadow-blue-950/15" disabled={saving || !canContinue} onClick={onSave}><span aria-hidden="true">✓</span> {saving ? "Saving..." : saveLabel}</Button>
         </div>
       </motion.div>
     );
@@ -260,11 +251,10 @@ function CreateBillStepActions({ step, canContinue, saving, keyboardOpen, onBack
   </motion.div>;
 }
 
-function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParties, onQuickCreateBillingParty, onFieldChange, onGarageTimeChange, onSave, onReset, onCancel, onCopy, onPdf, displayDraft }: Props & { displayDraft: BillDraft }) {
+function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParties, onFieldChange, onGarageTimeChange, onSave, onCreateNew, onReset, onCancel, onCopy, onPdf, displayDraft }: Props & { displayDraft: BillDraft }) {
   const [step, setStep] = useState(0);
-  const [quickOwnerName, setQuickOwnerName] = useState("");
-  const [quickOwnerBusy, setQuickOwnerBusy] = useState(false);
   const [error, setError] = useState("");
+  const [saveSucceeded, setSaveSucceeded] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [activeDateField, setActiveDateField] = useState<"tripDate" | "closingDate" | null>(null);
   const keyboardOpen = useSoftwareKeyboardOpen();
@@ -272,25 +262,16 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
   const validation = useBillValidation(draft, billingParties);
   const canContinue = step === 0 ? validation.ownerIsValid : true;
 
+  useEffect(() => {
+    if (!editingBillId) setSaveSucceeded(false);
+  }, [editingBillId]);
+
   function showFirstInvalid(errors: BillValidationErrors) {
     const field = firstInvalidBillField(errors);
     if (!field) return false;
     setStep(BILL_FIELD_STEPS[field] ?? 0);
     focusBillField(field, reduceMotion);
     return true;
-  }
-
-  async function createQuickOwner() {
-    const name = quickOwnerName.trim();
-    if (!name) return;
-    setQuickOwnerBusy(true);
-    try {
-      await onQuickCreateBillingParty(name);
-      setQuickOwnerName("");
-      setError("");
-    } finally {
-      setQuickOwnerBusy(false);
-    }
   }
 
   function continueStep() {
@@ -310,10 +291,21 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
     if (saving || showFirstInvalid(validation.checkAll())) return;
     setError("");
     try {
-      await onSave();
+      const result = await onSave();
+      if (result.outcome === "created") setSaveSucceeded(true);
     } catch {
       setError("Unable to save the bill. Check the details and try again.");
     }
+  }
+
+  function createNewBill() {
+    validation.reset();
+    setError("");
+    setSaveSucceeded(false);
+    setPreviewOpen(false);
+    setActiveDateField(null);
+    setStep(0);
+    onCreateNew();
   }
 
   return (
@@ -351,12 +343,6 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
                 </div>
               </div>
             )}
-            <Field label="Quick Add Owner / Company">
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-                <Input placeholder="Owner / Company name" value={quickOwnerName} onChange={(event) => setQuickOwnerName(event.target.value)} />
-                <Button type="button" onClick={() => void createQuickOwner()} disabled={quickOwnerBusy || !quickOwnerName.trim()}>{quickOwnerBusy ? "Adding..." : "Add"}</Button>
-              </div>
-            </Field>
             <Field label="Guest / Customer" field="guestName" error={validation.errors.guestName} onTouched={validation.touch}>
               <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
                 <Select value={draft.guestSalutation === "Miss" ? "Miss." : draft.guestSalutation || "Mr."} onChange={(event) => onFieldChange("guestSalutation", event.target.value as BillDraft["guestSalutation"])}>
@@ -426,6 +412,12 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
           <button type="button" className="inline-flex min-h-10 items-center gap-1.5 rounded-xl px-2 text-sm font-bold text-[#1E3A8A] hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-blue-200 dark:hover:bg-slate-800" onClick={() => setStep((current) => current - 1)}>
             <span aria-hidden="true">‹</span> Back to charges
           </button>
+          {saveSucceeded && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/30" role="status">
+              <p className="text-sm font-bold text-emerald-800 dark:text-emerald-200">Bill saved successfully. You can update this bill or create a new one.</p>
+              <Button type="button" variant="secondary" className="mt-3 w-full" onClick={createNewBill}>Create New Bill</Button>
+            </div>
+          )}
           <MobileSection title="Review and save">
             <dl className="grid grid-cols-2 gap-x-3 gap-y-4 text-sm">
               <div><dt className="text-slate-500 dark:text-slate-400">Owner</dt><dd className="mt-1 truncate font-bold text-slate-950 dark:text-slate-50">{displayDraft.billingPartyCompanyName || displayDraft.billingPartyName || "Not selected"}</dd></div>
@@ -442,7 +434,7 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
 
       </div>
 
-      <CreateBillStepActions step={step} canContinue={canContinue} saving={saving} keyboardOpen={keyboardOpen} onBack={() => setStep((current) => current - 1)} onNext={continueStep} onPreview={preview} onSave={() => void save()} />
+      <CreateBillStepActions step={step} canContinue={canContinue} saving={saving} saveLabel={editingBillId ? "Update Bill" : "Save Bill"} keyboardOpen={keyboardOpen} onBack={() => setStep((current) => current - 1)} onNext={continueStep} onPreview={preview} onSave={() => void save()} />
 
       <MobileBottomSheet open={previewOpen} title="Bill Preview" description="Review before saving" onClose={() => setPreviewOpen(false)}>
         <BillPreview draft={displayDraft} settings={settings} onCopy={onCopy} onPdf={onPdf} compact />
@@ -458,12 +450,11 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
   );
 }
 
-export function LoggerPage({ draft, editingBillId, saving, settings, billingParties, onQuickCreateBillingParty, onFieldChange, onGarageTimeChange, onSave, onReset, onCancel, onCopy, onPdf }: Props) {
+export function LoggerPage({ draft, editingBillId, saving, settings, billingParties, onFieldChange, onGarageTimeChange, onSave, onCreateNew, onReset, onCancel, onCopy, onPdf }: Props) {
   const [openSections, setOpenSections] = useState(() => {
     return ["tripDetails"];
   });
-  const [quickOwnerName, setQuickOwnerName] = useState("");
-  const [quickOwnerBusy, setQuickOwnerBusy] = useState(false);
+  const [saveSucceeded, setSaveSucceeded] = useState(false);
   const selectedBillingParty = billingParties.find((party) => party.id === draft.billingPartyId);
   const normalizedDraft = normalizeBillDraft(draft);
   const displayDraft: BillDraft = {
@@ -475,17 +466,9 @@ export function LoggerPage({ draft, editingBillId, saving, settings, billingPart
   const reduceMotion = useReducedMotion() ?? false;
   const validation = useBillValidation(draft, billingParties);
 
-  async function createQuickOwner() {
-    const name = quickOwnerName.trim();
-    if (!name) return;
-    setQuickOwnerBusy(true);
-    try {
-      await onQuickCreateBillingParty(name);
-      setQuickOwnerName("");
-    } finally {
-      setQuickOwnerBusy(false);
-    }
-  }
+  useEffect(() => {
+    if (!editingBillId) setSaveSucceeded(false);
+  }, [editingBillId]);
 
   function openInvalidDesktopField(field: BillField) {
     const sectionByStep = ["tripDetails", "tripDetails", "tripTiming", "packageKm", "charges"];
@@ -502,7 +485,15 @@ export function LoggerPage({ draft, editingBillId, saving, settings, billingPart
       openInvalidDesktopField(field);
       return;
     }
-    await onSave();
+    const result = await onSave();
+    if (result.outcome === "created") setSaveSucceeded(true);
+  }
+
+  function createNewBill() {
+    validation.reset();
+    setSaveSucceeded(false);
+    setOpenSections(["tripDetails"]);
+    onCreateNew();
   }
 
   function previewDesktop() {
@@ -516,7 +507,7 @@ export function LoggerPage({ draft, editingBillId, saving, settings, billingPart
   }
 
   if (isMobile) {
-    return <MobileLoggerPage draft={draft} editingBillId={editingBillId} saving={saving} settings={settings} billingParties={billingParties} onQuickCreateBillingParty={onQuickCreateBillingParty} onFieldChange={onFieldChange} onGarageTimeChange={onGarageTimeChange} onSave={onSave} onReset={onReset} onCancel={onCancel} onCopy={onCopy} onPdf={onPdf} displayDraft={displayDraft} />;
+    return <MobileLoggerPage draft={draft} editingBillId={editingBillId} saving={saving} settings={settings} billingParties={billingParties} onFieldChange={onFieldChange} onGarageTimeChange={onGarageTimeChange} onSave={onSave} onCreateNew={onCreateNew} onReset={onReset} onCancel={onCancel} onCopy={onCopy} onPdf={onPdf} displayDraft={displayDraft} />;
   }
 
   return (
@@ -559,12 +550,6 @@ export function LoggerPage({ draft, editingBillId, saving, settings, billingPart
                       <option key={party.id} value={party.id}>{party.companyName || party.name}</option>
                     ))}
                   </Select>
-                </Field>
-                <Field label="Quick Add Owner / Company">
-                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                    <Input placeholder="Owner / Company name" value={quickOwnerName} onChange={(event) => setQuickOwnerName(event.target.value)} />
-                    <Button type="button" onClick={() => void createQuickOwner()} disabled={quickOwnerBusy || !quickOwnerName.trim()}>{quickOwnerBusy ? "Adding..." : "Add"}</Button>
-                  </div>
                 </Field>
                 <Field label="Driver" field="driverName" error={validation.errors.driverName} onTouched={validation.touch}><Input {...validationProps("driverName", validation.errors.driverName)} placeholder="e.g. Radha" value={draft.driverName} onChange={(e) => onFieldChange("driverName", e.target.value)} /></Field>
                 <Field label="Vehicle" field="vehicleName" error={validation.errors.vehicleName} onTouched={validation.touch}><Input {...validationProps("vehicleName", validation.errors.vehicleName)} placeholder="e.g. Innova Crysta" value={draft.vehicleName} onChange={(e) => onFieldChange("vehicleName", e.target.value)} /></Field>
@@ -626,8 +611,10 @@ export function LoggerPage({ draft, editingBillId, saving, settings, billingPart
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-[#111827] sm:p-5">
               <Field label="Notes" field="notes" error={validation.errors.notes} onTouched={validation.touch}><Textarea className={cn(validation.errors.notes && "border-red-500 ring-red-100 dark:border-red-400")} {...validationProps("notes", validation.errors.notes)} placeholder="e.g. Airport pickup and local travel" value={draft.notes} onChange={(e) => onFieldChange("notes", e.target.value)} /></Field>
+              {saveSucceeded && <p className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200" role="status">Bill saved successfully. You can update this bill or create a new one.</p>}
               <div className="mt-4 grid gap-2 sm:flex sm:justify-end">
                 <Button type="button" variant="neutral" onClick={onReset}>Reset Logger</Button>
+                {saveSucceeded && <Button type="button" variant="secondary" onClick={createNewBill}>Create New Bill</Button>}
                 <Button type="button" variant="primary" className="hidden sm:inline-flex" disabled={saving} onClick={() => void saveDesktop()}>{saving ? "Saving..." : editingBillId ? "Update Bill" : "Save Bill"}</Button>
               </div>
             </div>

@@ -3,12 +3,11 @@ import type { Bill } from "../../types/bill";
 import type { BillingParty, BillingPartySummary } from "../../types/billingParty";
 import type { OwnerPayment } from "../../types/ownerPayment";
 import type { AppSettings } from "../../types/settings";
-import { buildDashboardData, buildMonthlyBillingTrend, type DashboardActivity, type DashboardPeriod } from "../../utils/dashboard";
+import { buildDashboardData, buildMonthlyBillingTrend, dashboardDateLabel, type DashboardActivity, type DashboardPeriod } from "../../utils/dashboard";
 import { currency } from "../../utils/formatters";
 import { Button } from "../ui/Button";
 import { Card, CardContent, CardHeader } from "../ui/Card";
 import { cn } from "../ui/cn";
-import { useIsMobile } from "../mobile/MobilePrimitives";
 import { BillingTrendChart } from "./BillingTrendChart";
 
 type Props = {
@@ -36,15 +35,9 @@ const periods: Array<{ id: DashboardPeriod; label: string }> = [
 ];
 
 const periodBillingLabels: Record<DashboardPeriod, string> = {
-  today: "Today's Billing",
-  week: "This Week's Billing",
-  month: "This Month's Billing"
-};
-
-const periodTotalLabels: Record<DashboardPeriod, string> = {
-  today: "Total billed today",
-  week: "Total billed this week",
-  month: "Total billed this month"
+  today: "Billing for Today",
+  week: "Billing for This Week",
+  month: "Billing for This Month"
 };
 
 function DashboardIcon({ name, className }: { name: "bill" | "wallet" | "alert" | "owner" | "check" | "plus" | "arrow" | "history"; className?: string }) {
@@ -61,9 +54,9 @@ function DashboardIcon({ name, className }: { name: "bill" | "wallet" | "alert" 
 
 function relativeTime(value: string, now = new Date()): string {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Recently";
+  if (Number.isNaN(date.getTime())) return "recently";
   const minutes = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 60_000));
-  if (minutes < 1) return "Just now";
+  if (minutes < 1) return "just now";
   if (minutes < 60) return `${minutes} min${minutes === 1 ? "" : "s"} ago`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours} hr${hours === 1 ? "" : "s"} ago`;
@@ -84,13 +77,13 @@ function DashboardSkeleton() {
 
 function SummaryMetric({ icon, value, label, className }: { icon: "bill" | "wallet" | "alert"; value: string; label: string; className?: string }) {
   return (
-    <div className={cn("flex min-w-0 items-center gap-2.5 border-white/20 py-3 lg:border-l lg:pl-6", className)}>
+    <div className={cn("flex min-w-0 items-center gap-2.5 rounded-xl bg-white/10 px-3 py-3 lg:rounded-none lg:border-l lg:border-white/20 lg:bg-transparent lg:pl-6", className)}>
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/12 text-white sm:h-11 sm:w-11">
         <DashboardIcon name={icon} className="h-4 w-4 sm:h-5 sm:w-5" />
       </span>
       <span className="min-w-0">
-        <span className="block whitespace-nowrap text-lg font-black text-white sm:text-xl">{value}</span>
-        <span className="mt-0.5 block text-sm font-semibold text-blue-100">{label}</span>
+        <span className="block text-lg font-black text-white [overflow-wrap:anywhere] sm:text-xl">{value}</span>
+        <span className="mt-0.5 block text-xs font-semibold text-blue-100 sm:text-sm">{label}</span>
       </span>
     </div>
   );
@@ -123,7 +116,6 @@ export function DashboardPage({
   onRetry
 }: Props) {
   const [period, setPeriod] = useState<DashboardPeriod>("today");
-  const isMobile = useIsMobile();
   const data = useMemo(
     () => buildDashboardData(bills, ownerPayments, billingParties, ownerSummaries, period),
     [bills, ownerPayments, billingParties, ownerSummaries, period]
@@ -152,44 +144,36 @@ export function DashboardPage({
       )}
 
       <section className="overflow-hidden rounded-2xl border border-blue-800/40 bg-[#1E3A8A] p-4 shadow-lg shadow-blue-950/10 dark:border-blue-700/50 dark:bg-[#172554] dark:shadow-black/20 sm:p-5 lg:p-6" aria-labelledby="dashboard-billing-title">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 id="dashboard-billing-title" className="text-sm font-bold text-blue-100">{periodBillingLabels[period]}</h2>
-          <label className="shrink-0">
+          <label className="w-full shrink-0 sm:w-auto">
             <span className="sr-only">Dashboard period</span>
             <select
               value={period}
               onChange={(event) => setPeriod(event.target.value as DashboardPeriod)}
-              className="min-h-10 cursor-pointer rounded-lg border border-white/25 bg-white/10 px-3 pr-8 text-sm font-bold text-white outline-none hover:bg-white/15 focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#1E3A8A] dark:focus:ring-offset-[#172554]"
+              className="min-h-11 w-full cursor-pointer rounded-lg border border-white/25 bg-white/10 px-3 pr-8 text-sm font-bold text-white outline-none hover:bg-white/15 focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#1E3A8A] dark:focus:ring-offset-[#172554] sm:w-auto"
             >
               {periods.map((option) => <option key={option.id} value={option.id} className="text-slate-900">{option.label}</option>)}
             </select>
           </label>
         </div>
-        {isMobile ? (
-          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-white/20 pt-3">
-            <div className="min-w-0"><p className="text-xs font-semibold leading-4 text-blue-100">{periodTotalLabels[period]}</p><p className="mt-1 truncate text-xl font-black leading-none text-white">{currency(data.billingTotal, settings.currencySymbol)}</p></div>
-            <div className="min-w-0"><p className="text-xs font-semibold leading-4 text-blue-100">Bills created</p><p className="mt-1 text-xl font-black leading-none text-white">{data.billsCreated}</p></div>
-            <div className="min-w-0"><p className="text-xs font-semibold leading-4 text-blue-100">Payments received</p><p className="mt-1 truncate text-xl font-black leading-none text-white">{currency(data.paymentsReceived, settings.currencySymbol)}</p></div>
-            <div className="min-w-0"><p className="text-xs font-semibold leading-4 text-blue-100">Current outstanding</p><p className="mt-1 truncate text-xl font-black leading-none text-white">{currency(data.currentOutstanding, settings.currencySymbol)}</p></div>
-          </div>
-        ) : (
-        <div className="mt-3 grid grid-cols-2 gap-4 lg:grid-cols-[1.2fr_repeat(3,minmax(0,1fr))] lg:items-center">
-          <div className="col-span-2 flex min-w-0 items-center gap-4 py-1 lg:col-span-1">
+        <div className="mt-3 grid grid-cols-2 gap-3 border-t border-white/20 pt-3 lg:grid-cols-[1.2fr_repeat(3,minmax(0,1fr))] lg:items-center lg:border-t-0 lg:pt-0">
+          <div className="col-span-2 flex min-w-0 items-center gap-3 rounded-xl bg-white/10 px-3 py-3 sm:gap-4 lg:col-span-1 lg:rounded-none lg:bg-transparent lg:px-0 lg:py-1">
             <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-white/15 text-white sm:h-16 sm:w-16">
               <DashboardIcon name="bill" className="h-7 w-7" />
             </span>
             <div className="min-w-0">
-              <p className="truncate text-3xl font-black text-white sm:text-4xl">{currency(data.billingTotal, settings.currencySymbol)}</p>
+              <p className="text-xs font-semibold text-blue-100 lg:sr-only">{periodBillingLabels[period]}</p>
+              <p className="mt-1 text-2xl font-black text-white [overflow-wrap:anywhere] sm:text-3xl lg:mt-0 lg:text-4xl">{currency(data.billingTotal, settings.currencySymbol)}</p>
             </div>
           </div>
-          <SummaryMetric icon="bill" value={String(data.billsCreated)} label={`${data.billsCreated === 1 ? "bill" : "bills"} created`} />
-          <SummaryMetric icon="wallet" value={currency(data.paymentsReceived, settings.currencySymbol)} label="payments received" />
-          <SummaryMetric icon="alert" value={currency(data.currentOutstanding, settings.currencySymbol)} label="current outstanding" className="col-span-2 lg:col-span-1" />
+          <SummaryMetric icon="bill" value={String(data.tripsBilled)} label="Trips Billed" />
+          <SummaryMetric icon="wallet" value={currency(data.paymentsReceived, settings.currencySymbol)} label="Payments Received" />
+          <SummaryMetric icon="alert" value={currency(data.currentOutstanding, settings.currencySymbol)} label="Current Outstanding" className="col-span-2 lg:col-span-1" />
         </div>
-        )}
       </section>
 
-      <div className="hidden flex-wrap items-center gap-2.5 lg:flex">
+      <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-2.5">
         <Button type="button" variant="primary" className="min-h-11 w-full gap-2 sm:w-auto" onClick={onCreateBill}><DashboardIcon name="plus" /> Create Bill</Button>
         <Button type="button" variant="secondary" className="min-h-11 gap-2" onClick={onRecordPayment}><DashboardIcon name="wallet" /> Record Payment</Button>
         <Button type="button" variant="ghost" className="min-h-11 gap-1.5 px-2" onClick={onViewHistory}>View History <DashboardIcon name="arrow" className="h-4 w-4" /></Button>
@@ -242,10 +226,10 @@ export function DashboardPage({
             ) : (
               <div role="list" className="divide-y divide-slate-100 dark:divide-slate-800">
                 {data.recentActivity.slice(0, 3).map((activity) => (
-                  <button key={activity.id} type="button" role="listitem" className="grid min-h-14 w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-1 py-2 text-left hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:hover:bg-slate-800/60" onClick={() => openActivity(activity)}>
+                  <button key={activity.id} type="button" role="listitem" className="grid min-h-14 w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1 px-1 py-2 text-left hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:hover:bg-slate-800/60 sm:grid-cols-[auto_minmax(0,1fr)_auto]" onClick={() => openActivity(activity)}>
                     <ActivityIcon type={activity.type} />
-                    <span className="min-w-0"><span className="block truncate text-sm font-bold text-slate-950 dark:text-slate-50" title={activity.title}>{activity.title}</span><span className="mt-0.5 block text-xs font-semibold text-slate-400 dark:text-slate-500">{relativeTime(activity.timestamp)}</span></span>
-                    {activity.amount !== undefined && <span className="whitespace-nowrap text-xs font-black text-[#1E3A8A] dark:text-blue-200 sm:text-sm">{currency(activity.amount, settings.currencySymbol)}</span>}
+                    <span className="min-w-0"><span className="block break-words text-sm font-bold text-slate-950 dark:text-slate-50">{activity.title}</span><span className="mt-0.5 block text-xs font-semibold leading-5 text-slate-400 dark:text-slate-500">{activity.businessDate ? `${activity.type === "payment" ? "Payment" : "Trip"} date: ${dashboardDateLabel(activity.businessDate)} · ` : ""}Added {relativeTime(activity.timestamp)}</span></span>
+                    {activity.amount !== undefined && <span className="col-start-2 whitespace-nowrap text-xs font-black text-[#1E3A8A] dark:text-blue-200 sm:col-start-auto sm:text-sm">{currency(activity.amount, settings.currencySymbol)}</span>}
                   </button>
                 ))}
               </div>

@@ -1,3 +1,5 @@
+import type { Bill } from "../types/bill";
+
 type ErrorLike = {
   message?: unknown;
   code?: unknown;
@@ -21,6 +23,12 @@ export type SafeErrorContext =
   | "bill.save"
   | "bill.update"
   | "bill.delete"
+  | "owner.save"
+  | "owner.update"
+  | "owner.delete"
+  | "payment.save"
+  | "payment.update"
+  | "payment.delete"
   | "settings.load"
   | "settings.save"
   | "unexpected";
@@ -39,10 +47,25 @@ const CONTEXT_MESSAGES: Record<SafeErrorContext, string> = {
   "bill.save": "Unable to save the bill.",
   "bill.update": "Unable to update the bill.",
   "bill.delete": "Unable to delete the bill.",
+  "owner.save": "Unable to add the Owner / Company.",
+  "owner.update": "Unable to update the Owner / Company.",
+  "owner.delete": "Unable to delete the Owner / Company.",
+  "payment.save": "Unable to record the payment.",
+  "payment.update": "Unable to update the payment.",
+  "payment.delete": "Unable to delete the payment.",
   "settings.load": "Unable to load your settings.",
   "settings.save": "Unable to save your settings.",
   unexpected: "Something went wrong. Please try again."
 };
+
+export class DuplicateBillError extends Error {
+  readonly code = "BILL_DUPLICATE";
+
+  constructor(readonly existingBill: Bill) {
+    super("A matching bill already exists.");
+    this.name = "DuplicateBillError";
+  }
+}
 
 function errorMetadata(error: unknown): ErrorLike {
   return typeof error === "object" && error !== null ? error as ErrorLike : {};
@@ -58,6 +81,10 @@ export function getSafeErrorMessage(error: unknown, context: SafeErrorContext = 
   const code = typeof metadata.code === "string" ? metadata.code.toLowerCase() : "";
   const status = typeof metadata.status === "number" ? metadata.status : undefined;
   const message = normalizedMessage(error);
+
+  if (error instanceof DuplicateBillError) {
+    return "A matching bill already exists. The existing bill was opened for editing.";
+  }
 
   if (code === "invalid_credentials" || message.includes("invalid login credentials")) {
     return "The email or password is incorrect.";

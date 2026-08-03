@@ -1226,7 +1226,7 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
               const selected = selectedIds.includes(bill.id);
               const vehicleLabel = [bill.vehicleName, bill.vehicleNumber].filter(Boolean).join(" | ") || "Vehicle";
               return (
-                <article key={bill.id} className={cn("tripledgerListMobileRow tripledgerListMobileRowContent", selectionMode && selected && "border-blue-300 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-950/20")} aria-selected={selectionMode ? selected : undefined} role="listitem">
+                <article key={bill.id} className={cn("tripledgerListMobileRow tripledgerListMobileRowContent", selectionMode && selected && "is-selected")} aria-selected={selectionMode ? selected : undefined} role="listitem">
                   <div className="flex min-w-0 items-start justify-between gap-3">
                     <div className="flex min-w-0 items-start gap-3">
                       {selectionMode && <input className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300" type="checkbox" aria-label={`Select bill for ${guestDisplay(bill)}`} checked={selected} onChange={() => onToggleSelected(bill.id)} />}

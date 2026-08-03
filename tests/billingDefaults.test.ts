@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { applyBillingDefaults, createEmptyBillDraft, DEFAULT_SETTINGS } from "../src/constants/defaults.ts";
-import { localStorageSettingsService } from "../src/services/settingsService.ts";
+import { createSettingsService, localStorageSettingsService, type SettingsCache } from "../src/services/settingsService.ts";
+import type { SettingsRepository } from "../src/repositories/settingsRepository.ts";
+import type { AppSettings } from "../src/types/settings.ts";
 
 const savedDefaults = {
   ...DEFAULT_SETTINGS,
@@ -73,4 +75,25 @@ test("settings persistence is user-scoped and trims saved defaults", async () =>
   assert.equal(loaded.defaultVehicleModel, "Innova Crysta");
   assert.equal(loaded.defaultVehicleNumber, "KL 01 AB 1234");
   assert.equal(otherUser.defaultDriverName, "");
+});
+
+test("the same user loads saved preferences in a new browser session", async () => {
+  const remote = new Map<string, AppSettings>();
+  const repository: SettingsRepository = {
+    async getSettings(userId) { return remote.get(userId) ?? null; },
+    async saveSettings(userId, settings) { remote.set(userId, settings); return settings; }
+  };
+  const cache = (): SettingsCache => {
+    const values = new Map<string, string>();
+    return {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, value),
+      removeItem: (key) => values.delete(key)
+    };
+  };
+
+  await createSettingsService(repository, cache()).saveSettings("user-1", savedDefaults);
+  const loadedInAnotherBrowser = await createSettingsService(repository, cache()).getSettings("user-1");
+
+  assert.deepEqual(loadedInAnotherBrowser, savedDefaults);
 });

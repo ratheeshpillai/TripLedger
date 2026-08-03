@@ -30,6 +30,7 @@ export type DashboardActivity = {
   recordId: string;
   title: string;
   amount?: number;
+  businessDate?: string;
   timestamp: string;
 };
 
@@ -42,7 +43,7 @@ export type DashboardTopOwner = {
 
 export type DashboardData = {
   billingTotal: number;
-  billsCreated: number;
+  tripsBilled: number;
   paymentsReceived: number;
   currentOutstanding: number;
   outstandingOwners: number;
@@ -52,12 +53,16 @@ export type DashboardData = {
   topOwnersThisMonth: DashboardTopOwner[];
 };
 
-function parseTripDate(value: string): Date | null {
+function inputDate(value: string): Date | null {
   if (!value) return null;
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) return null;
   const date = new Date(year, month - 1, day);
   return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : null;
+}
+
+export function dashboardDateLabel(value: string): string {
+  return inputDate(value)?.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) ?? "Date unavailable";
 }
 
 function monthKey(date: Date): string {
@@ -77,7 +82,7 @@ export function buildMonthlyBillingTrend(bills: Bill[], now = new Date()): Month
   const totals = new Map(monthStarts.map((date) => [monthKey(date), 0]));
 
   bills.forEach((bill) => {
-    const tripDate = parseTripDate(bill.tripDate);
+    const tripDate = inputDate(bill.tripDate);
     if (!tripDate) return;
     const key = monthKey(tripDate);
     if (totals.has(key)) {
@@ -114,7 +119,7 @@ export function buildDashboardSummary(bills: Bill[], now = new Date()): Dashboar
   const totalAmount = bills.reduce((sum, bill) => sum + bill.totalAmount, 0);
   const currentMonthAmount = bills
     .filter((bill) => {
-      const tripDate = parseTripDate(bill.tripDate);
+      const tripDate = inputDate(bill.tripDate);
       return tripDate ? monthKey(tripDate) === currentMonthKey : false;
     })
     .reduce((sum, bill) => sum + bill.totalAmount, 0);
@@ -155,13 +160,6 @@ function timestampDate(value: string): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function inputDate(value: string): Date | null {
-  if (!value) return null;
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) return null;
-  return new Date(year, month - 1, day);
-}
-
 function isWithin(date: Date | null, range: { start: Date; end: Date }): boolean {
   return Boolean(date && date >= range.start && date <= range.end);
 }
@@ -180,7 +178,7 @@ export function buildDashboardData(
 ): DashboardData {
   const selectedRange = dateRange(period, now);
   const currentMonthKey = monthKey(now);
-  const periodBills = bills.filter((bill) => isWithin(timestampDate(bill.createdAt), selectedRange));
+  const periodBills = bills.filter((bill) => isWithin(inputDate(bill.tripDate), selectedRange));
   const periodPayments = payments.filter((payment) => isWithin(inputDate(payment.paymentDate), selectedRange));
   const partyById = new Map(parties.map((party) => [party.id, party]));
   const summaryById = new Map(summaries.map((summary) => [summary.billingPartyId, summary]));
@@ -188,7 +186,7 @@ export function buildDashboardData(
 
   bills.forEach((bill) => {
     const amount = Number(bill.totalAmount);
-    const tripDate = parseTripDate(bill.tripDate);
+    const tripDate = inputDate(bill.tripDate);
     if (!bill.billingPartyId || !partyById.has(bill.billingPartyId) || !tripDate || monthKey(tripDate) !== currentMonthKey || !Number.isFinite(amount) || amount <= 0) return;
     monthlyOwnerTotals.set(bill.billingPartyId, (monthlyOwnerTotals.get(bill.billingPartyId) ?? 0) + amount);
   });
@@ -197,16 +195,18 @@ export function buildDashboardData(
     id: `bill-${bill.id}`,
     type: "bill",
     recordId: bill.id,
-    title: `Bill created for ${bill.billingPartyCompanyName || bill.billingPartyName || bill.guestName || "Customer"}`,
+    title: `Bill added for ${bill.billingPartyCompanyName || bill.billingPartyName || bill.guestName || "Customer"}`,
     amount: bill.totalAmount,
+    businessDate: bill.tripDate,
     timestamp: bill.createdAt
   }));
   const paymentActivities: DashboardActivity[] = payments.map((payment) => ({
     id: `payment-${payment.id}`,
     type: "payment",
     recordId: payment.billingPartyId,
-    title: `Payment recorded for ${partyName(partyById.get(payment.billingPartyId))}`,
+    title: `Payment added for ${partyName(partyById.get(payment.billingPartyId))}`,
     amount: payment.amount,
+    businessDate: payment.paymentDate,
     timestamp: payment.createdAt
   }));
   const ownerActivities: DashboardActivity[] = parties.map((party) => ({
@@ -219,7 +219,7 @@ export function buildDashboardData(
 
   return {
     billingTotal: periodBills.reduce((total, bill) => total + Number(bill.totalAmount || 0), 0),
-    billsCreated: periodBills.length,
+    tripsBilled: periodBills.length,
     paymentsReceived: periodPayments.reduce((total, payment) => total + Number(payment.amount || 0), 0),
     currentOutstanding: summaries.reduce((total, summary) => total + Number(summary.outstandingAmount || 0), 0),
     outstandingOwners: summaries.filter((summary) => summary.outstandingAmount > 0).length,

@@ -1,5 +1,6 @@
 import type { Bill } from "../../types/bill";
-import { logDevError } from "../../utils/errors";
+import { sameBillFingerprint } from "../../utils/billFingerprint";
+import { DuplicateBillError, logDevError } from "../../utils/errors";
 import type { BillRepository } from "../billRepository";
 import { getSupabaseClient } from "./supabaseClient";
 
@@ -170,6 +171,28 @@ function toBillRpcParams(bill: Bill) {
   };
 }
 
+async function findDuplicateBill(userId: string, bill: Bill): Promise<Bill | undefined> {
+  let query = getSupabaseClient()
+    .from("bills")
+    .select("*, billing_parties(name, company_name)")
+    .eq("user_id", userId)
+    .eq("billing_party_id", bill.billingPartyId ?? "")
+    .eq("reporting_time", bill.reportingTime)
+    .eq("closing_time", bill.closingTime)
+    .limit(20);
+
+  query = bill.tripDate ? query.eq("trip_date", bill.tripDate) : query.is("trip_date", null);
+  query = bill.closingDate ? query.eq("closing_date", bill.closingDate) : query.is("closing_date", null);
+  const { data, error } = await query;
+
+  if (error) {
+    logDevError("Supabase duplicate bill lookup failed", error);
+    return undefined;
+  }
+
+  return ((data ?? []) as BillRow[]).map(toBill).find((candidate) => sameBillFingerprint(candidate, bill));
+}
+
 export const supabaseBillRepository: BillRepository = {
   async listBills(userId) {
     const { data, error } = await getSupabaseClient()
@@ -185,7 +208,7 @@ export const supabaseBillRepository: BillRepository = {
     return ((data ?? []) as BillRow[]).map(toBill);
   },
 
-  async saveBill(_userId, bill, requestId) {
+  async saveBill(userId, bill, requestId) {
     const { data, error } = await getSupabaseClient()
       .rpc("create_bill", {
         p_client_request_id: requestId,
@@ -194,13 +217,17 @@ export const supabaseBillRepository: BillRepository = {
       .single();
 
     if (error) {
+      if (error.code === "23505" || error.code === "23514") {
+        const duplicate = await findDuplicateBill(userId, bill);
+        if (duplicate) throw new DuplicateBillError(duplicate);
+      }
       logDevError("Supabase bill save failed", error);
       throw error;
     }
     return toBill(data as BillRow);
   },
 
-  async updateBill(_userId, bill) {
+  async updateBill(userId, bill) {
     const { data, error } = await getSupabaseClient()
       .rpc("update_bill", {
         p_bill_id: bill.id,
@@ -209,6 +236,10 @@ export const supabaseBillRepository: BillRepository = {
       .single();
 
     if (error) {
+      if (error.code === "23505") {
+        const duplicate = await findDuplicateBill(userId, bill);
+        if (duplicate && duplicate.id !== bill.id) throw new DuplicateBillError(duplicate);
+      }
       logDevError("Supabase bill update failed", error);
       throw error;
     }

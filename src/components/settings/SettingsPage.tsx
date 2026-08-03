@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from "react";
 import type { AppSettings, TimeFormat } from "../../types/settings";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
+import { DecimalInput } from "../ui/DecimalInput";
 import { Select } from "../ui/Select";
 import { ExtraLoginVerificationSettings } from "./ExtraLoginVerificationSettings";
 import { CollapsibleSection } from "../shared/CollapsibleSection";
@@ -21,43 +22,8 @@ type Props = {
 type NumericSetting = "defaultBaseHours" | "defaultBaseKm" | "defaultBaseAmount" | "defaultExtraHourRate" | "defaultExtraKmRate";
 type SettingsErrors = Partial<Record<NumericSetting, string>>;
 
-function num(value: string): number {
-  return Number(value || 0);
-}
-
 function Field({ label, children, error, errorId }: { label: string; children: ReactNode; error?: string; errorId?: string }) {
-  return <label className="field-label">{label}{children}{error && <span id={errorId} className="text-xs font-semibold text-red-600 dark:text-red-300">{error}</span>}</label>;
-}
-
-function NumberInput({ id, value, min, error, onValueChange }: { id: string; value: number; min: number; error?: string; onValueChange: (value: number) => void }) {
-  const [inputValue, setInputValue] = useState(value === 0 ? "" : String(value));
-  const [isEditing, setIsEditing] = useState(false);
-
-  useEffect(() => {
-    if (!isEditing) {
-      setInputValue(value === 0 ? "" : String(value));
-    }
-  }, [isEditing, value]);
-
-  return (
-    <Input
-      id={id}
-      type="number"
-      inputMode="decimal"
-      min={min}
-      step="any"
-      aria-describedby={error ? `${id}-error` : undefined}
-      aria-invalid={Boolean(error)}
-      value={inputValue}
-      onFocus={() => setIsEditing(true)}
-      onBlur={() => setIsEditing(false)}
-      onChange={(event) => {
-        const nextValue = event.target.value;
-        setInputValue(nextValue);
-        onValueChange(num(nextValue));
-      }}
-    />
-  );
+  return <label className="field-label">{label}{children}{errorId && <span id={errorId} role={error ? "alert" : undefined} aria-hidden={error ? undefined : true} className="field-validation-message text-xs font-semibold text-red-600 dark:text-red-300">{error || "\u00a0"}</span>}</label>;
 }
 
 function validateSettings(settings: AppSettings): SettingsErrors {
@@ -180,11 +146,11 @@ export function SettingsPage({ settings, userEmail, isDarkMode, onToggleDarkMode
               <Field label="Currency Symbol"><Input value={draft.currencySymbol} onChange={(e) => setDraft({ ...draft, currencySymbol: e.target.value })} /></Field>
               <Field label="Business Name"><Input placeholder="Business Name" value={draft.businessName} onChange={(e) => setDraft({ ...draft, businessName: e.target.value })} /></Field>
               <Field label="Default Base Package"><Input placeholder="8 Hours / 80 KM" value={draft.defaultBasePackage} onChange={(e) => setDraft({ ...draft, defaultBasePackage: e.target.value })} /></Field>
-              <Field label="Default Base Hours" error={errors.defaultBaseHours} errorId="default-base-hours-error"><NumberInput id="default-base-hours" value={draft.defaultBaseHours} min={0.01} error={errors.defaultBaseHours} onValueChange={(value) => setDraft({ ...draft, defaultBaseHours: value })} /></Field>
-              <Field label="Default Base KM" error={errors.defaultBaseKm} errorId="default-base-km-error"><NumberInput id="default-base-km" value={draft.defaultBaseKm} min={0.01} error={errors.defaultBaseKm} onValueChange={(value) => setDraft({ ...draft, defaultBaseKm: value })} /></Field>
-              <Field label="Default Base Amount" error={errors.defaultBaseAmount} errorId="default-base-amount-error"><NumberInput id="default-base-amount" value={draft.defaultBaseAmount} min={0.01} error={errors.defaultBaseAmount} onValueChange={(value) => setDraft({ ...draft, defaultBaseAmount: value })} /></Field>
-              <Field label="Default Extra Hour Rate" error={errors.defaultExtraHourRate} errorId="default-extra-hour-rate-error"><NumberInput id="default-extra-hour-rate" value={draft.defaultExtraHourRate} min={0} error={errors.defaultExtraHourRate} onValueChange={(value) => setDraft({ ...draft, defaultExtraHourRate: value })} /></Field>
-              <Field label="Default Extra KM Rate" error={errors.defaultExtraKmRate} errorId="default-extra-km-rate-error"><NumberInput id="default-extra-km-rate" value={draft.defaultExtraKmRate} min={0} error={errors.defaultExtraKmRate} onValueChange={(value) => setDraft({ ...draft, defaultExtraKmRate: value })} /></Field>
+              <Field label="Default Base Hours" error={errors.defaultBaseHours} errorId="default-base-hours-error"><DecimalInput id="default-base-hours" value={draft.defaultBaseHours} aria-describedby={errors.defaultBaseHours ? "default-base-hours-error" : undefined} aria-invalid={Boolean(errors.defaultBaseHours)} onValueChange={(value) => setDraft({ ...draft, defaultBaseHours: value })} /></Field>
+              <Field label="Default Base KM" error={errors.defaultBaseKm} errorId="default-base-km-error"><DecimalInput id="default-base-km" value={draft.defaultBaseKm} aria-describedby={errors.defaultBaseKm ? "default-base-km-error" : undefined} aria-invalid={Boolean(errors.defaultBaseKm)} onValueChange={(value) => setDraft({ ...draft, defaultBaseKm: value })} /></Field>
+              <Field label="Default Base Amount" error={errors.defaultBaseAmount} errorId="default-base-amount-error"><DecimalInput id="default-base-amount" value={draft.defaultBaseAmount} aria-describedby={errors.defaultBaseAmount ? "default-base-amount-error" : undefined} aria-invalid={Boolean(errors.defaultBaseAmount)} onValueChange={(value) => setDraft({ ...draft, defaultBaseAmount: value })} /></Field>
+              <Field label="Default Extra Hour Rate" error={errors.defaultExtraHourRate} errorId="default-extra-hour-rate-error"><DecimalInput id="default-extra-hour-rate" value={draft.defaultExtraHourRate} aria-describedby={errors.defaultExtraHourRate ? "default-extra-hour-rate-error" : undefined} aria-invalid={Boolean(errors.defaultExtraHourRate)} onValueChange={(value) => setDraft({ ...draft, defaultExtraHourRate: value })} /></Field>
+              <Field label="Default Extra KM Rate" error={errors.defaultExtraKmRate} errorId="default-extra-km-rate-error"><DecimalInput id="default-extra-km-rate" value={draft.defaultExtraKmRate} aria-describedby={errors.defaultExtraKmRate ? "default-extra-km-rate-error" : undefined} aria-invalid={Boolean(errors.defaultExtraKmRate)} onValueChange={(value) => setDraft({ ...draft, defaultExtraKmRate: value })} /></Field>
             </div>
           </section>
           <Button type="submit" variant="primary" disabled={saving || !isDirty}>{saving ? "Saving..." : "Save Settings"}</Button>

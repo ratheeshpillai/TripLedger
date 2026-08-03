@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_SETTINGS } from "../constants/defaults";
-import { localStorageSettingsService, type SettingsService } from "../services/settingsService";
+import { settingsService, type SettingsService } from "../services/settingsService";
 import type { AppSettings } from "../types/settings";
 
-export function useSettings(userId: string | null, service: SettingsService = localStorageSettingsService) {
+export function useSettings(userId: string | null, service: SettingsService = settingsService) {
   const [state, setState] = useState<{ userId: string | null; settings: AppSettings }>({ userId: null, settings: DEFAULT_SETTINGS });
   const [loading, setLoading] = useState(false);
   const activeUserIdRef = useRef<string | null>(userId);

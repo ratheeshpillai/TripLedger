@@ -104,6 +104,15 @@ input[type="date"]::-webkit-date-and-time-value {
     @apply grid min-w-0 max-w-full gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300;
   }
 
+  .field-validation-message {
+    display: block;
+    min-height: 1.125rem;
+    overflow: visible;
+    line-height: 1.125rem;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
   .form-grid {
     @apply grid gap-4 sm:grid-cols-2 xl:grid-cols-3;
   }
@@ -146,6 +155,12 @@ input[type="date"]::-webkit-date-and-time-value {
 
   .tripledgerListMobileRow {
     @apply min-w-0 max-w-full rounded-2xl border border-slate-200 bg-white shadow-none dark:border-slate-700 dark:bg-[#111827];
+  }
+
+  .tripledgerListMobileRow.is-selected {
+    border-color: #93c5fd;
+    background: rgb(239 246 255 / 0.7);
+    box-shadow: 0 0 0 1px rgb(147 197 253 / 0.45);
   }
 
   .tripledgerListMobileRowContent {
@@ -200,11 +215,15 @@ input[type="date"]::-webkit-date-and-time-value {
   }
 
   .historyBillTable {
+    --tripledger-actions-width: 5rem;
+    --tripledger-selection-width: 0rem;
     box-sizing: border-box;
+    display: grid;
+    gap: 0.625rem;
     width: 100%;
-    table-layout: fixed;
-    border-collapse: separate;
-    border-spacing: 0 10px;
+    min-width: 0;
+    border-collapse: collapse;
+    border-spacing: 0;
   }
 
   .tripledgerListTable {
@@ -218,6 +237,31 @@ input[type="date"]::-webkit-date-and-time-value {
 
   .tripledgerListTable.hasSelectionColumn {
     --tripledger-selection-width: 3.5rem;
+  }
+
+  .historyBillTable colgroup {
+    display: none;
+  }
+
+  .historyBillTable thead,
+  .historyBillTable tbody {
+    display: grid;
+    min-width: 0;
+  }
+
+  .historyBillTable tbody {
+    gap: 0.625rem;
+  }
+
+  .historyBillTable tr {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) var(--tripledger-actions-width);
+    min-width: 0;
+    width: 100%;
+  }
+
+  .historyBillTable.hasSelectionColumn tr {
+    grid-template-columns: var(--tripledger-selection-width) repeat(5, minmax(0, 1fr)) var(--tripledger-actions-width);
   }
 
   .tripledgerListTable .tripledgerDataColumn {
@@ -247,13 +291,20 @@ input[type="date"]::-webkit-date-and-time-value {
     box-sizing: border-box;
     min-width: 0;
     padding: 0.75rem 0.875rem;
-    vertical-align: middle;
+  }
+
+  .historyBillTable thead tr {
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    background: rgb(241 245 249 / 0.7);
   }
 
   .historyBillTable th {
-    border-bottom: 1px solid #e2e8f0;
-    border-top: 1px solid #e2e8f0;
-    background: rgb(241 245 249 / 0.7);
+    display: flex;
+    align-items: center;
+    border: 0;
+    background: transparent;
     color: #64748b;
     font-size: 0.75rem;
     font-weight: 900;
@@ -264,38 +315,34 @@ input[type="date"]::-webkit-date-and-time-value {
     white-space: nowrap;
   }
 
-  .historyBillTable th:first-child {
-    border-left: 1px solid #e2e8f0;
-    border-radius: 1rem 0 0 1rem;
-  }
-
-  .historyBillTable th:last-child {
-    border-right: 1px solid #e2e8f0;
-    border-radius: 0 1rem 1rem 0;
-  }
-
-  .historyBillTable tbody td {
-    border-bottom: 1px solid #e2e8f0;
-    border-top: 1px solid #e2e8f0;
+  .historyBillTableRow {
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
     background: #fff;
   }
 
-  .historyBillTable tbody td:first-child {
-    border-left: 1px solid #e2e8f0;
-    border-radius: 1rem 0 0 1rem;
+  .historyBillTable tbody td {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    border: 0;
+    background: transparent;
   }
 
-  .historyBillTable tbody td:last-child {
-    border-right: 1px solid #e2e8f0;
-    border-radius: 0 1rem 1rem 0;
+  .historyBillTableRow:not(.is-selected):hover {
+    background: #f8fafc;
   }
 
-  .historyBillTableRow.is-selected td {
+  .historyBillTableRow.is-selected {
     border-color: #93c5fd;
     background: rgb(239 246 255 / 0.7);
+    box-shadow: inset 0 0 0 1px rgb(147 197 253 / 0.45);
   }
 
   .historyBillTable .historyCheckboxCell {
+    align-items: center;
     padding-left: 0.75rem;
     padding-right: 0.75rem;
     text-align: center;
@@ -320,29 +367,43 @@ input[type="date"]::-webkit-date-and-time-value {
 
   .historyBillTable .historyActionsCell {
     box-sizing: border-box;
-    display: table-cell;
+    display: flex;
+    align-items: flex-start;
     text-align: left;
-    vertical-align: middle;
   }
 
   .historyBillTable .historyActionsCell > * {
     display: inline-block;
   }
 
-  .dark .historyBillTable th {
+  .dark .historyBillTable thead tr {
     border-color: #1e293b;
     background: rgb(15 23 42 / 0.7);
+  }
+
+  .dark .historyBillTable th {
     color: #94a3b8;
   }
 
-  .dark .historyBillTable tbody td {
+  .dark .historyBillTableRow {
     border-color: #1e293b;
     background: #111827;
   }
 
-  .dark .historyBillTableRow.is-selected td {
+  .dark .historyBillTableRow:not(.is-selected):hover {
+    background: #172033;
+  }
+
+  .dark .historyBillTableRow.is-selected {
     border-color: #1e40af;
     background: rgb(23 37 84 / 0.35);
+    box-shadow: inset 0 0 0 1px rgb(30 64 175 / 0.45);
+  }
+
+  .dark .tripledgerListMobileRow.is-selected {
+    border-color: #1e40af;
+    background: rgb(23 37 84 / 0.35);
+    box-shadow: 0 0 0 1px rgb(30 64 175 / 0.45);
   }
 
   .tripledger-calendar {
