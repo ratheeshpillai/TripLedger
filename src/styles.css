@@ -101,7 +101,7 @@ input[type="date"]::-webkit-date-and-time-value {
 
 @layer components {
   .field-label {
-    @apply grid min-w-0 max-w-full gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300;
+    @apply grid min-w-0 max-w-full content-start gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300;
   }
 
   .field-validation-message {

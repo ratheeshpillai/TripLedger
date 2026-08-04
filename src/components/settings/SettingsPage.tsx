@@ -23,7 +23,7 @@ type NumericSetting = "defaultBaseHours" | "defaultBaseKm" | "defaultBaseAmount"
 type SettingsErrors = Partial<Record<NumericSetting, string>>;
 
 function Field({ label, children, error, errorId }: { label: string; children: ReactNode; error?: string; errorId?: string }) {
-  return <label className="field-label">{label}{children}{errorId && <span id={errorId} role={error ? "alert" : undefined} aria-hidden={error ? undefined : true} className="field-validation-message text-xs font-semibold text-red-600 dark:text-red-300">{error || "\u00a0"}</span>}</label>;
+  return <label className="field-label"><span className="leading-5 sm:min-h-10 xl:min-h-5">{label}</span>{children}{errorId && <span id={errorId} role={error ? "alert" : undefined} aria-hidden={error ? undefined : true} className="field-validation-message text-xs font-semibold text-red-600 dark:text-red-300">{error || "\u00a0"}</span>}</label>;
 }
 
 function validateSettings(settings: AppSettings): SettingsErrors {
@@ -86,12 +86,7 @@ export function SettingsPage({ settings, userEmail, isDarkMode, onToggleDarkMode
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4">
-      <div className="hidden pb-2 lg:block">
-        <h1 className="text-xl font-black text-slate-950 dark:text-slate-50">Settings</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Manage your account, security, appearance, and billing defaults.</p>
-      </div>
-
+    <div className="mx-auto w-full max-w-6xl space-y-4">
       <SettingsSection id="account" title={<><span className="lg:hidden">User Information</span><span className="hidden lg:inline">Account Settings</span></>} openSection={openSection} setOpenSection={setOpenSection}>
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-[#111827]">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Signed-in email</p>
@@ -125,7 +120,7 @@ export function SettingsPage({ settings, userEmail, isDarkMode, onToggleDarkMode
       <SettingsSection id="preferences" title={<><span className="lg:hidden">Billing Defaults</span><span className="hidden lg:inline">App Preferences</span></>} openSection={openSection} setOpenSection={setOpenSection}>
         <form ref={formRef} className="space-y-5" onSubmit={save} noValidate>
           <p className="text-sm text-slate-500 dark:text-slate-400">Set the defaults used when starting a new bill.</p>
-          <section aria-labelledby="billing-defaults-title" className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40">
+          <section aria-labelledby="billing-defaults-title" className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40 sm:p-5">
             <h3 id="billing-defaults-title" className="text-sm font-black text-slate-900 dark:text-slate-100">Driver & Vehicle Defaults</h3>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Prefill new bills while keeping every bill editable.</p>
             <div className="mt-4 form-grid">
@@ -134,8 +129,9 @@ export function SettingsPage({ settings, userEmail, isDarkMode, onToggleDarkMode
               <Field label="Default Vehicle Number"><Input maxLength={32} value={draft.defaultVehicleNumber} onChange={(event) => setDraft({ ...draft, defaultVehicleNumber: event.target.value })} /></Field>
             </div>
           </section>
-          <section aria-labelledby="general-preferences-title">
+          <section aria-labelledby="general-preferences-title" className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40 sm:p-5">
             <h3 id="general-preferences-title" className="text-sm font-black text-slate-900 dark:text-slate-100">General Billing Preferences</h3>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Set the default package, rates and business details used for new bills.</p>
             <div className="mt-4 form-grid">
               <Field label="Time Format">
                 <Select value={draft.timeFormat} onChange={(e) => setDraft({ ...draft, timeFormat: e.target.value as TimeFormat })}>
@@ -153,7 +149,9 @@ export function SettingsPage({ settings, userEmail, isDarkMode, onToggleDarkMode
               <Field label="Default Extra KM Rate" error={errors.defaultExtraKmRate} errorId="default-extra-km-rate-error"><DecimalInput id="default-extra-km-rate" value={draft.defaultExtraKmRate} aria-describedby={errors.defaultExtraKmRate ? "default-extra-km-rate-error" : undefined} aria-invalid={Boolean(errors.defaultExtraKmRate)} onValueChange={(value) => setDraft({ ...draft, defaultExtraKmRate: value })} /></Field>
             </div>
           </section>
-          <Button type="submit" variant="primary" disabled={saving || !isDirty}>{saving ? "Saving..." : "Save Settings"}</Button>
+          <div className="flex justify-end">
+            <Button type="submit" variant="primary" className="w-full sm:w-auto" disabled={saving || !isDirty}>{saving ? "Saving..." : "Save Settings"}</Button>
+          </div>
         </form>
       </SettingsSection>
 

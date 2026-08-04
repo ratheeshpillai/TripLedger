@@ -75,16 +75,17 @@ function DashboardSkeleton() {
   );
 }
 
-function SummaryMetric({ icon, value, label, className }: { icon: "bill" | "wallet" | "alert"; value: string; label: string; className?: string }) {
+function SummaryMetric({ icon, value, label, primary = false }: { icon: "bill" | "wallet" | "alert"; value: string; label: string; primary?: boolean }) {
   return (
-    <div className={cn("flex min-w-0 items-center gap-2.5 rounded-xl bg-white/10 px-3 py-3 lg:rounded-none lg:border-l lg:border-white/20 lg:bg-transparent lg:pl-6", className)}>
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/12 text-white sm:h-11 sm:w-11">
-        <DashboardIcon name={icon} className="h-4 w-4 sm:h-5 sm:w-5" />
+    <div className={cn(
+      "grid h-[5.25rem] min-w-0 grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_auto] content-start gap-x-1.5 rounded-xl bg-white/10 p-2 lg:h-auto lg:items-center lg:gap-x-2.5 lg:rounded-none lg:bg-transparent lg:p-2.5 lg:py-1",
+      primary ? "lg:pr-6" : "lg:border-l lg:border-white/20 lg:pl-6"
+    )}>
+      <span className={cn("row-start-1 grid h-5 w-5 shrink-0 place-items-center self-center rounded-md bg-white/12 text-white lg:row-span-2 lg:h-11 lg:w-11 lg:rounded-full", primary && "lg:h-16 lg:w-16")}>
+        <DashboardIcon name={icon} className={cn("h-[18px] w-[18px] lg:h-5 lg:w-5", primary && "lg:h-7 lg:w-7")} />
       </span>
-      <span className="min-w-0">
-        <span className="block text-lg font-black text-white [overflow-wrap:anywhere] sm:text-xl">{value}</span>
-        <span className="mt-0.5 block text-xs font-semibold text-blue-100 sm:text-sm">{label}</span>
-      </span>
+      <span className={cn("col-start-2 row-start-1 block self-center text-[13px] font-semibold leading-4 text-blue-100 lg:row-start-2 lg:mt-0.5 lg:text-sm", primary && "lg:sr-only")}>{label}</span>
+      <span className={cn("col-start-2 row-start-2 mt-1.5 block whitespace-nowrap text-xl font-black leading-6 text-white min-[360px]:text-[22px] lg:row-start-1 lg:mt-0 lg:leading-tight", primary && "lg:text-4xl")}>{value}</span>
     </div>
   );
 }
@@ -143,37 +144,29 @@ export function DashboardPage({
         </div>
       )}
 
-      <section className="overflow-hidden rounded-2xl border border-blue-800/40 bg-[#1E3A8A] p-4 shadow-lg shadow-blue-950/10 dark:border-blue-700/50 dark:bg-[#172554] dark:shadow-black/20 sm:p-5 lg:p-6" aria-labelledby="dashboard-billing-title">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 id="dashboard-billing-title" className="text-sm font-bold text-blue-100">{periodBillingLabels[period]}</h2>
-          <label className="w-full shrink-0 sm:w-auto">
+      <section className="overflow-hidden rounded-2xl border border-blue-800/40 bg-[#1E3A8A] p-2.5 shadow-lg shadow-blue-950/10 dark:border-blue-700/50 dark:bg-[#172554] dark:shadow-black/20 sm:p-3 lg:p-6" aria-labelledby="dashboard-billing-title">
+        <div className="flex items-center justify-between gap-3">
+          <h2 id="dashboard-billing-title" className="text-lg font-bold leading-5 text-blue-100 lg:text-sm"><span className="lg:hidden">{periods.find((option) => option.id === period)?.label}</span><span className="hidden lg:inline">{periodBillingLabels[period]}</span></h2>
+          <label className="w-auto min-w-32 shrink-0">
             <span className="sr-only">Dashboard period</span>
             <select
               value={period}
               onChange={(event) => setPeriod(event.target.value as DashboardPeriod)}
-              className="min-h-11 w-full cursor-pointer rounded-lg border border-white/25 bg-white/10 px-3 pr-8 text-sm font-bold text-white outline-none hover:bg-white/15 focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#1E3A8A] dark:focus:ring-offset-[#172554] sm:w-auto"
+              className="min-h-11 w-full cursor-pointer rounded-lg border border-white/25 bg-white/10 px-3 pr-8 text-sm font-bold text-white outline-none hover:bg-white/15 focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#1E3A8A] dark:focus:ring-offset-[#172554]"
             >
               {periods.map((option) => <option key={option.id} value={option.id} className="text-slate-900">{option.label}</option>)}
             </select>
           </label>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-3 border-t border-white/20 pt-3 lg:grid-cols-[1.2fr_repeat(3,minmax(0,1fr))] lg:items-center lg:border-t-0 lg:pt-0">
-          <div className="col-span-2 flex min-w-0 items-center gap-3 rounded-xl bg-white/10 px-3 py-3 sm:gap-4 lg:col-span-1 lg:rounded-none lg:bg-transparent lg:px-0 lg:py-1">
-            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-white/15 text-white sm:h-16 sm:w-16">
-              <DashboardIcon name="bill" className="h-7 w-7" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold text-blue-100 lg:sr-only">{periodBillingLabels[period]}</p>
-              <p className="mt-1 text-2xl font-black text-white [overflow-wrap:anywhere] sm:text-3xl lg:mt-0 lg:text-4xl">{currency(data.billingTotal, settings.currencySymbol)}</p>
-            </div>
-          </div>
+        <div className="mt-2.5 grid grid-cols-2 items-stretch gap-1.5 min-[360px]:gap-2 lg:mt-3 lg:grid-cols-[1.2fr_repeat(3,minmax(0,1fr))] lg:items-center lg:gap-3">
+          <SummaryMetric primary icon="bill" value={currency(data.billingTotal, settings.currencySymbol)} label="Billing" />
           <SummaryMetric icon="bill" value={String(data.tripsBilled)} label="Trips Billed" />
           <SummaryMetric icon="wallet" value={currency(data.paymentsReceived, settings.currencySymbol)} label="Payments Received" />
-          <SummaryMetric icon="alert" value={currency(data.currentOutstanding, settings.currencySymbol)} label="Current Outstanding" className="col-span-2 lg:col-span-1" />
+          <SummaryMetric icon="alert" value={currency(data.currentOutstanding, settings.currencySymbol)} label="Current Outstanding" />
         </div>
       </section>
 
-      <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-2.5">
+      <div className="hidden gap-2 lg:flex lg:flex-wrap lg:items-center lg:gap-2.5">
         <Button type="button" variant="primary" className="min-h-11 w-full gap-2 sm:w-auto" onClick={onCreateBill}><DashboardIcon name="plus" /> Create Bill</Button>
         <Button type="button" variant="secondary" className="min-h-11 gap-2" onClick={onRecordPayment}><DashboardIcon name="wallet" /> Record Payment</Button>
         <Button type="button" variant="ghost" className="min-h-11 gap-1.5 px-2" onClick={onViewHistory}>View History <DashboardIcon name="arrow" className="h-4 w-4" /></Button>
