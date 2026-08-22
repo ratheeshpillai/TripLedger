@@ -1,6 +1,5 @@
 import { DEFAULT_SETTINGS } from "../constants/defaults";
 import type { SettingsRepository } from "../repositories/settingsRepository";
-import { supabaseSettingsRepository } from "../repositories/supabase/supabaseSettingsRepository";
 import type { AppSettings } from "../types/settings";
 
 export interface SettingsService {
@@ -86,5 +85,3 @@ export const localStorageSettingsService: SettingsService = {
     return saved;
   }
 };
-
-export const settingsService = createSettingsService(supabaseSettingsRepository);

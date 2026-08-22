@@ -1,5 +1,4 @@
 import type { AuthRepository } from "../repositories/authRepository";
-import { supabaseAuthRepository } from "../repositories/supabase/supabaseAuthRepository";
 import type {
   AuthCredentials,
   AuthChangeType,
@@ -76,5 +75,3 @@ export function createAuthService(repository: AuthRepository): AuthService {
     }
   };
 }
-
-export const authService = createAuthService(supabaseAuthRepository);

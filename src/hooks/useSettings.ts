@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { appServices } from "../app/appDependencies";
 import { DEFAULT_SETTINGS } from "../constants/defaults";
-import { settingsService, type SettingsService } from "../services/settingsService";
+import type { SettingsService } from "../services/settingsService";
 import type { AppSettings } from "../types/settings";
 
-export function useSettings(userId: string | null, service: SettingsService = settingsService) {
+export function useSettings(userId: string | null, service: SettingsService = appServices.settings) {
   const [state, setState] = useState<{ userId: string | null; settings: AppSettings }>({ userId: null, settings: DEFAULT_SETTINGS });
   const [loading, setLoading] = useState(false);
   const activeUserIdRef = useRef<string | null>(userId);

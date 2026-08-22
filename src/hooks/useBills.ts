@@ -1,7 +1,10 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { billService, type BillService } from "../services/billService";
-import type { Bill, BillDraft } from "../types/bill";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { appServices } from "../app/appDependencies";
+import type { BillService } from "../services/billService";
+import type { Bill, BillDraft, BillQuery, PagedBills } from "../types/bill";
+import type { OrganizationScope } from "../types/organization";
 import { calculateBillDraft, calculateBillTotal } from "../utils/calculations";
+import { billSelectionKey } from "../utils/billQuery";
 import { DuplicateBillError, getSafeErrorMessage, logDevError } from "../utils/errors";
 import { LatestRequestGuard } from "../utils/latestRequestGuard";
 import { createRequestId } from "../utils/requestId";
@@ -10,23 +13,27 @@ function createId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `bill-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export function useBills(userId: string | null, service: BillService = billService) {
-  const [billState, setBillState] = useState<{ userId: string | null; bills: Bill[] }>({ userId: null, bills: [] });
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+export function useBills(scope: OrganizationScope | null, service: BillService = appServices.bills) {
+  const scopeKey = scope ? `${scope.userId}:${scope.organizationId}` : null;
+  const [billState, setBillState] = useState<{ scopeKey: string | null; result: PagedBills }>({ scopeKey: null, result: { items: [], totalCount: 0, totalAmount: 0 } });
+  const [selectedBills, setSelectedBills] = useState<Bill[]>([]);
+  const [selectedQueryKey, setSelectedQueryKey] = useState("");
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingIds, setDeletingIds] = useState<string[]>([]);
   const [error, setError] = useState("");
-  const requestGuardRef = useRef(new LatestRequestGuard<string | null>(userId));
+  const requestGuardRef = useRef(new LatestRequestGuard<string | null>(scopeKey));
   const savePromiseRef = useRef<Promise<Bill> | null>(null);
   const createRequestIdRef = useRef<string | null>(null);
   const deletePromiseByIdRef = useRef(new Map<string, Promise<void>>());
   const bulkDeletePromiseRef = useRef<Promise<void> | null>(null);
+  const queryRef = useRef<BillQuery | null>(null);
 
   useLayoutEffect(() => {
-    requestGuardRef.current.changeOwner(userId);
-    setBillState({ userId, bills: [] });
-    setSelectedIds([]);
+    requestGuardRef.current.changeOwner(scopeKey);
+    setBillState({ scopeKey, result: { items: [], totalCount: 0, totalAmount: 0 } });
+    setSelectedBills([]);
+    setSelectedQueryKey("");
     setError("");
     setSaving(false);
     setDeletingIds([]);
@@ -34,22 +41,24 @@ export function useBills(userId: string | null, service: BillService = billServi
     createRequestIdRef.current = null;
     deletePromiseByIdRef.current.clear();
     bulkDeletePromiseRef.current = null;
-    setLoading(Boolean(userId));
-  }, [userId]);
+    setLoading(false);
+    queryRef.current = null;
+  }, [scopeKey]);
 
-  async function refresh() {
-    const requestUserId = userId;
-    if (!requestUserId || !requestGuardRef.current.isOwnerActive(requestUserId)) return;
+  async function queryBills(query: BillQuery) {
+    const requestScope = scope;
+    if (!requestScope || !scopeKey || !requestGuardRef.current.isOwnerActive(scopeKey)) return;
+    queryRef.current = query;
 
-    const requestTicket = requestGuardRef.current.begin(requestUserId);
+    const requestTicket = requestGuardRef.current.begin(scopeKey);
     const isCurrentRequest = () => requestGuardRef.current.isCurrent(requestTicket);
 
     try {
       setError("");
       setLoading(true);
-      const saved = await service.listBills(requestUserId);
+      const saved = await service.queryBills(requestScope, query);
       if (!isCurrentRequest()) return;
-      setBillState({ userId: requestUserId, bills: saved });
+      setBillState({ scopeKey, result: saved });
     } catch (billError) {
       if (!isCurrentRequest()) return;
       logDevError("Bill refresh failed", billError);
@@ -59,14 +68,15 @@ export function useBills(userId: string | null, service: BillService = billServi
     }
   }
 
-  useEffect(() => {
-    void refresh();
-  }, [userId]);
+  async function refresh() {
+    if (queryRef.current) await queryBills(queryRef.current);
+  }
 
-  const bills = billState.userId === userId ? billState.bills : [];
+  const result = billState.scopeKey === scopeKey ? billState.result : { items: [], totalCount: 0, totalAmount: 0 };
+  const bills = result.items;
 
   async function saveBill(draft: BillDraft, editingBillId?: string | null) {
-    if (!userId) throw new Error("You must be logged in to save bills.");
+    if (!scope || !scopeKey) throw new Error("You must be logged in to save bills.");
     if (savePromiseRef.current) return savePromiseRef.current;
 
     const savePromise = (async () => {
@@ -75,30 +85,31 @@ export function useBills(userId: string | null, service: BillService = billServi
       const calculated = calculateBillDraft(draft);
 
       if (editingBillId) {
-        const existing = bills.find((bill) => bill.id === editingBillId);
         const updated: Bill = {
           ...calculated,
           id: editingBillId,
-          userId,
+          organizationId: scope.organizationId,
+          userId: scope.userId,
           totalAmount: calculateBillTotal(calculated),
-          createdAt: existing?.createdAt ?? now,
+          createdAt: now,
           updatedAt: now
         };
         let saved: Bill;
         try {
-          saved = await service.updateBill(userId, updated);
+          saved = await service.updateBill(scope, updated);
         } catch (billError) {
           logDevError("Bill update failed", billError);
           throw billError;
         }
-        if (requestGuardRef.current.isOwnerActive(userId)) void refresh();
+        if (requestGuardRef.current.isOwnerActive(scopeKey)) void refresh();
         return saved;
       }
 
       const bill: Bill = {
         ...calculated,
         id: createId(),
-        userId,
+        organizationId: scope.organizationId,
+        userId: scope.userId,
         totalAmount: calculateBillTotal(calculated),
         createdAt: now,
         updatedAt: now
@@ -106,14 +117,14 @@ export function useBills(userId: string | null, service: BillService = billServi
       let saved: Bill;
       try {
         createRequestIdRef.current = createRequestIdRef.current ?? createRequestId();
-        saved = await service.saveBill(userId, bill, createRequestIdRef.current);
+        saved = await service.saveBill(scope, bill, createRequestIdRef.current);
         createRequestIdRef.current = null;
       } catch (billError) {
         if (billError instanceof DuplicateBillError) createRequestIdRef.current = null;
         logDevError("Bill save failed", billError);
         throw billError;
       }
-      if (requestGuardRef.current.isOwnerActive(userId)) void refresh();
+      if (requestGuardRef.current.isOwnerActive(scopeKey)) void refresh();
       return saved;
     })();
 
@@ -127,20 +138,20 @@ export function useBills(userId: string | null, service: BillService = billServi
   }
 
   async function deleteBill(id: string) {
-    if (!userId) throw new Error("You must be logged in to delete bills.");
+    if (!scope || !scopeKey) throw new Error("You must be logged in to delete bills.");
     const existingDelete = deletePromiseByIdRef.current.get(id);
     if (existingDelete) return existingDelete;
 
     const deletePromise = (async () => {
       setDeletingIds((ids) => ids.includes(id) ? ids : [...ids, id]);
       try {
-        await service.deleteBill(userId, id);
+        await service.deleteBill(scope, id);
       } catch (billError) {
         logDevError("Bill delete failed", billError);
         throw billError;
       }
-      if (!requestGuardRef.current.isOwnerActive(userId)) return;
-      setSelectedIds((ids) => ids.filter((item) => item !== id));
+      if (!requestGuardRef.current.isOwnerActive(scopeKey)) return;
+      setSelectedBills((items) => items.filter((item) => item.id !== id));
       await refresh();
     })();
 
@@ -154,7 +165,7 @@ export function useBills(userId: string | null, service: BillService = billServi
   }
 
   async function deleteBills(ids: string[]) {
-    if (!userId) throw new Error("You must be logged in to delete bills.");
+    if (!scope || !scopeKey) throw new Error("You must be logged in to delete bills.");
     const uniqueIds = [...new Set(ids)].filter(Boolean);
     if (uniqueIds.length === 0) return;
     if (bulkDeletePromiseRef.current) return bulkDeletePromiseRef.current;
@@ -162,13 +173,13 @@ export function useBills(userId: string | null, service: BillService = billServi
     const deletePromise = (async () => {
       setDeletingIds((currentIds) => [...new Set([...currentIds, ...uniqueIds])]);
       try {
-        await service.deleteBills(userId, uniqueIds);
+        await service.deleteBills(scope, uniqueIds);
       } catch (billError) {
         logDevError("Bill bulk delete failed", billError);
         throw billError;
       }
-      if (!requestGuardRef.current.isOwnerActive(userId)) return;
-      setSelectedIds((currentIds) => currentIds.filter((id) => !uniqueIds.includes(id)));
+      if (!requestGuardRef.current.isOwnerActive(scopeKey)) return;
+      setSelectedBills((items) => items.filter((item) => !uniqueIds.includes(item.id)));
       await refresh();
     })();
 
@@ -181,34 +192,52 @@ export function useBills(userId: string | null, service: BillService = billServi
     }
   }
 
-  function toggleSelected(id: string) {
-    setSelectedIds((ids) => (ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]));
+  function toggleSelected(bill: Bill) {
+    setSelectedQueryKey("");
+    setSelectedBills((items) => items.some((item) => item.id === bill.id)
+      ? items.filter((item) => item.id !== bill.id)
+      : [...items, bill]);
   }
 
-  function selectAll(ids: string[]) {
-    setSelectedIds(ids);
+  async function selectAll(query: BillQuery) {
+    if (!scope) return;
+    const selectionQuery = { ...query, page: 1, pageSize: 10000 };
+    const selected = await service.queryBills(scope, selectionQuery);
+    setSelectedBills(selected.items);
+    setSelectedQueryKey(billSelectionKey(query));
   }
 
   function clearSelection() {
-    setSelectedIds([]);
+    setSelectedBills([]);
+    setSelectedQueryKey("");
   }
 
-  const selectedBills = useMemo(() => bills.filter((bill) => selectedIds.includes(bill.id)), [bills, selectedIds]);
+  const selectedIds = useMemo(() => selectedBills.map((bill) => bill.id), [selectedBills]);
+
+  async function getBill(id: string) {
+    if (!scope) throw new Error("You must be logged in to load bills.");
+    return service.getBill(scope, id);
+  }
 
   return {
     bills,
+    totalCount: result.totalCount,
+    totalAmount: result.totalAmount,
     loading,
     saving,
     deletingIds,
     error,
     selectedIds,
     selectedBills,
+    selectedQueryKey,
     saveBill,
     deleteBill,
     deleteBills,
     toggleSelected,
     selectAll,
     clearSelection,
-    refresh
+    refresh,
+    queryBills,
+    getBill
   };
 }

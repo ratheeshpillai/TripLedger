@@ -1,5 +1,6 @@
 export interface BillingParty {
   id: string;
+  organizationId?: string;
   userId?: string;
   name: string;
   companyName: string;

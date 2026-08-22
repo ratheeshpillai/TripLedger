@@ -1,27 +1,16 @@
 import type { SettingsRepository } from "../settingsRepository";
 import type { AppSettings, TimeFormat } from "../../types/settings";
 import { logDevError } from "../../utils/errors";
+import type { Database } from "./database.types";
 import { getSupabaseClient } from "./supabaseClient";
+import { mapSupabaseError } from "./supabaseError";
 
-type SettingsRow = {
-  user_id: string;
-  time_format: TimeFormat;
-  currency_symbol: string;
-  default_base_package: string;
-  default_base_hours: number;
-  default_base_km: number;
-  default_base_amount: number;
-  default_extra_hour_rate: number;
-  default_extra_km_rate: number;
-  default_driver_name: string;
-  default_vehicle_model: string;
-  default_vehicle_number: string;
-  business_name: string;
-};
+type SettingsRow = Omit<Database["public"]["Tables"]["app_preferences"]["Row"], "created_at" | "updated_at">;
+type SettingsInsert = Database["public"]["Tables"]["app_preferences"]["Insert"];
 
 function toSettings(row: SettingsRow): AppSettings {
   return {
-    timeFormat: row.time_format,
+    timeFormat: row.time_format as TimeFormat,
     currencySymbol: row.currency_symbol,
     defaultBasePackage: row.default_base_package,
     defaultBaseHours: Number(row.default_base_hours),
@@ -36,7 +25,7 @@ function toSettings(row: SettingsRow): AppSettings {
   };
 }
 
-function toRow(userId: string, settings: AppSettings): SettingsRow {
+function toRow(userId: string, settings: AppSettings): SettingsInsert {
   return {
     user_id: userId,
     time_format: settings.timeFormat,
@@ -64,9 +53,9 @@ export const supabaseSettingsRepository: SettingsRepository = {
 
     if (error) {
       logDevError("Supabase settings load failed", error);
-      throw error;
+      throw mapSupabaseError(error);
     }
-    return data ? toSettings(data as SettingsRow) : null;
+    return data ? toSettings(data) : null;
   },
 
   async saveSettings(userId, settings) {
@@ -78,8 +67,8 @@ export const supabaseSettingsRepository: SettingsRepository = {
 
     if (error) {
       logDevError("Supabase settings save failed", error);
-      throw error;
+      throw mapSupabaseError(error);
     }
-    return toSettings(data as SettingsRow);
+    return toSettings(data);
   }
 };

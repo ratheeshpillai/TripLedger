@@ -1,23 +1,27 @@
 import { useEffect, useRef, useState } from "react";
-import { ownerPaymentService, type OwnerPaymentService } from "../services/ownerPaymentService";
+import { appServices } from "../app/appDependencies";
+import type { OwnerPaymentService } from "../services/ownerPaymentService";
 import type { OwnerPayment, OwnerPaymentDraft } from "../types/ownerPayment";
+import type { OrganizationScope } from "../types/organization";
 import { getSafeErrorMessage, logDevError } from "../utils/errors";
 import { LatestRequestGuard } from "../utils/latestRequestGuard";
 import { createRequestId } from "../utils/requestId";
 
-export function useOwnerPayments(userId: string | null, service: OwnerPaymentService = ownerPaymentService) {
+export function useOwnerPayments(scope: OrganizationScope | null, service: OwnerPaymentService = appServices.ownerPayments) {
+  const scopeKey = scope ? `${scope.userId}:${scope.organizationId}` : null;
   const [payments, setPayments] = useState<OwnerPayment[]>([]);
-  const [loading, setLoading] = useState(Boolean(userId));
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingIds, setDeletingIds] = useState<string[]>([]);
   const [error, setError] = useState("");
-  const requestGuardRef = useRef(new LatestRequestGuard<string | null>(userId));
+  const requestGuardRef = useRef(new LatestRequestGuard<string | null>(scopeKey));
   const savePromiseRef = useRef<Promise<OwnerPayment> | null>(null);
   const createRequestIdRef = useRef<string | null>(null);
   const deletePromiseByIdRef = useRef(new Map<string, Promise<void>>());
+  const billingPartyIdRef = useRef<string | undefined>();
 
   useEffect(() => {
-    requestGuardRef.current.changeOwner(userId);
+    requestGuardRef.current.changeOwner(scopeKey);
     setPayments([]);
     setError("");
     setSaving(false);
@@ -25,20 +29,22 @@ export function useOwnerPayments(userId: string | null, service: OwnerPaymentSer
     savePromiseRef.current = null;
     createRequestIdRef.current = null;
     deletePromiseByIdRef.current.clear();
-    setLoading(Boolean(userId));
-  }, [userId]);
+    billingPartyIdRef.current = undefined;
+    setLoading(false);
+  }, [scopeKey]);
 
   async function refresh(billingPartyId?: string) {
-    const requestUserId = userId;
-    if (!requestUserId || !requestGuardRef.current.isOwnerActive(requestUserId)) return;
+    const requestScope = scope;
+    if (!requestScope || !scopeKey || !requestGuardRef.current.isOwnerActive(scopeKey)) return;
+    billingPartyIdRef.current = billingPartyId;
 
-    const requestTicket = requestGuardRef.current.begin(requestUserId);
+    const requestTicket = requestGuardRef.current.begin(scopeKey);
     const isCurrentRequest = () => requestGuardRef.current.isCurrent(requestTicket);
 
     try {
       setError("");
       setLoading(true);
-      const saved = await service.listOwnerPayments(requestUserId, billingPartyId);
+      const saved = await service.listOwnerPayments(requestScope, billingPartyId);
       if (!isCurrentRequest()) return;
       setPayments(saved);
     } catch (loadError) {
@@ -50,26 +56,22 @@ export function useOwnerPayments(userId: string | null, service: OwnerPaymentSer
     }
   }
 
-  useEffect(() => {
-    void refresh();
-  }, [userId]);
-
   async function saveOwnerPayment(draft: OwnerPaymentDraft, editingId?: string | null) {
-    if (!userId) throw new Error("You must be logged in to save an owner payment.");
+    if (!scope) throw new Error("You must be logged in to save an owner payment.");
     if (savePromiseRef.current) return savePromiseRef.current;
 
     const savePromise = (async () => {
       setSaving(true);
       const existing = editingId ? payments.find((payment) => payment.id === editingId) : null;
       const saved = existing
-        ? await service.updateOwnerPayment(userId, { ...existing, ...draft, id: editingId!, createdAt: existing.createdAt, updatedAt: existing.updatedAt })
+        ? await service.updateOwnerPayment(scope, { ...existing, ...draft, id: editingId!, createdAt: existing.createdAt, updatedAt: existing.updatedAt })
         : await (async () => {
           createRequestIdRef.current = createRequestIdRef.current ?? createRequestId();
-          const created = await service.saveOwnerPayment(userId, draft, createRequestIdRef.current);
+          const created = await service.saveOwnerPayment(scope, draft, createRequestIdRef.current);
           createRequestIdRef.current = null;
           return created;
         })();
-      void refresh();
+      void refresh(draft.billingPartyId);
       return saved;
     })();
 
@@ -83,14 +85,14 @@ export function useOwnerPayments(userId: string | null, service: OwnerPaymentSer
   }
 
   async function deleteOwnerPayment(id: string) {
-    if (!userId) throw new Error("You must be logged in to delete an owner payment.");
+    if (!scope) throw new Error("You must be logged in to delete an owner payment.");
     const existingDelete = deletePromiseByIdRef.current.get(id);
     if (existingDelete) return existingDelete;
 
     const deletePromise = (async () => {
       setDeletingIds((ids) => ids.includes(id) ? ids : [...ids, id]);
-      await service.deleteOwnerPayment(userId, id);
-      await refresh();
+      await service.deleteOwnerPayment(scope, id);
+      await refresh(billingPartyIdRef.current);
     })();
 
     deletePromiseByIdRef.current.set(id, deletePromise);

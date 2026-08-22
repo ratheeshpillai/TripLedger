@@ -16,8 +16,10 @@ import { useBillForm } from "../hooks/useBillForm";
 import { useBills } from "../hooks/useBills";
 import { useBillingParties } from "../hooks/useBillingParties";
 import { useDarkMode } from "../hooks/useDarkMode";
+import { useDashboard } from "../hooks/useDashboard";
 import { useSettings } from "../hooks/useSettings";
 import { useOwnerPayments } from "../hooks/useOwnerPayments";
+import { useOrganization } from "../hooks/useOrganization";
 import { clearLegacyLocalBillData } from "../services/privacyMigrationService";
 import { DuplicateBillError, getSafeErrorMessage, logDevError } from "../utils/errors";
 
@@ -43,14 +45,17 @@ function authPath(pathname: string): string {
 }
 
 export default function App() {
+  const [page, setPage] = useState<AppPage>(() => pageFromPath(window.location.pathname));
   const auth = useAuth();
   const theme = useDarkMode();
+  const organization = useOrganization(auth.user?.id ?? null);
   const { settings, saveSettings } = useSettings(auth.user?.id ?? null);
-  const billsApi = useBills(auth.user?.id ?? null);
-  const billingPartiesApi = useBillingParties(auth.user?.id ?? null);
-  const ownerPaymentsApi = useOwnerPayments(auth.user?.id ?? null);
+  const billsApi = useBills(organization.scope);
+  const billingPartiesEnabled = page === "logger" || page === "history" || page === "owners";
+  const billingPartiesApi = useBillingParties(billingPartiesEnabled ? organization.scope : null, page === "owners");
+  const ownerPaymentsApi = useOwnerPayments(organization.scope);
+  const dashboardApi = useDashboard(organization.scope, page === "dashboard");
   const form = useBillForm(settings);
-  const [page, setPage] = useState<AppPage>(() => pageFromPath(window.location.pathname));
   const [notifications, setNotifications] = useState<ToastNotification[]>([]);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [cancelLoggerConfirmOpen, setCancelLoggerConfirmOpen] = useState(false);
@@ -275,6 +280,16 @@ export default function App() {
     );
   }
 
+  if (organization.loading || !organization.scope) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-slate-50 px-4 dark:bg-[#0b1120]">
+        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-bold text-slate-600 shadow-soft dark:border-slate-700 dark:bg-[#111827] dark:text-slate-200 dark:shadow-black/20">
+          {organization.error || "Loading TripLedger..."}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <AppShell
       page={page}
@@ -289,14 +304,12 @@ export default function App() {
     >
       {page === "dashboard" && (
         <DashboardPage
-          bills={billsApi.bills}
-          billingParties={billingPartiesApi.parties}
-          ownerSummaries={billingPartiesApi.summaries}
-          ownerPayments={ownerPaymentsApi.payments}
+          data={dashboardApi.data}
+          period={dashboardApi.period}
           settings={settings}
-          loading={billsApi.loading || billingPartiesApi.loading || ownerPaymentsApi.loading}
-          error={billsApi.error || billingPartiesApi.error || ownerPaymentsApi.error}
-          billError={billsApi.error}
+          loading={dashboardApi.loading}
+          error={dashboardApi.error}
+          onPeriodChange={dashboardApi.setPeriod}
           onCreateBill={() => navigateToPage("logger")}
           onRecordPayment={() => {
             navigateToPage("owners");
@@ -311,13 +324,18 @@ export default function App() {
             setDashboardOwnerId(billingPartyId);
             navigateToPage("owners");
           }}
-          onOpenBill={(bill) => {
-            form.loadForEdit(bill);
-            navigateToPage("logger");
-            showToast("Bill loaded for edit");
+          onOpenBill={(billId) => {
+            void billsApi.getBill(billId).then((bill) => {
+              form.loadForEdit(bill);
+              navigateToPage("logger");
+              showToast("Bill loaded for edit");
+            }).catch((error) => {
+              logDevError("Dashboard bill load failed", error);
+              showToast(getSafeErrorMessage(error, "bill.load"), "error");
+            });
           }}
           onRetry={() => {
-            void Promise.all([billsApi.refresh(), billingPartiesApi.refresh(), ownerPaymentsApi.refresh()]);
+            void dashboardApi.refresh();
           }}
         />
       )}
@@ -357,12 +375,18 @@ export default function App() {
       {page === "history" && (
         <HistoryPage
           bills={billsApi.bills}
+          totalCount={billsApi.totalCount}
+          totalAmount={billsApi.totalAmount}
+          selectedBills={billsApi.selectedBills}
+          selectedQueryKey={billsApi.selectedQueryKey}
+          loading={billsApi.loading}
           billingParties={billingPartiesApi.parties}
           settings={settings}
           userId={auth.user.id}
           selectedIds={billsApi.selectedIds}
           onToggleSelected={billsApi.toggleSelected}
           onSelectAll={billsApi.selectAll}
+          onQuery={billsApi.queryBills}
           onClearSelection={billsApi.clearSelection}
           onEdit={(bill) => {
             form.loadForEdit(bill);
@@ -416,6 +440,7 @@ export default function App() {
           paymentDeletingIds={ownerPaymentsApi.deletingIds}
           initialSelectedId={dashboardOwnerId}
           onLoadLedger={billingPartiesApi.loadLedger}
+          onLoadPayments={ownerPaymentsApi.refresh}
           onLoadStatement={billingPartiesApi.loadStatement}
           onCopy={copyText}
           onSaveParty={async (draft, editingId) => {

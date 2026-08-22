@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { authService, type AuthService } from "../services/authService";
+import { appServices } from "../app/appDependencies";
+import type { AuthService } from "../services/authService";
 import type { AuthSessionState, AuthUser } from "../types/auth";
 import { getSafeErrorMessage, logDevError } from "../utils/errors";
 
@@ -12,7 +13,7 @@ function hasRecoveryUrlHint(): boolean {
   return search.has("code") || search.get("type") === "recovery" || hash.get("type") === "recovery";
 }
 
-export function useAuth(service: AuthService = authService) {
+export function useAuth(service: AuthService = appServices.auth) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [pendingUser, setPendingUser] = useState<AuthUser | null>(null);
   const [verificationFactorId, setVerificationFactorId] = useState<string | null>(null);

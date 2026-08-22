@@ -1,12 +1,12 @@
 import type { OwnerPayment, OwnerPaymentDraft } from "../types/ownerPayment";
 import type { OwnerPaymentRepository } from "../repositories/ownerPaymentRepository";
-import { supabaseOwnerPaymentRepository } from "../repositories/supabase/supabaseOwnerPaymentRepository";
+import type { OrganizationScope } from "../types/organization";
 
 export interface OwnerPaymentService {
-  listOwnerPayments(userId: string, billingPartyId?: string): ReturnType<OwnerPaymentRepository["listOwnerPayments"]>;
-  saveOwnerPayment(userId: string, draft: OwnerPaymentDraft, requestId: string): Promise<OwnerPayment>;
-  updateOwnerPayment(userId: string, payment: OwnerPayment): Promise<OwnerPayment>;
-  deleteOwnerPayment(userId: string, id: string): Promise<void>;
+  listOwnerPayments(scope: OrganizationScope, billingPartyId?: string): ReturnType<OwnerPaymentRepository["listOwnerPayments"]>;
+  saveOwnerPayment(scope: OrganizationScope, draft: OwnerPaymentDraft, requestId: string): Promise<OwnerPayment>;
+  updateOwnerPayment(scope: OrganizationScope, payment: OwnerPayment): Promise<OwnerPayment>;
+  deleteOwnerPayment(scope: OrganizationScope, id: string): Promise<void>;
 }
 
 function validatePayment(draft: OwnerPaymentDraft) {
@@ -17,21 +17,19 @@ function validatePayment(draft: OwnerPaymentDraft) {
 
 export function createOwnerPaymentService(repository: OwnerPaymentRepository): OwnerPaymentService {
   return {
-    listOwnerPayments(userId, billingPartyId) {
-      return repository.listOwnerPayments(userId, billingPartyId);
+    listOwnerPayments(scope, billingPartyId) {
+      return repository.listOwnerPayments(scope, billingPartyId);
     },
-    saveOwnerPayment(userId, draft, requestId) {
+    saveOwnerPayment(scope, draft, requestId) {
       validatePayment(draft);
-      return repository.saveOwnerPayment(userId, draft, requestId);
+      return repository.saveOwnerPayment(scope, draft, requestId);
     },
-    updateOwnerPayment(userId, payment) {
+    updateOwnerPayment(scope, payment) {
       validatePayment(payment);
-      return repository.updateOwnerPayment(userId, payment);
+      return repository.updateOwnerPayment(scope, payment);
     },
-    deleteOwnerPayment(userId, id) {
-      return repository.deleteOwnerPayment(userId, id);
+    deleteOwnerPayment(scope, id) {
+      return repository.deleteOwnerPayment(scope, id);
     }
   };
 }
-
-export const ownerPaymentService = createOwnerPaymentService(supabaseOwnerPaymentRepository);

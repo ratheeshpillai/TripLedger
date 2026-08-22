@@ -1,73 +1,22 @@
 import type { Bill } from "../../types/bill";
+import type { OrganizationScope } from "../../types/organization";
 import { sameBillFingerprint } from "../../utils/billFingerprint";
-import { DuplicateBillError, logDevError } from "../../utils/errors";
+import { AppError, DuplicateBillError, logDevError } from "../../utils/errors";
 import type { BillRepository } from "../billRepository";
+import type { Database } from "./database.types";
 import { getSupabaseClient } from "./supabaseClient";
+import { mapSupabaseError } from "./supabaseError";
 
-type BillRow = {
-  id: string;
-  user_id: string;
-  company_id: string | null;
-  billing_party_id: string | null;
+type BillRow = Database["public"]["Tables"]["bills"]["Row"] & {
   billing_parties?: {
     name: string | null;
     company_name: string | null;
   } | null;
-  driver_id: string | null;
-  vehicle_id: string | null;
-  guest_id: string | null;
-  driver_name: string | null;
-  vehicle_name: string | null;
-  vehicle_number: string | null;
-  guest_salutation: Bill["guestSalutation"] | null;
-  guest_name: string | null;
-  customer_name: string | null;
-  passenger_name: string | null;
-  title_prefix: string | null;
-  reporting_place: string | null;
-  start_location: string | null;
-  end_location: string | null;
-  trip_date: string | null;
-  date: string | null;
-  reporting_time: string | null;
-  garage_time: string | null;
-  closing_date: string | null;
-  closing_time: string | null;
-  base_package: string | null;
-  base_hours: number | null;
-  base_km: number | null;
-  base_amount: number | null;
-  opening_kilometer: number | null;
-  closing_kilometer: number | null;
-  total_km: number | null;
-  total_kilometers: number | null;
-  extra_km: number | null;
-  extra_km_rate: number | null;
-  rate_per_kilometer: number | null;
-  extra_km_amount: number | null;
-  kilometer_amount: number | null;
-  total_hours: number | null;
-  extra_hours: number | null;
-  extra_hour_rate: number | null;
-  extra_hour_amount: number | null;
-  night_charges: number | null;
-  toll_charges: number | null;
-  airport_parking: number | null;
-  parking_charges: number | null;
-  fastag: number | null;
-  road_parking: number | null;
-  permit_charges: number | null;
-  other_charges: number | null;
-  advance_amount: number | null;
-  pending_amount: number | null;
-  balance_amount: number | null;
-  total_amount: number | null;
-  notes: string | null;
-  remarks: string | null;
-  whatsapp_number: string | null;
-  created_at: string;
-  updated_at: string;
 };
+// Generated RPC args do not retain PostgreSQL parameter nullability.
+type CreateBillArgs = Extract<Database["public"]["Functions"]["create_bill"], { Args: { p_client_request_id: string } }>["Args"];
+type UpdateBillArgs = Database["public"]["Functions"]["update_bill"]["Args"];
+type QueryBillRow = Database["public"]["Functions"]["query_bills"]["Returns"][number];
 
 function text(value: string | null | undefined): string {
   return value ?? "";
@@ -86,6 +35,11 @@ function salutationOrNull(value: Bill["guestSalutation"] | null | undefined): "M
   return value ?? null;
 }
 
+function toGuestSalutation(value: string | null | undefined): Bill["guestSalutation"] | undefined {
+  if (value === "Mr." || value === "Mrs." || value === "Miss." || value === "Miss") return value;
+  return undefined;
+}
+
 function toBill(row: BillRow): Bill {
   return {
     id: row.id,
@@ -93,6 +47,7 @@ function toBill(row: BillRow): Bill {
     billingPartyId: row.billing_party_id ?? undefined,
     billingPartyName: row.billing_parties?.name ?? undefined,
     billingPartyCompanyName: row.billing_parties?.company_name ?? undefined,
+    organizationId: row.organization_id,
     userId: row.user_id,
     driverId: row.driver_id ?? undefined,
     vehicleId: row.vehicle_id ?? undefined,
@@ -100,7 +55,7 @@ function toBill(row: BillRow): Bill {
     driverName: text(row.driver_name),
     vehicleName: text(row.vehicle_name),
     vehicleNumber: text(row.vehicle_number),
-    guestSalutation: row.guest_salutation ?? row.title_prefix as Bill["guestSalutation"] | undefined,
+    guestSalutation: toGuestSalutation(row.guest_salutation ?? row.title_prefix),
     guestName: text(row.guest_name ?? row.customer_name ?? row.passenger_name),
     reportingPlace: text(row.reporting_place ?? row.start_location),
     tripDate: text(row.trip_date ?? row.date),
@@ -171,11 +126,11 @@ function toBillRpcParams(bill: Bill) {
   };
 }
 
-async function findDuplicateBill(userId: string, bill: Bill): Promise<Bill | undefined> {
+async function findDuplicateBill(scope: OrganizationScope, bill: Bill): Promise<Bill | undefined> {
   let query = getSupabaseClient()
     .from("bills")
     .select("*, billing_parties(name, company_name)")
-    .eq("user_id", userId)
+    .eq("organization_id", scope.organizationId)
     .eq("billing_party_id", bill.billingPartyId ?? "")
     .eq("reporting_time", bill.reportingTime)
     .eq("closing_time", bill.closingTime)
@@ -190,93 +145,124 @@ async function findDuplicateBill(userId: string, bill: Bill): Promise<Bill | und
     return undefined;
   }
 
-  return ((data ?? []) as BillRow[]).map(toBill).find((candidate) => sameBillFingerprint(candidate, bill));
+  return (data ?? []).map(toBill).find((candidate) => sameBillFingerprint(candidate, bill));
 }
 
 export const supabaseBillRepository: BillRepository = {
-  async listBills(userId) {
+  async queryBills(scope, query) {
+    const { data, error } = await getSupabaseClient().rpc("query_bills", {
+      p_organization_id: scope.organizationId,
+      p_page: query.page,
+      p_page_size: query.pageSize,
+      p_search: query.search?.trim() || undefined,
+      p_date_from: query.dateFrom || undefined,
+      p_date_to: query.dateTo || undefined,
+      p_billing_party_id: query.billingPartyId || undefined,
+      p_sort: query.sort
+    });
+
+    if (error) {
+      logDevError("Supabase bill query failed", error);
+      throw mapSupabaseError(error);
+    }
+    const rows = (data ?? []) as QueryBillRow[];
+    return {
+      items: rows.map((row) => toBill({
+        ...(row.bill as unknown as Database["public"]["Tables"]["bills"]["Row"]),
+        billing_parties: {
+          name: row.billing_party_name,
+          company_name: row.billing_party_company_name
+        }
+      })),
+      totalCount: Number(rows[0]?.result_count ?? 0),
+      totalAmount: Number(rows[0]?.result_total ?? 0)
+    };
+  },
+
+  async getBill(scope, id) {
     const { data, error } = await getSupabaseClient()
       .from("bills")
       .select("*, billing_parties(name, company_name)")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+      .eq("organization_id", scope.organizationId)
+      .eq("id", id)
+      .single();
 
     if (error) {
-      logDevError("Supabase bill list failed", error);
-      throw error;
+      logDevError("Supabase bill load failed", error);
+      throw mapSupabaseError(error);
     }
-    return ((data ?? []) as BillRow[]).map(toBill);
+    return toBill(data);
   },
 
-  async saveBill(userId, bill, requestId) {
+  async saveBill(scope, bill, requestId) {
     const { data, error } = await getSupabaseClient()
       .rpc("create_bill", {
         p_client_request_id: requestId,
         ...toBillRpcParams(bill)
-      })
+      } as unknown as CreateBillArgs)
       .single();
 
     if (error) {
       if (error.code === "23505" || error.code === "23514") {
-        const duplicate = await findDuplicateBill(userId, bill);
+        const duplicate = await findDuplicateBill(scope, bill);
         if (duplicate) throw new DuplicateBillError(duplicate);
       }
       logDevError("Supabase bill save failed", error);
-      throw error;
+      throw mapSupabaseError(error);
     }
-    return toBill(data as BillRow);
+    return toBill(data);
   },
 
-  async updateBill(userId, bill) {
+  async updateBill(scope, bill) {
     const { data, error } = await getSupabaseClient()
       .rpc("update_bill", {
         p_bill_id: bill.id,
         ...toBillRpcParams(bill)
-      })
+      } as unknown as UpdateBillArgs)
       .single();
 
     if (error) {
       if (error.code === "23505") {
-        const duplicate = await findDuplicateBill(userId, bill);
+        const duplicate = await findDuplicateBill(scope, bill);
         if (duplicate && duplicate.id !== bill.id) throw new DuplicateBillError(duplicate);
       }
       logDevError("Supabase bill update failed", error);
-      throw error;
+      throw mapSupabaseError(error);
     }
-    return toBill(data as BillRow);
+    return toBill(data);
   },
 
-  async deleteBill(userId, id) {
+  async deleteBill(scope, id) {
     const { error } = await getSupabaseClient()
       .from("bills")
       .delete()
       .eq("id", id)
-      .eq("user_id", userId);
+      .eq("organization_id", scope.organizationId);
 
     if (error) {
       logDevError("Supabase bill delete failed", error);
-      throw error;
+      throw mapSupabaseError(error);
     }
   },
 
-  async deleteBills(userId, ids) {
+  async deleteBills(scope, ids) {
     const uniqueIds = [...new Set(ids)].filter(Boolean);
     if (uniqueIds.length === 0) return;
 
     const { data: ownedRows, error: ownershipError } = await getSupabaseClient()
       .from("bills")
       .select("id")
-      .eq("user_id", userId)
+      .eq("organization_id", scope.organizationId)
       .in("id", uniqueIds);
 
     if (ownershipError) {
       logDevError("Supabase bill bulk delete ownership check failed", ownershipError);
-      throw ownershipError;
+      throw mapSupabaseError(ownershipError);
     }
 
     const ownedIds = new Set((ownedRows ?? []).map((row) => row.id));
     if (ownedIds.size !== uniqueIds.length || uniqueIds.some((id) => !ownedIds.has(id))) {
-      const ownershipMismatchError = new Error("Unable to verify selected bills for deletion.");
+      const ownershipMismatchError = new AppError("FORBIDDEN");
       logDevError("Supabase bill bulk delete ownership mismatch", ownershipMismatchError);
       throw ownershipMismatchError;
     }
@@ -284,12 +270,12 @@ export const supabaseBillRepository: BillRepository = {
     const { error } = await getSupabaseClient()
       .from("bills")
       .delete()
-      .eq("user_id", userId)
+      .eq("organization_id", scope.organizationId)
       .in("id", uniqueIds);
 
     if (error) {
       logDevError("Supabase bill bulk delete failed", error);
-      throw error;
+      throw mapSupabaseError(error);
     }
   }
 };

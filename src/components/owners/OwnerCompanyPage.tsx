@@ -20,6 +20,28 @@ import { cn } from "../ui/cn";
 import { useDialogFocus } from "../ui/useDialogFocus";
 import { useOverlayPlacement } from "../ui/useOverlayPlacement";
 import { MobileBottomSheet, useIsMobile } from "../mobile/MobilePrimitives";
+import {
+  balanceStatus,
+  currentMonthStart,
+  emptyPaymentDraft,
+  entryCustomer,
+  filterAndSortOwners,
+  inputDate,
+  isOwnerSortOption,
+  isTransactionSortOption,
+  labelize,
+  ownerDateDisplay,
+  ownerTransactionSortKey,
+  parseInputDate,
+  partyDisplayName,
+  plural,
+  quickOwnerDateRange,
+  runningBalanceDisplay,
+  sortOwnerLedger,
+  type OwnerSortOption,
+  type TransactionSortOption
+} from "./ownerPageModel";
+import { OwnerDirectory } from "./OwnerDirectory";
 
 type Props = {
   parties: BillingParty[];
@@ -34,6 +56,7 @@ type Props = {
   paymentSaving: boolean;
   paymentDeletingIds: string[];
   onLoadLedger: (billingPartyId: string) => Promise<LedgerEntry[]>;
+  onLoadPayments: (billingPartyId: string) => Promise<void>;
   onLoadStatement: (billingPartyId: string, fromDate: string, toDate: string) => Promise<BillingPartyStatement | null>;
   onCopy: (text: string) => void;
   onSaveParty: (draft: BillingPartyDraft, editingId?: string | null) => Promise<BillingParty>;
@@ -45,8 +68,7 @@ type Props = {
   initialSelectedId?: string | null;
 };
 
-type SortOption = "recent" | "highest" | "name-asc" | "name-desc";
-type TransactionSortOption = "newest" | "oldest";
+type SortOption = OwnerSortOption;
 type StatementsTab = "transactions" | "statements";
 type OwnerModule = "statements" | "payments" | null;
 type DatePickerTarget = "from" | "to" | null;
@@ -68,112 +90,6 @@ const ownerTableHeaderClass = "px-4 py-3 text-left text-xs font-black uppercase 
 const ownerTableCellClass = "border-y border-slate-200 bg-white px-4 py-3 align-middle dark:border-slate-800 dark:bg-[#111827]";
 const ownerAmountClass = "whitespace-nowrap font-black text-[#1E3A8A] dark:text-blue-200";
 const OWNER_SORT_KEY = "tripledger:owners-sort";
-const OWNER_TRANSACTION_SORT_KEY_PREFIX = "tripledger.ownerTransactionSort";
-
-function emptyPaymentDraft(billingPartyId: string): OwnerPaymentDraft {
-  return {
-    userId: undefined,
-    billingPartyId,
-    paymentDate: todayInputDate(),
-    amount: 0,
-    paymentType: "payment_received",
-    paymentMethod: "",
-    reference: "",
-    notes: ""
-  };
-}
-
-function latestActivity(summary?: BillingPartySummary): string {
-  if (!summary) return "";
-  const dates = [summary.latestBillDate, summary.latestPaymentDate].filter(Boolean).sort();
-  return dates[dates.length - 1] ?? "";
-}
-
-function labelize(value: string): string {
-  if (value === "bill") return "Bill";
-  if (value === "advance_received") return "Advance Received";
-  if (value === "bank_transfer") return "Bank Transfer";
-  if (value === "upi") return "UPI";
-  return value === "payment_received" ? "Payment Received" : value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function ownerDateDisplay(value: string): string {
-  if (!value) return "NA";
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) return "NA";
-  return new Date(year, month - 1, day).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-function plural(count: number | undefined, singular: string, pluralLabel = `${singular}s`): string {
-  const value = Number(count ?? 0);
-  return `${value} ${value === 1 ? singular : pluralLabel}`;
-}
-
-function runningBalanceDisplay(value: number, symbol: string): string {
-  if (value < 0) return `Advance ${currency(Math.abs(value), symbol)}`;
-  return currency(value, symbol);
-}
-
-function entryCustomer(entry: LedgerEntry | { entryType: LedgerEntry["entryType"]; description: string }): string {
-  if (entry.entryType !== "bill") return "—";
-  return entry.description || "NA";
-}
-
-function balanceStatus(summary: BillingPartySummary | undefined, symbol: string): { label: string; amountLabel: string; tone: "danger" | "success" | "info" } {
-  if (summary?.outstandingAmount && summary.outstandingAmount > 0) return { label: "Outstanding", amountLabel: currency(summary.outstandingAmount, symbol), tone: "danger" };
-  if (summary?.advanceCredit && summary.advanceCredit > 0) return { label: "Advance Available", amountLabel: currency(summary.advanceCredit, symbol), tone: "success" };
-  return { label: "Settled", amountLabel: "", tone: "info" };
-}
-
-function partyDisplayName(party: BillingParty | undefined): string {
-  if (!party) return "Owner / Company";
-  return party.companyName || party.name;
-}
-
-function ownerTransactionSortKey(ownerId: string): string {
-  return `${OWNER_TRANSACTION_SORT_KEY_PREFIX}.${ownerId}`;
-}
-
-function isTransactionSortOption(value: string | null): value is TransactionSortOption {
-  return value === "newest" || value === "oldest";
-}
-
-function currentMonthStart(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-}
-
-function inputDate(date: Date): string {
-  const timezoneOffset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 10);
-}
-
-function parseInputDate(value: string): Date {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, month - 1, day);
-}
-
-function quickDateRange(preset: "today" | "week" | "month" | "last-month"): { fromDate: string; toDate: string } {
-  const now = new Date();
-  if (preset === "today") {
-    const today = inputDate(now);
-    return { fromDate: today, toDate: today };
-  }
-
-  if (preset === "week") {
-    const day = now.getDay() || 7;
-    const first = new Date(now);
-    first.setDate(now.getDate() - day + 1);
-    const last = new Date(first);
-    last.setDate(first.getDate() + 6);
-    return { fromDate: inputDate(first), toDate: inputDate(last) };
-  }
-
-  const monthOffset = preset === "last-month" ? -1 : 0;
-  const first = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
-  const last = new Date(now.getFullYear(), now.getMonth() + monthOffset + 1, 0);
-  return { fromDate: inputDate(first), toDate: inputDate(last) };
-}
 
 function Icon({ name }: { name: "plus" | "search" | "x" | "sort" | "more" | "eye" | "edit" | "trash" | "back" | "wallet" | "bill" | "ledger" | "statement" | "chevronDown" | "copy" | "share" | "download" | "calendar" | "check" }) {
   const common = { className: "h-4 w-4", viewBox: "0 0 24 24", fill: "none", "aria-hidden": true };
@@ -565,7 +481,7 @@ function DateRangeControls({ fromDate, toDate, activeDatePicker, onActiveDatePic
   loading: boolean;
 }) {
   function applyQuickRange(preset: "today" | "week" | "month" | "last-month") {
-    const range = quickDateRange(preset);
+    const range = quickOwnerDateRange(preset);
     onRangeChange(range.fromDate, range.toDate);
   }
 
@@ -585,7 +501,7 @@ function DateRangeControls({ fromDate, toDate, activeDatePicker, onActiveDatePic
       <div className="overflow-x-auto pb-1 lg:overflow-visible lg:pb-0">
       <div className="grid min-w-[20rem] grid-cols-4 gap-1 lg:flex lg:min-w-0 lg:flex-wrap lg:gap-2">
         {quickRanges.map((range) => {
-          const quick = quickDateRange(range.id);
+          const quick = quickOwnerDateRange(range.id);
           const selected = quick.fromDate === fromDate && quick.toDate === toDate;
           return (
             <button
@@ -637,10 +553,6 @@ const transactionSortOptions: SelectOption<TransactionSortOption>[] = [
   { value: "oldest", label: "Oldest First" }
 ];
 
-function isOwnerSortOption(value: string | null): value is SortOption {
-  return sortOptions.some((option) => option.value === value);
-}
-
 export function OwnerCompanyPage({
   parties,
   summaries,
@@ -654,6 +566,7 @@ export function OwnerCompanyPage({
   paymentSaving,
   paymentDeletingIds,
   onLoadLedger,
+  onLoadPayments,
   onLoadStatement,
   onCopy,
   onSaveParty,
@@ -695,42 +608,21 @@ export function OwnerCompanyPage({
   const selectedSummary = selectedParty ? summaryById.get(selectedParty.id) : undefined;
   const selectedStatus = balanceStatus(selectedSummary, settings.currencySymbol);
   const selectedLedger = selectedParty ? ledgerByPartyId[selectedParty.id] ?? [] : [];
-  const sortedLedger = useMemo(() => {
-    const rows = selectedLedger.map((entry, index) => ({ entry, index }));
-    return rows
-      .sort((a, b) => {
-        const secondaryA = `${a.entry.referenceId}|${a.entry.entryType}|${a.entry.description}`;
-        const secondaryB = `${b.entry.referenceId}|${b.entry.entryType}|${b.entry.description}`;
-        const oldestFirst = a.entry.entryDate.localeCompare(b.entry.entryDate) || secondaryA.localeCompare(secondaryB) || a.index - b.index;
-        return transactionSort === "oldest" ? oldestFirst : -oldestFirst;
-      })
-      .map((row) => row.entry);
-  }, [selectedLedger, transactionSort]);
+  const sortedLedger = useMemo(() => sortOwnerLedger(selectedLedger, transactionSort), [selectedLedger, transactionSort]);
   const selectedPayments = selectedParty ? payments.filter((payment) => payment.billingPartyId === selectedParty.id) : [];
   const selectedPaymentsTotal = selectedPayments.reduce((total, payment) => total + Number(payment.amount || 0), 0);
 
-  const filteredParties = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    const filtered = parties.filter((party) => {
-      if (!needle) return true;
-      return `${party.name} ${party.companyName} ${party.phone} ${party.email}`.toLowerCase().includes(needle);
-    });
-    return [...filtered].sort((a, b) => {
-      const summaryA = summaryById.get(a.id);
-      const summaryB = summaryById.get(b.id);
-      if (sort === "highest") return Number(summaryB?.outstandingAmount ?? 0) - Number(summaryA?.outstandingAmount ?? 0);
-      if (sort === "name-asc") return partyDisplayName(a).localeCompare(partyDisplayName(b));
-      if (sort === "name-desc") return partyDisplayName(b).localeCompare(partyDisplayName(a));
-      return latestActivity(summaryB).localeCompare(latestActivity(summaryA));
-    });
-  }, [parties, search, sort, summaryById]);
+  const filteredParties = useMemo(() => filterAndSortOwners(parties, summaryById, search, sort), [parties, search, sort, summaryById]);
 
   useEffect(() => {
-    if (selectedId && !parties.some((party) => party.id === selectedId)) setSelectedId(null);
-  }, [parties, selectedId]);
+    if (!loading && selectedId && !parties.some((party) => party.id === selectedId)) setSelectedId(null);
+  }, [loading, parties, selectedId]);
 
   useEffect(() => {
-    if (selectedId) void onLoadLedger(selectedId);
+    if (selectedId) {
+      void onLoadLedger(selectedId);
+      void onLoadPayments(selectedId);
+    }
     if (selectedId) {
       const savedSort = window.localStorage.getItem(ownerTransactionSortKey(selectedId));
       setTransactionSort(isTransactionSortOption(savedSort) ? savedSort : "newest");
@@ -964,119 +856,21 @@ export function OwnerCompanyPage({
       )}
 
       {!selectedParty ? (
-        <>
-          <Card className="tripledgerListToolbar">
-            <CardContent className={cn("tripledgerListToolbarContent", isMobile && "p-2.5")}>
-            <div className={cn("tripledgerListToolbarGrid", isMobile ? "grid-cols-[minmax(0,1fr)_2.75rem] gap-2" : "lg:grid-cols-[minmax(0,1fr)_14rem]")}>
-              <label className="relative block">
-                <span className="sr-only">Search owners or companies</span>
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="search" /></span>
-                <Input className="min-h-11 pl-10 pr-10" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={isMobile ? "Search owners..." : "Search owners or companies..."} />
-                {search && (
-                  <button type="button" className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200" aria-label="Clear owner search" onClick={() => setSearch("")}>
-                    <Icon name="x" />
-                  </button>
-                )}
-              </label>
-              <CustomSelect label="Sort owners" value={sort} options={sortOptions} onChange={changeOwnerSort} iconOnly={isMobile} />
-            </div>
-            </CardContent>
-          </Card>
-
-          <div className={cn(isMobile ? "flex min-h-11 items-center justify-between gap-3 px-1" : "tripledgerListSummary flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between")}>
-            <p className="text-sm font-black text-slate-700 dark:text-slate-200">{filteredParties.length} owners</p>
-            <Button type="button" variant="primary" className={cn("w-fit gap-2", isMobile && "min-h-10 px-3")} onClick={startCreateParty}><Icon name="plus" /> Add Owner</Button>
-          </div>
-
-          {loading ? (
-            <p className="rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-300">Loading owners...</p>
-          ) : parties.length === 0 ? (
-            <EmptyState title="No owners yet" description="Add an Owner / Company to start tracking bills, payments and balances." />
-          ) : filteredParties.length === 0 ? (
-            <div className="space-y-4">
-              <EmptyState title="No owners match your search" description="Try another name or clear the search." />
-              <div className="flex justify-center">
-                <Button type="button" variant="secondary" className="gap-2" onClick={() => setSearch("")}><Icon name="x" /> Clear Search</Button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="tripledgerListDesktop">
-                  <table className="historyBillTable tripledgerListTable min-w-0" aria-label="Owners and payments">
-                    <colgroup>
-                      <col className="tripledgerDataColumn" />
-                      <col className="tripledgerDataColumn" />
-                      <col className="tripledgerDataColumn" />
-                      <col className="tripledgerDataColumn" />
-                      <col className="tripledgerDataColumn" />
-                      <col className="tripledgerActionsColumn" />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th className={ownerTableHeaderClass}>Owner / Company</th>
-                        <th className={cn(ownerTableHeaderClass, "tripledgerStatusCell")}>Balance Status</th>
-                        <th className={ownerTableHeaderClass}>Bills</th>
-                        <th className={ownerTableHeaderClass}>Payments</th>
-                        <th className={ownerTableHeaderClass}>Last Activity</th>
-                        <th className={cn(ownerTableHeaderClass, "tripledgerActionsCell")}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredParties.map((party) => {
-                        const summary = summaryById.get(party.id);
-                        const latest = latestActivity(summary);
-                        return (
-                          <tr key={party.id} className="group">
-                            <td>
-                              <button type="button" className="block min-w-0 w-full cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => openOwner(party)}>
-                                <span className="block truncate font-black text-slate-950 group-hover:text-[#1E3A8A] dark:text-slate-50 dark:group-hover:text-blue-200" title={partyDisplayName(party)}>{partyDisplayName(party)}</span>
-                                {(party.phone || party.email) && <span className="mt-1 block truncate text-xs font-semibold text-slate-500 dark:text-slate-400" title={[party.phone, party.email].filter(Boolean).join(" | ")}>{[party.phone, party.email].filter(Boolean).join(" | ")}</span>}
-                              </button>
-                            </td>
-                            <td className="tripledgerStatusCell min-w-0 overflow-hidden"><StatusBadge summary={summary} symbol={settings.currencySymbol} /></td>
-                            <td className="font-bold text-slate-700 dark:text-slate-200">{plural(summary?.billCount, "bill")}</td>
-                            <td className="font-bold text-slate-700 dark:text-slate-200">{plural(summary?.paymentCount, "payment")}</td>
-                            <td className="font-semibold text-slate-600 dark:text-slate-300">{latest ? ownerDateDisplay(latest) : "NA"}</td>
-                            <td className="tripledgerActionsCell">
-                              <div className="flex items-center">{renderOwnerActions(party)}</div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-              </div>
-
-              <div className="tripledgerListMobile">
-                  {filteredParties.map((party) => {
-                    const summary = summaryById.get(party.id);
-                    const latest = latestActivity(summary);
-                    const status = balanceStatus(summary, settings.currencySymbol);
-                    return (
-                      <article key={party.id} className="tripledgerListMobileRow tripledgerListMobileRowContent">
-                        <div className="flex min-w-0 items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <h2 className="truncate font-black text-slate-950 dark:text-slate-50">{partyDisplayName(party)}</h2>
-                            {(party.phone || party.email) && <p className="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-slate-400">{[party.phone, party.email].filter(Boolean).join(" | ")}</p>}
-                          </div>
-                          {renderOwnerActions(party)}
-                        </div>
-                        <div className="mt-3">
-                          <p className={cn("text-xs font-black uppercase tracking-wide", status.tone === "danger" ? "text-red-600 dark:text-red-300" : status.tone === "success" ? "text-emerald-700 dark:text-emerald-300" : "text-slate-500 dark:text-slate-400")}>{status.label}</p>
-                          <p className="mt-0.5 text-xl font-black text-[#1E3A8A] dark:text-blue-200">{status.amountLabel || currency(0, settings.currencySymbol)}</p>
-                        </div>
-                        <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400">{plural(summary?.billCount, "bill")} · {plural(summary?.paymentCount, "payment")} · Last activity {latest ? ownerDateDisplay(latest) : "NA"}</p>
-                        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-2.5 dark:border-slate-800">
-                          <Button type="button" variant="ghost" className="px-2" onClick={() => openOwner(party)}>View Account</Button>
-                          <Button type="button" variant="secondary" className="px-2" onClick={() => { openOwner(party); startPayment(undefined, party); }}>Record Payment</Button>
-                        </div>
-                      </article>
-                    );
-                  })}
-              </div>
-            </>
-          )}
-        </>
+        <OwnerDirectory
+          parties={parties}
+          visibleParties={filteredParties}
+          summaryById={summaryById}
+          settings={settings}
+          loading={loading}
+          isMobile={isMobile}
+          search={search}
+          sortControl={<CustomSelect label="Sort owners" value={sort} options={sortOptions} onChange={changeOwnerSort} iconOnly={isMobile} />}
+          onSearchChange={setSearch}
+          onAdd={startCreateParty}
+          onOpen={openOwner}
+          onRecordPayment={(party) => { openOwner(party); startPayment(undefined, party); }}
+          renderActions={(party) => renderOwnerActions(party)}
+        />
       ) : (
         <div className="space-y-4 lg:space-y-5">
           <Card className="lg:hidden">

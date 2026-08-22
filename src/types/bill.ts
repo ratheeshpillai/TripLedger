@@ -4,6 +4,7 @@ export interface Bill {
   billingPartyId?: string;
   billingPartyName?: string;
   billingPartyCompanyName?: string;
+  organizationId?: string;
   userId?: string;
   driverId?: string;
   vehicleId?: string;
@@ -44,6 +45,24 @@ export interface Bill {
 }
 
 export type BillDraft = Omit<Bill, "id" | "createdAt" | "updatedAt">;
+
+export type BillSort = "newest" | "oldest" | "highest" | "lowest" | "customer" | "owner";
+
+export interface BillQuery {
+  page: number;
+  pageSize: number;
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  billingPartyId?: string;
+  sort: BillSort;
+}
+
+export interface PagedBills {
+  items: Bill[];
+  totalCount: number;
+  totalAmount: number;
+}
 
 export interface BillSummaryTotals {
   selectedBillsCount: number;

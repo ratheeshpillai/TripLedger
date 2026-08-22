@@ -1,11 +1,12 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
-import type { Bill, BillSummaryTotals } from "../../types/bill";
+import type { Bill, BillQuery, BillSummaryTotals } from "../../types/bill";
 import type { BillingParty } from "../../types/billingParty";
 import type { AppSettings } from "../../types/settings";
 import { calculateCombinedSummary } from "../../utils/calculations";
-import { currency, guestDisplay } from "../../utils/formatters";
+import { billSelectionKey } from "../../utils/billQuery";
+import { currency } from "../../utils/formatters";
 import { buildCombinedSummaryText, buildCombinedSummaryWhatsAppText, buildIndividualSummaryText, buildIndividualSummaryWhatsAppText, buildSingleBillText, buildSingleBillWhatsAppText, createWhatsAppUrl } from "../../utils/whatsapp";
 import { ConfirmationDialog } from "../shared/ConfirmationDialog";
 import { EmptyState } from "../shared/EmptyState";
@@ -17,15 +18,38 @@ import { cn } from "../ui/cn";
 import { useDialogFocus } from "../ui/useDialogFocus";
 import { useOverlayPlacement } from "../ui/useOverlayPlacement";
 import { MobileBottomSheet, useIsMobile } from "../mobile/MobilePrimitives";
+import {
+  activeHistoryFilterCount,
+  emptyHistoryFilters,
+  formatHistoryDate,
+  formatHistoryDateRange,
+  historyRowsPerPageOptions,
+  inputDate,
+  ownerName,
+  parseInputDate,
+  quickHistoryDateRange,
+  validateHistoryDateRange,
+  type AppliedFilters,
+  type DateRange,
+  type HistorySortOption
+} from "./historyPageModel";
+import { HistoryResults } from "./HistoryResults";
+import { useHistoryQueryState } from "./useHistoryQueryState";
 
 type Props = {
   bills: Bill[];
+  totalCount: number;
+  totalAmount: number;
+  selectedBills: Bill[];
+  selectedQueryKey: string;
+  loading: boolean;
   billingParties: BillingParty[];
   settings: AppSettings;
   userId: string;
   selectedIds: string[];
-  onToggleSelected: (id: string) => void;
-  onSelectAll: (ids: string[]) => void;
+  onToggleSelected: (bill: Bill) => void;
+  onSelectAll: (query: BillQuery) => Promise<void>;
+  onQuery: (query: BillQuery) => Promise<void>;
   onClearSelection: () => void;
   onEdit: (bill: Bill) => void;
   onDuplicate: (bill: Bill) => void;
@@ -35,25 +59,11 @@ type Props = {
   onCreateBill?: () => void;
 };
 
-type AppliedFilters = {
-  billingPartyId: string;
-};
-
-type DateRange = {
-  fromDate: string;
-  toDate: string;
-  label: string;
-};
-
-type SortOption = "newest" | "oldest" | "highest" | "lowest" | "customer" | "owner";
+type SortOption = HistorySortOption;
 type SummaryMode = "combined" | "individual" | "grouped";
 
-const emptyFilters: AppliedFilters = {
-  billingPartyId: ""
-};
-
-const rowsPerPageOptions = [20, 50, 100];
-const HISTORY_SORT_KEY_PREFIX = "tripledger.history.sort";
+const emptyFilters = emptyHistoryFilters;
+const rowsPerPageOptions = historyRowsPerPageOptions;
 
 const outlineActionClass = "inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl border border-[#1E3A8A] bg-white px-4 py-2 text-sm font-semibold text-[#1E3A8A] hover:bg-[#1E3A8A] hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-blue-400 dark:bg-[#111827] dark:text-blue-200 dark:hover:bg-blue-600 dark:hover:text-white dark:focus:ring-offset-slate-950";
 const iconButtonClass = "grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-[#1E3A8A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-[#111827] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-blue-200 dark:focus-visible:ring-offset-slate-950";
@@ -82,10 +92,6 @@ function Icon({ name }: { name: "search" | "x" | "filter" | "sort" | "calendar" 
   return <svg {...common}><path d="m9 18 6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 
-function ownerName(bill: Bill): string {
-  return bill.billingPartyCompanyName || bill.billingPartyName || "Unassigned";
-}
-
 function exportSingleBillPdf(bill: Bill, settings: AppSettings) {
   void import("../../utils/pdf").then((module) => module.exportSingleBillPdf(bill, settings));
 }
@@ -100,63 +106,6 @@ function exportCombinedSummaryPdf(summary: BillSummaryTotals, settings: AppSetti
 
 function ownerGroupKey(bill: Bill): string {
   return bill.billingPartyId || "unassigned";
-}
-
-function searchableAmount(value: number): string {
-  return String(Math.round(value));
-}
-
-function formatHistoryDate(value: string): string {
-  if (!value) return "NA";
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) return "NA";
-  return new Date(year, month - 1, day).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-function formatDateRange(bills: Bill[]): string {
-  const dates = bills.map((bill) => bill.tripDate).filter(Boolean).sort();
-  if (dates.length === 0) return "NA";
-  return dates[0] === dates[dates.length - 1] ? formatHistoryDate(dates[0]) : `${formatHistoryDate(dates[0])} - ${formatHistoryDate(dates[dates.length - 1])}`;
-}
-
-function activeFilterCount(filters: AppliedFilters): number {
-  return filters.billingPartyId ? 1 : 0;
-}
-
-function inputDate(date: Date): string {
-  const timezoneOffset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 10);
-}
-
-function quickDateRange(preset: "today" | "week" | "month" | "last-month"): DateRange {
-  const now = new Date();
-  if (preset === "today") {
-    const today = inputDate(now);
-    return { fromDate: today, toDate: today, label: "Today" };
-  }
-
-  if (preset === "week") {
-    const day = now.getDay() || 7;
-    const first = new Date(now);
-    first.setDate(now.getDate() - day + 1);
-    const last = new Date(first);
-    last.setDate(first.getDate() + 6);
-    return { fromDate: inputDate(first), toDate: inputDate(last), label: "This Week" };
-  }
-
-  const monthOffset = preset === "last-month" ? -1 : 0;
-  const first = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
-  const last = new Date(now.getFullYear(), now.getMonth() + monthOffset + 1, 0);
-  return {
-    fromDate: inputDate(first),
-    toDate: inputDate(last),
-    label: preset === "last-month" ? "Last Month" : "This Month"
-  };
-}
-
-function parseInputDate(value: string): Date {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, month - 1, day);
 }
 
 function CustomDatePicker({ label, value, min, max, open, align, onOpenChange, onChange }: {
@@ -253,12 +202,6 @@ function CustomDatePicker({ label, value, min, max, open, align, onOpenChange, o
       )}
     </div>
   );
-}
-
-function paginationPages(currentPage: number, pageCount: number): number[] {
-  const totalVisible = Math.min(5, pageCount);
-  const start = Math.max(1, Math.min(currentPage - 2, pageCount - totalVisible + 1));
-  return Array.from({ length: totalVisible }, (_, index) => start + index);
 }
 
 function Modal({ title, description, headerActions, closeLabel, initialFocusRef, maxWidth = "max-w-3xl", onClose, children }: { title: string; description?: string; headerActions?: ReactNode; closeLabel?: string; initialFocusRef?: RefObject<HTMLElement | null>; maxWidth?: string; onClose: () => void; children: ReactNode }) {
@@ -631,29 +574,19 @@ const sortOptions: HistorySelectOption[] = [
 
 const rowsPerPageSelectOptions: HistorySelectOption[] = rowsPerPageOptions.map((option) => ({ value: String(option), label: String(option) }));
 
-function isSortOption(value: string | null): value is SortOption {
-  return sortOptions.some((option) => option.value === value);
-}
-
-function historySortKey(userId: string): string {
-  return `${HISTORY_SORT_KEY_PREFIX}.${userId}`;
-}
-
-export function HistoryPage({ bills, billingParties, settings, userId, selectedIds, onToggleSelected, onSelectAll, onClearSelection, onEdit, onDuplicate, onDelete, onDeleteSelected, onCopy, onCreateBill }: Props) {
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<SortOption>(() => {
-    const saved = window.localStorage.getItem(historySortKey(userId));
-    return isSortOption(saved) ? saved : "newest";
-  });
+export function HistoryPage({ bills, totalCount, totalAmount, selectedBills, selectedQueryKey, loading, billingParties, settings, userId, selectedIds, onToggleSelected, onSelectAll, onQuery, onClearSelection, onEdit, onDuplicate, onDelete, onDeleteSelected, onCopy, onCreateBill }: Props) {
+  const {
+    search, setSearch, sort, changeSort, dateRange, setDateRange,
+    draftFilters, setDraftFilters, appliedFilters, setAppliedFilters,
+    rowsPerPage, setRowsPerPage, page, setPage, query, pageCount,
+    currentPage, pageStart, pageEnd, visiblePages, showPaginationControls, showRowsPerPage
+  } = useHistoryQueryState(userId, totalCount, onQuery);
   const [activeToolbarPopover, setActiveToolbarPopover] = useState<"date-range" | "filter" | null>(null);
-  const [dateRange, setDateRange] = useState<DateRange | null>(null);
   const [mobileDateFilterEnabled, setMobileDateFilterEnabled] = useState(false);
   const [customFromDate, setCustomFromDate] = useState(() => inputDate(new Date()));
   const [customToDate, setCustomToDate] = useState(() => inputDate(new Date()));
   const [activeDatePicker, setActiveDatePicker] = useState<"from" | "to" | null>(null);
   const [dateRangeError, setDateRangeError] = useState("");
-  const [draftFilters, setDraftFilters] = useState<AppliedFilters>(emptyFilters);
-  const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>(emptyFilters);
   const [previewBill, setPreviewBill] = useState<Bill | null>(null);
   const [summaryChoiceOpen, setSummaryChoiceOpen] = useState(false);
   const [multiOwnerChoiceOpen, setMultiOwnerChoiceOpen] = useState(false);
@@ -665,8 +598,6 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
-  const [rowsPerPage, setRowsPerPage] = useState(20);
-  const [page, setPage] = useState(1);
   const isMobile = useIsMobile();
 
   const billingPartyNameById = useMemo(() => new Map(billingParties.map((party) => [party.id, party.companyName || party.name])), [billingParties]);
@@ -675,57 +606,18 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
     ...billingParties.map((party) => ({ value: party.id, label: party.companyName || party.name }))
   ], [billingParties]);
   const quickDatePresets = [
-    { id: "today" as const, label: "Today", range: quickDateRange("today") },
-    { id: "week" as const, label: "This Week", range: quickDateRange("week") },
-    { id: "month" as const, label: "This Month", range: quickDateRange("month") },
-    { id: "last-month" as const, label: "Last Month", range: quickDateRange("last-month") }
+    { id: "today" as const, label: "Today", range: quickHistoryDateRange("today") },
+    { id: "week" as const, label: "This Week", range: quickHistoryDateRange("week") },
+    { id: "month" as const, label: "This Month", range: quickHistoryDateRange("month") },
+    { id: "last-month" as const, label: "Last Month", range: quickHistoryDateRange("last-month") }
   ];
 
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    return bills
-      .filter((bill) => {
-        if (!query) return true;
-        return [
-          ownerName(bill),
-          guestDisplay(bill),
-          bill.guestName,
-          bill.driverName,
-          bill.vehicleName,
-          bill.vehicleNumber,
-          bill.reportingPlace,
-          bill.tripDate,
-          searchableAmount(bill.totalAmount)
-        ].some((value) => value.toLowerCase().includes(query));
-      })
-      .filter((bill) => !appliedFilters.billingPartyId || bill.billingPartyId === appliedFilters.billingPartyId)
-      .filter((bill) => !dateRange?.fromDate || bill.tripDate >= dateRange.fromDate)
-      .filter((bill) => !dateRange?.toDate || bill.tripDate <= dateRange.toDate)
-      .sort((a, b) => {
-        if (sort === "oldest") return a.tripDate.localeCompare(b.tripDate);
-        if (sort === "highest") return b.totalAmount - a.totalAmount;
-        if (sort === "lowest") return a.totalAmount - b.totalAmount;
-        if (sort === "customer") return guestDisplay(a).localeCompare(guestDisplay(b));
-        if (sort === "owner") return ownerName(a).localeCompare(ownerName(b));
-        return b.tripDate.localeCompare(a.tripDate) || b.updatedAt.localeCompare(a.updatedAt);
-      });
-  }, [appliedFilters, bills, dateRange, search, sort]);
-
-  const selectedBills = useMemo(() => bills.filter((bill) => selectedIds.includes(bill.id)), [bills, selectedIds]);
   const summaryTotals = useMemo(() => calculateCombinedSummary(selectedBills), [selectedBills]);
-  const activeFilters = activeFilterCount(appliedFilters);
+  const activeFilters = activeHistoryFilterCount(appliedFilters);
   const hasSearchOrFilters = Boolean(search.trim()) || activeFilters > 0 || Boolean(dateRange);
-  const filteredTotal = useMemo(() => filtered.reduce((sum, bill) => sum + bill.totalAmount, 0), [filtered]);
-  const pageCount = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
-  const currentPage = Math.min(page, pageCount);
-  const pageStart = filtered.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
-  const pageEnd = Math.min(filtered.length, currentPage * rowsPerPage);
-  const pagedBills = filtered.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
-  const visiblePages = paginationPages(currentPage, pageCount);
-  const showPaginationControls = pageCount > 1;
-  const showRowsPerPage = filtered.length > rowsPerPageOptions[0];
-  const allFilteredSelected = filtered.length > 0 && filtered.every((bill) => selectedIds.includes(bill.id));
+  const filteredTotal = totalAmount;
+  const pagedBills = bills;
+  const allFilteredSelected = totalCount > 0 && selectedQueryKey === billSelectionKey(query);
   const selectedOwnerGroups = useMemo(() => new Map(selectedBills.map((bill) => [ownerGroupKey(bill), ownerName(bill)])), [selectedBills]);
   const groupedSummaryText = useMemo(() => {
     const groups = new Map<string, Bill[]>();
@@ -745,20 +637,6 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
   const individualSummaryWhatsAppText = buildIndividualSummaryWhatsAppText(selectedBills, settings);
   const summaryDisplayText = summaryMode === "individual" ? allIndividualText : summaryMode === "grouped" ? groupedSummaryText : combinedSummaryText;
   const summaryShareText = summaryMode === "individual" ? individualSummaryWhatsAppText : summaryMode === "grouped" ? groupedSummaryText : combinedSummaryWhatsAppText;
-
-  useEffect(() => {
-    setPage(1);
-  }, [appliedFilters, dateRange, rowsPerPage, search, sort]);
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem(historySortKey(userId));
-    setSort(isSortOption(saved) ? saved : "newest");
-  }, [userId]);
-
-  function changeSort(value: SortOption) {
-    setSort(value);
-    window.localStorage.setItem(historySortKey(userId), value);
-  }
 
   useEffect(() => {
     if (!selectionMode && selectedIds.length === 0) return;
@@ -788,12 +666,9 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
   }
 
   function applyCustomDateRange(): boolean {
-    if (!customFromDate || !customToDate) {
-      setDateRangeError("Choose both From Date and To Date.");
-      return false;
-    }
-    if (customFromDate > customToDate) {
-      setDateRangeError("From Date cannot be after To Date.");
+    const validationError = validateHistoryDateRange(customFromDate, customToDate);
+    if (validationError) {
+      setDateRangeError(validationError);
       return false;
     }
     setDateRange({
@@ -877,7 +752,7 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
   }
 
   function selectAllFilteredBills() {
-    onSelectAll(filtered.map((bill) => bill.id));
+    void onSelectAll(query);
   }
 
   function runMenuAction(close: (restoreFocus?: boolean) => void, action: () => void) {
@@ -1121,8 +996,8 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
               {allFilteredSelected ? (
                 <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-slate-500 dark:text-slate-400">All selected <Icon name="check" /></span>
               ) : (
-                <button type="button" className="inline-flex min-h-9 shrink-0 cursor-pointer items-center rounded-xl px-2 text-xs font-black text-[#1E3A8A] hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-200 dark:hover:bg-slate-800" aria-label={`Select all ${filtered.length} filtered bills`} onClick={selectAllFilteredBills}>
-                  Select all {filtered.length}
+                <button type="button" className="inline-flex min-h-9 shrink-0 cursor-pointer items-center rounded-xl px-2 text-xs font-black text-[#1E3A8A] hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-200 dark:hover:bg-slate-800" aria-label={`Select all ${totalCount} filtered bills`} onClick={selectAllFilteredBills}>
+                  Select all {totalCount}
                 </button>
               )}
             </div>
@@ -1145,114 +1020,38 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
           </div>
         ) : (
           <div className="flex items-center justify-between gap-3">
-            <p className="truncate text-sm font-bold text-slate-700 dark:text-slate-300">{filtered.length} bills{hasSearchOrFilters ? " found" : ""} <span className="font-semibold text-slate-400 dark:text-slate-500">· Total {currency(filteredTotal, settings.currencySymbol)}</span></p>
+            <p className="truncate text-sm font-bold text-slate-700 dark:text-slate-300">{totalCount} bills{hasSearchOrFilters ? " found" : ""} <span className="font-semibold text-slate-400 dark:text-slate-500">· Total {currency(filteredTotal, settings.currencySymbol)}</span></p>
             <Button type="button" variant={isMobile ? "ghost" : "secondary"} className="w-fit shrink-0 gap-2 px-3" aria-label="Select bills" title="Select bills" onClick={enterSelectionMode}>{!isMobile && <Icon name="check" />} {isMobile ? "Select" : "Select bills"}</Button>
           </div>
         )}
       </div>
 
-      {bills.length === 0 ? (
+      {loading && bills.length === 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm font-semibold text-slate-500 dark:border-slate-800 dark:bg-[#111827] dark:text-slate-400">Loading bills...</div>
+      ) : totalCount === 0 && !hasSearchOrFilters ? (
         <div className="space-y-3">
           <EmptyState title="No bills yet" description="Create your first bill to start building your billing history." />
           {onCreateBill && <Button type="button" variant="primary" onClick={onCreateBill}>Create First Bill</Button>}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : totalCount === 0 ? (
         <div className="space-y-3">
           <EmptyState title="No bills match your search" description="Try changing your search or clearing some filters." />
           <Button type="button" onClick={() => { setSearch(""); setDateRange(null); clearFilters(); }}>Clear Filters</Button>
         </div>
       ) : (
         <div className="tripledgerListResults">
-          <div className="tripledgerListDesktop">
-            <table className={cn("historyBillTable tripledgerListTable min-w-0", selectionMode && "hasSelectionColumn")} aria-label="Bill history">
-              {selectionMode ? (
-                <colgroup>
-                  <col className="tripledgerSelectionColumn" />
-                  <col className="tripledgerDataColumn" />
-                  <col className="tripledgerDataColumn" />
-                  <col className="tripledgerDataColumn" />
-                  <col className="tripledgerDataColumn" />
-                  <col className="tripledgerDataColumn" />
-                  <col className="tripledgerActionsColumn" />
-                </colgroup>
-              ) : (
-                <colgroup>
-                  <col className="tripledgerDataColumn" />
-                  <col className="tripledgerDataColumn" />
-                  <col className="tripledgerDataColumn" />
-                  <col className="tripledgerDataColumn" />
-                  <col className="tripledgerDataColumn" />
-                  <col className="tripledgerActionsColumn" />
-                </colgroup>
-              )}
-              <thead>
-                <tr>
-                  {selectionMode && <th className="historyCheckboxCell" scope="col"><span className="sr-only">Select</span></th>}
-                  <th scope="col">Customer</th>
-                  <th scope="col">Owner / Company</th>
-                  <th scope="col">Trip Date</th>
-                  <th scope="col">Reporting Place</th>
-                  <th className="historyAmountCell" scope="col">Amount</th>
-                  <th className="historyActionsCell tripledgerActionsCell" scope="col">{selectionMode ? <span className="sr-only">Actions hidden in selection mode</span> : "Actions"}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagedBills.map((bill) => {
-                  const selected = selectedIds.includes(bill.id);
-                  const vehicleLabel = [bill.vehicleName, bill.vehicleNumber].filter(Boolean).join(" | ") || "Vehicle";
-                  return (
-                    <tr key={bill.id} className={cn("historyBillTableRow", selectionMode && selected && "is-selected")} aria-selected={selectionMode ? selected : undefined}>
-                      {selectionMode && <td className="historyCheckboxCell">
-                        <input className="h-5 w-5 rounded border-slate-300" type="checkbox" aria-label={`Select bill for ${guestDisplay(bill)}`} checked={selected} onChange={() => onToggleSelected(bill.id)} />
-                      </td>}
-                      <td>
-                        <p className="truncate text-sm font-black text-slate-950 dark:text-slate-50">{guestDisplay(bill)}</p>
-                        <p className="truncate text-xs font-semibold text-slate-500 dark:text-slate-400">{vehicleLabel}</p>
-                      </td>
-                      <td className="truncate text-sm font-semibold text-slate-700 dark:text-slate-200" title={ownerName(bill)}>{ownerName(bill)}</td>
-                      <td className="whitespace-nowrap text-sm font-semibold text-slate-600 dark:text-slate-300">{formatHistoryDate(bill.tripDate)}</td>
-                      <td className="historyPlaceCell truncate text-sm text-slate-500 dark:text-slate-400" title={bill.reportingPlace || "NA"}>{bill.reportingPlace || "NA"}</td>
-                      <td className="historyAmountCell text-base font-black text-[#1E3A8A] dark:text-blue-200">{currency(bill.totalAmount, settings.currencySymbol)}</td>
-                      <td className="historyActionsCell tripledgerActionsCell">{!selectionMode && <BillActionsMenu bill={bill} surface="desktop" />}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="tripledgerListMobile" role="list" aria-label="Bill history">
-            {pagedBills.map((bill) => {
-              const selected = selectedIds.includes(bill.id);
-              const vehicleLabel = [bill.vehicleName, bill.vehicleNumber].filter(Boolean).join(" | ") || "Vehicle";
-              return (
-                <article key={bill.id} className={cn("tripledgerListMobileRow tripledgerListMobileRowContent", selectionMode && selected && "is-selected")} aria-selected={selectionMode ? selected : undefined} role="listitem">
-                  <div className="flex min-w-0 items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-start gap-3">
-                      {selectionMode && <input className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300" type="checkbox" aria-label={`Select bill for ${guestDisplay(bill)}`} checked={selected} onChange={() => onToggleSelected(bill.id)} />}
-                      <div className="min-w-0">
-                        <h2 className="truncate font-black text-slate-950 dark:text-slate-50">{guestDisplay(bill)}</h2>
-                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{formatHistoryDate(bill.tripDate)}</p>
-                      </div>
-                    </div>
-                    <p className="shrink-0 text-base font-black text-[#1E3A8A] dark:text-blue-200">{currency(bill.totalAmount, settings.currencySymbol)}</p>
-                  </div>
-                  <dl className="mt-3 space-y-1.5 text-sm">
-                    <div><dt className="inline font-semibold text-slate-500 dark:text-slate-400">Owner: </dt><dd className="inline font-bold text-slate-800 dark:text-slate-100">{ownerName(bill)}</dd></div>
-                    <div className="truncate text-slate-600 dark:text-slate-300" title={vehicleLabel}>{vehicleLabel}</div>
-                    <div className="truncate"><dt className="inline font-semibold text-slate-500 dark:text-slate-400">Reporting place: </dt><dd className="inline text-slate-700 dark:text-slate-200">{bill.reportingPlace || "NA"}</dd></div>
-                  </dl>
-                  {!selectionMode && <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-2.5 dark:border-slate-800">
-                    <button type="button" className="min-h-10 text-sm font-black text-[#1E3A8A] dark:text-blue-200" onClick={() => setPreviewBill(bill)}>View details</button>
-                    <BillActionsMenu bill={bill} surface="mobile" />
-                  </div>}
-                </article>
-              );
-            })}
-          </div>
+          <HistoryResults
+            bills={pagedBills}
+            selectedIds={selectedIds}
+            selectionMode={selectionMode}
+            settings={settings}
+            onToggleSelected={onToggleSelected}
+            onPreview={setPreviewBill}
+            renderActions={(bill, surface) => <BillActionsMenu bill={bill} surface={surface} />}
+          />
 
           <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm dark:border-slate-800 dark:bg-[#111827] sm:flex-row sm:items-center sm:justify-between">
-            <p className="font-semibold text-slate-600 dark:text-slate-300">Showing {pageStart}-{pageEnd} of {filtered.length}</p>
+            <p className="font-semibold text-slate-600 dark:text-slate-300">Showing {pageStart}-{pageEnd} of {totalCount}</p>
             {showPaginationControls && (
               <div className="flex flex-wrap items-center gap-2">
                 {showRowsPerPage && (
@@ -1355,7 +1154,7 @@ export function HistoryPage({ bills, billingParties, settings, userId, selectedI
       {summaryMode && (
         <Modal
           title={summaryMode === "individual" ? "Individual summaries" : summaryMode === "grouped" ? "Grouped Owner Summaries" : "Combined summary"}
-          description={summaryMode === "individual" ? `${selectedBills.length} bills` : `${selectedBills.length} bills | ${formatDateRange(selectedBills)} | ${currency(summaryTotals.grandTotal, settings.currencySymbol)}`}
+          description={summaryMode === "individual" ? `${selectedBills.length} bills` : `${selectedBills.length} bills | ${formatHistoryDateRange(selectedBills)} | ${currency(summaryTotals.grandTotal, settings.currencySymbol)}`}
           closeLabel={summaryMode === "individual" ? "Close individual summaries" : "Close combined summary"}
           maxWidth="max-w-5xl"
           onClose={() => { closeActionMenus(); setSummaryMode(null); }}

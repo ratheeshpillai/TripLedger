@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const styles = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
-const historySource = readFileSync(new URL("../src/components/history/HistoryPage.tsx", import.meta.url), "utf8");
+const historyResultsSource = readFileSync(new URL("../src/components/history/HistoryResults.tsx", import.meta.url), "utf8");
 const dashboardSource = readFileSync(new URL("../src/components/dashboard/DashboardPage.tsx", import.meta.url), "utf8");
 const settingsSource = readFileSync(new URL("../src/components/settings/SettingsPage.tsx", import.meta.url), "utf8");
 const selectSource = readFileSync(new URL("../src/components/ui/Select.tsx", import.meta.url), "utf8");
@@ -22,7 +22,7 @@ test("History selection is painted by the complete outer desktop row and mobile 
   assert.match(styles, /\.historyBillTableRow\.is-selected\s*\{[\s\S]*?border-color:[\s\S]*?background:/);
   assert.doesNotMatch(styles, /\.historyBillTableRow\.is-selected td\s*\{/);
   assert.match(styles, /\.historyBillTable tbody td\s*\{[\s\S]*?background:\s*transparent;/);
-  assert.match(historySource, /tripledgerListMobileRow tripledgerListMobileRowContent[\s\S]*?is-selected/);
+  assert.match(historyResultsSource, /tripledgerListMobileRow tripledgerListMobileRowContent[\s\S]*?is-selected/);
 });
 
 test("dashboard summary and activity use one responsive layout without narrow-screen collisions", () => {

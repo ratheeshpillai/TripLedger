@@ -1,9 +1,11 @@
-import type { Bill } from "../types/bill";
+import type { Bill, BillQuery, PagedBills } from "../types/bill";
+import type { OrganizationScope } from "../types/organization";
 
 export interface BillRepository {
-  listBills(userId: string): Promise<Bill[]>;
-  saveBill(userId: string, bill: Bill, requestId: string): Promise<Bill>;
-  updateBill(userId: string, bill: Bill): Promise<Bill>;
-  deleteBill(userId: string, id: string): Promise<void>;
-  deleteBills(userId: string, ids: string[]): Promise<void>;
+  queryBills(scope: OrganizationScope, query: BillQuery): Promise<PagedBills>;
+  getBill(scope: OrganizationScope, id: string): Promise<Bill>;
+  saveBill(scope: OrganizationScope, bill: Bill, requestId: string): Promise<Bill>;
+  updateBill(scope: OrganizationScope, bill: Bill): Promise<Bill>;
+  deleteBill(scope: OrganizationScope, id: string): Promise<void>;
+  deleteBills(scope: OrganizationScope, ids: string[]): Promise<void>;
 }

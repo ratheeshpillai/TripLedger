@@ -1,51 +1,57 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { billingPartyService, type BillingPartyService } from "../services/billingPartyService";
+import { appServices } from "../app/appDependencies";
+import type { BillingPartyService } from "../services/billingPartyService";
 import type { BillingParty, BillingPartyDraft, BillingPartyStatement, BillingPartySummary, LedgerEntry } from "../types/billingParty";
+import type { OrganizationScope } from "../types/organization";
 import { getSafeErrorMessage, logDevError } from "../utils/errors";
 import { LatestRequestGuard } from "../utils/latestRequestGuard";
 
-export function useBillingParties(userId: string | null, service: BillingPartyService = billingPartyService) {
+export function useBillingParties(scope: OrganizationScope | null, includeSummaries = true, service: BillingPartyService = appServices.billingParties) {
+  const scopeKey = scope ? `${scope.userId}:${scope.organizationId}` : null;
   const [parties, setParties] = useState<BillingParty[]>([]);
   const [summaries, setSummaries] = useState<BillingPartySummary[]>([]);
   const [ledgerByPartyId, setLedgerByPartyId] = useState<Record<string, LedgerEntry[]>>({});
-  const [loading, setLoading] = useState(Boolean(userId));
+  const [loading, setLoading] = useState(Boolean(scope));
   const [saving, setSaving] = useState(false);
   const [deletingIds, setDeletingIds] = useState<string[]>([]);
   const [error, setError] = useState("");
-  const requestGuardRef = useRef(new LatestRequestGuard<string | null>(userId));
+  const [loadedScopeKey, setLoadedScopeKey] = useState<string | null>(null);
+  const requestGuardRef = useRef(new LatestRequestGuard<string | null>(scopeKey));
   const savePromiseRef = useRef<Promise<BillingParty> | null>(null);
   const deletePromiseByIdRef = useRef(new Map<string, Promise<void>>());
 
   useEffect(() => {
-    requestGuardRef.current.changeOwner(userId);
+    requestGuardRef.current.changeOwner(scopeKey);
     setParties([]);
     setSummaries([]);
     setLedgerByPartyId({});
     setError("");
+    setLoadedScopeKey(null);
     setSaving(false);
     setDeletingIds([]);
     savePromiseRef.current = null;
     deletePromiseByIdRef.current.clear();
-    setLoading(Boolean(userId));
-  }, [userId]);
+    setLoading(Boolean(scope));
+  }, [scopeKey]);
 
   async function refresh() {
-    const requestUserId = userId;
-    if (!requestUserId || !requestGuardRef.current.isOwnerActive(requestUserId)) return;
+    const requestScope = scope;
+    if (!requestScope || !scopeKey || !requestGuardRef.current.isOwnerActive(scopeKey)) return;
 
-    const requestTicket = requestGuardRef.current.begin(requestUserId);
+    const requestTicket = requestGuardRef.current.begin(scopeKey);
     const isCurrentRequest = () => requestGuardRef.current.isCurrent(requestTicket);
 
     try {
       setError("");
       setLoading(true);
       const [nextParties, nextSummaries] = await Promise.all([
-        service.listBillingParties(requestUserId),
-        service.listBillingPartySummaries()
+        service.listBillingParties(requestScope),
+        includeSummaries ? service.listBillingPartySummaries(requestScope) : Promise.resolve([])
       ]);
       if (!isCurrentRequest()) return;
       setParties(nextParties);
       setSummaries(nextSummaries);
+      setLoadedScopeKey(scopeKey);
     } catch (loadError) {
       if (!isCurrentRequest()) return;
       logDevError("Billing party refresh failed", loadError);
@@ -57,12 +63,12 @@ export function useBillingParties(userId: string | null, service: BillingPartySe
 
   useEffect(() => {
     void refresh();
-  }, [userId]);
+  }, [scopeKey, includeSummaries]);
 
   async function loadLedger(billingPartyId: string) {
-    if (!userId) return [];
+    if (!scope) return [];
     try {
-      const ledger = await service.listBillingPartyLedger(billingPartyId);
+      const ledger = await service.listBillingPartyLedger(scope, billingPartyId);
       setLedgerByPartyId((current) => ({ ...current, [billingPartyId]: ledger }));
       return ledger;
     } catch (ledgerError) {
@@ -73,14 +79,14 @@ export function useBillingParties(userId: string | null, service: BillingPartySe
   }
 
   async function loadStatement(billingPartyId: string, fromDate: string, toDate: string): Promise<BillingPartyStatement | null> {
-    if (!userId) return null;
+    if (!scope) return null;
     if (!fromDate || !toDate || fromDate > toDate) {
       setError("Please select a valid date range.");
       return null;
     }
     try {
       setError("");
-      return await service.getBillingPartyStatement(billingPartyId, fromDate, toDate);
+      return await service.getBillingPartyStatement(scope, billingPartyId, fromDate, toDate);
     } catch (statementError) {
       logDevError("Billing party statement failed", statementError);
       setError("Unable to load the owner statement.");
@@ -89,15 +95,15 @@ export function useBillingParties(userId: string | null, service: BillingPartySe
   }
 
   async function saveBillingParty(draft: BillingPartyDraft, editingId?: string | null) {
-    if (!userId) throw new Error("You must be logged in to save an Owner / Company.");
+    if (!scope) throw new Error("You must be logged in to save an Owner / Company.");
     if (savePromiseRef.current) return savePromiseRef.current;
 
     const savePromise = (async () => {
       setSaving(true);
       const existing = editingId ? parties.find((party) => party.id === editingId) : null;
       const saved = existing
-        ? await service.updateBillingParty(userId, { ...existing, ...draft, id: editingId!, createdAt: existing.createdAt, updatedAt: existing.updatedAt })
-        : await service.saveBillingParty(userId, draft);
+        ? await service.updateBillingParty(scope, { ...existing, ...draft, id: editingId!, createdAt: existing.createdAt, updatedAt: existing.updatedAt })
+        : await service.saveBillingParty(scope, draft);
       void refresh();
       return saved;
     })();
@@ -112,13 +118,13 @@ export function useBillingParties(userId: string | null, service: BillingPartySe
   }
 
   async function deleteBillingParty(id: string) {
-    if (!userId) throw new Error("You must be logged in to delete an Owner / Company.");
+    if (!scope) throw new Error("You must be logged in to delete an Owner / Company.");
     const existingDelete = deletePromiseByIdRef.current.get(id);
     if (existingDelete) return existingDelete;
 
     const deletePromise = (async () => {
       setDeletingIds((ids) => ids.includes(id) ? ids : [...ids, id]);
-      await service.deleteBillingParty(userId, id);
+      await service.deleteBillingParty(scope, id);
       await refresh();
     })();
 
@@ -138,7 +144,7 @@ export function useBillingParties(userId: string | null, service: BillingPartySe
     summaries,
     summaryById,
     ledgerByPartyId,
-    loading,
+    loading: loading || Boolean(scopeKey && loadedScopeKey !== scopeKey),
     saving,
     deletingIds,
     error,

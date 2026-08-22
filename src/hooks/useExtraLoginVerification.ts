@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { authService, type AuthService } from "../services/authService";
+import { appServices } from "../app/appDependencies";
+import type { AuthService } from "../services/authService";
 import type { ExtraLoginVerificationEnrollment, ExtraLoginVerificationStatus } from "../types/auth";
 import { getSafeErrorMessage, logDevError } from "../utils/errors";
 
@@ -8,7 +9,7 @@ const DISABLED_STATUS: ExtraLoginVerificationStatus = {
   required: false
 };
 
-export function useExtraLoginVerification(service: AuthService = authService) {
+export function useExtraLoginVerification(service: AuthService = appServices.auth) {
   const [status, setStatus] = useState<ExtraLoginVerificationStatus>(DISABLED_STATUS);
   const [enrollment, setEnrollment] = useState<ExtraLoginVerificationEnrollment | null>(null);
   const [loading, setLoading] = useState(true);

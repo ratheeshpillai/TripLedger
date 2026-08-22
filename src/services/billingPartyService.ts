@@ -1,15 +1,15 @@
 import type { BillingParty, BillingPartyDraft } from "../types/billingParty";
 import type { BillingPartyRepository } from "../repositories/billingPartyRepository";
-import { supabaseBillingPartyRepository } from "../repositories/supabase/supabaseBillingPartyRepository";
+import type { OrganizationScope } from "../types/organization";
 
 export interface BillingPartyService {
-  listBillingParties(userId: string): ReturnType<BillingPartyRepository["listBillingParties"]>;
-  listBillingPartySummaries(): ReturnType<BillingPartyRepository["listBillingPartySummaries"]>;
-  listBillingPartyLedger(billingPartyId: string): ReturnType<BillingPartyRepository["listBillingPartyLedger"]>;
-  getBillingPartyStatement(billingPartyId: string, fromDate: string, toDate: string): ReturnType<BillingPartyRepository["getBillingPartyStatement"]>;
-  saveBillingParty(userId: string, draft: BillingPartyDraft): Promise<BillingParty>;
-  updateBillingParty(userId: string, party: BillingParty): Promise<BillingParty>;
-  deleteBillingParty(userId: string, id: string): Promise<void>;
+  listBillingParties(scope: OrganizationScope): ReturnType<BillingPartyRepository["listBillingParties"]>;
+  listBillingPartySummaries(scope: OrganizationScope): ReturnType<BillingPartyRepository["listBillingPartySummaries"]>;
+  listBillingPartyLedger(scope: OrganizationScope, billingPartyId: string): ReturnType<BillingPartyRepository["listBillingPartyLedger"]>;
+  getBillingPartyStatement(scope: OrganizationScope, billingPartyId: string, fromDate: string, toDate: string): ReturnType<BillingPartyRepository["getBillingPartyStatement"]>;
+  saveBillingParty(scope: OrganizationScope, draft: BillingPartyDraft): Promise<BillingParty>;
+  updateBillingParty(scope: OrganizationScope, party: BillingParty): Promise<BillingParty>;
+  deleteBillingParty(scope: OrganizationScope, id: string): Promise<void>;
 }
 
 function validateBillingParty(draft: BillingPartyDraft) {
@@ -18,31 +18,29 @@ function validateBillingParty(draft: BillingPartyDraft) {
 
 export function createBillingPartyService(repository: BillingPartyRepository): BillingPartyService {
   return {
-    listBillingParties(userId) {
-      return repository.listBillingParties(userId);
+    listBillingParties(scope) {
+      return repository.listBillingParties(scope);
     },
-    listBillingPartySummaries() {
-      return repository.listBillingPartySummaries();
+    listBillingPartySummaries(scope) {
+      return repository.listBillingPartySummaries(scope);
     },
-    listBillingPartyLedger(billingPartyId) {
-      return repository.listBillingPartyLedger(billingPartyId);
+    listBillingPartyLedger(scope, billingPartyId) {
+      return repository.listBillingPartyLedger(scope, billingPartyId);
     },
-    getBillingPartyStatement(billingPartyId, fromDate, toDate) {
+    getBillingPartyStatement(scope, billingPartyId, fromDate, toDate) {
       if (!billingPartyId || !fromDate || !toDate || fromDate > toDate) throw new Error("Please select a valid date range.");
-      return repository.getBillingPartyStatement(billingPartyId, fromDate, toDate);
+      return repository.getBillingPartyStatement(scope, billingPartyId, fromDate, toDate);
     },
-    saveBillingParty(userId, draft) {
+    saveBillingParty(scope, draft) {
       validateBillingParty(draft);
-      return repository.saveBillingParty(userId, draft);
+      return repository.saveBillingParty(scope, draft);
     },
-    updateBillingParty(userId, party) {
+    updateBillingParty(scope, party) {
       validateBillingParty(party);
-      return repository.updateBillingParty(userId, party);
+      return repository.updateBillingParty(scope, party);
     },
-    deleteBillingParty(userId, id) {
-      return repository.deleteBillingParty(userId, id);
+    deleteBillingParty(scope, id) {
+      return repository.deleteBillingParty(scope, id);
     }
   };
 }
-
-export const billingPartyService = createBillingPartyService(supabaseBillingPartyRepository);

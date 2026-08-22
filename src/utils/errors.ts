@@ -33,6 +33,28 @@ export type SafeErrorContext =
   | "settings.save"
   | "unexpected";
 
+export type AppErrorCode =
+  | "UNAUTHORIZED"
+  | "FORBIDDEN"
+  | "NOT_FOUND"
+  | "CONFLICT"
+  | "VALIDATION"
+  | "LIMIT_REACHED"
+  | "RATE_LIMITED"
+  | "UNAVAILABLE"
+  | "UNKNOWN";
+
+export class AppError extends Error {
+  constructor(
+    readonly code: AppErrorCode,
+    readonly userMessage?: string,
+    readonly cause?: unknown
+  ) {
+    super(code);
+    this.name = "AppError";
+  }
+}
+
 const CONTEXT_MESSAGES: Record<SafeErrorContext, string> = {
   "auth.initialize": "Unable to verify your session. Please sign in again.",
   "auth.login": "Unable to sign in with those credentials.",
@@ -71,62 +93,26 @@ function errorMetadata(error: unknown): ErrorLike {
   return typeof error === "object" && error !== null ? error as ErrorLike : {};
 }
 
-function normalizedMessage(error: unknown): string {
-  const message = errorMetadata(error).message;
-  return typeof message === "string" ? message.toLowerCase() : "";
-}
-
 export function getSafeErrorMessage(error: unknown, context: SafeErrorContext = "unexpected"): string {
-  const metadata = errorMetadata(error);
-  const code = typeof metadata.code === "string" ? metadata.code.toLowerCase() : "";
-  const status = typeof metadata.status === "number" ? metadata.status : undefined;
-  const message = normalizedMessage(error);
-
   if (error instanceof DuplicateBillError) {
     return "A matching bill already exists. The existing bill was opened for editing.";
   }
 
-  if (code === "invalid_credentials" || message.includes("invalid login credentials")) {
-    return "The email or password is incorrect.";
-  }
-  if (code === "email_not_confirmed" || message.includes("email not confirmed")) {
-    return "Please verify your email before signing in.";
-  }
-  if (code === "over_email_send_rate_limit" || code === "too_many_requests" || status === 429 || message.includes("rate limit") || message.includes("too many")) {
-    return "Too many attempts. Please wait a moment before trying again.";
-  }
-  if (["session_not_found", "refresh_token_not_found", "refresh_token_already_used", "bad_jwt"].includes(code) || code === "pgrst301") {
-    return "Your session has expired. Please sign in again.";
-  }
-  if (code === "otp_expired" || code === "mfa_challenge_expired" || message.includes("token has expired")) {
-    return context === "auth.verification"
-      ? "This verification link is invalid or has expired."
-      : "That verification code has expired. Please try again.";
-  }
-  if (["mfa_verification_failed", "mfa_challenge_not_found", "invalid_otp"].includes(code) || message.includes("invalid totp")) {
-    return "That authenticator code is invalid. Please try again.";
-  }
-  if (code === "23505") {
-    return "A matching record already exists.";
-  }
-  if (message.includes("record limit")) {
-    return "You have reached the current record limit.";
-  }
-  if (message.includes("already being processed") || message.includes("already saved")) {
-    return "This request is already being processed.";
-  }
-  if (code === "23514") {
-    return context === "bill.save" || context === "bill.update"
-      ? "Unable to save the bill. Please review the details and try again."
-      : "Unable to save. Please try again.";
-  }
-  if (code === "42501" || code === "insufficient_aal" || status === 401 || status === 403 || message.includes("row-level security")) {
-    return context.startsWith("auth.")
-      ? "Your session is not authorized for this action. Please sign in again."
-      : "You do not have permission to perform this action.";
-  }
-  if (error instanceof TypeError || message.includes("failed to fetch") || message.includes("network request failed") || message.includes("networkerror")) {
-    return "We couldn’t connect right now. Please check your internet connection and try again.";
+  if (error instanceof AppError) {
+    if (error.userMessage) return error.userMessage;
+    if (error.code === "UNAUTHORIZED") return "Your session has expired. Please sign in again.";
+    if (error.code === "FORBIDDEN") {
+      return context.startsWith("auth.")
+        ? "Your session is not authorized for this action. Please sign in again."
+        : "You do not have permission to perform this action.";
+    }
+    if (error.code === "CONFLICT") return "A matching record already exists.";
+    if (error.code === "LIMIT_REACHED") return "You have reached the current record limit.";
+    if (error.code === "RATE_LIMITED") return "Too many attempts. Please wait a moment before trying again.";
+    if (error.code === "UNAVAILABLE") return "We couldn’t connect right now. Please check your internet connection and try again.";
+    if (error.code === "VALIDATION" && (context === "bill.save" || context === "bill.update")) {
+      return "Unable to save the bill. Please review the details and try again.";
+    }
   }
 
   return CONTEXT_MESSAGES[context];
@@ -134,7 +120,7 @@ export function getSafeErrorMessage(error: unknown, context: SafeErrorContext = 
 
 export function logDevError(context: string, error: unknown): void {
   if (import.meta.env.DEV) {
-    const metadata = errorMetadata(error);
+    const metadata = errorMetadata(error instanceof AppError ? error.cause : error);
     const code = typeof metadata.code === "string" && /^[a-z0-9_]{1,40}$/i.test(metadata.code) ? metadata.code : undefined;
     const status = typeof metadata.status === "number" ? metadata.status : undefined;
     const name = typeof metadata.name === "string" && /^(Error|TypeError|AuthApiError|AuthSessionMissingError|PostgrestError)$/.test(metadata.name)

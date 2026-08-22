@@ -1,8 +1,9 @@
 import type { OwnerPayment, OwnerPaymentDraft } from "../types/ownerPayment";
+import type { OrganizationScope } from "../types/organization";
 
 export interface OwnerPaymentRepository {
-  listOwnerPayments(userId: string, billingPartyId?: string): Promise<OwnerPayment[]>;
-  saveOwnerPayment(userId: string, draft: OwnerPaymentDraft, requestId: string): Promise<OwnerPayment>;
-  updateOwnerPayment(userId: string, payment: OwnerPayment): Promise<OwnerPayment>;
-  deleteOwnerPayment(userId: string, id: string): Promise<void>;
+  listOwnerPayments(scope: OrganizationScope, billingPartyId?: string): Promise<OwnerPayment[]>;
+  saveOwnerPayment(scope: OrganizationScope, draft: OwnerPaymentDraft, requestId: string): Promise<OwnerPayment>;
+  updateOwnerPayment(scope: OrganizationScope, payment: OwnerPayment): Promise<OwnerPayment>;
+  deleteOwnerPayment(scope: OrganizationScope, id: string): Promise<void>;
 }

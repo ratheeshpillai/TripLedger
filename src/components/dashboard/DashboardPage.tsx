@@ -1,9 +1,6 @@
-import { useMemo, useState } from "react";
-import type { Bill } from "../../types/bill";
-import type { BillingParty, BillingPartySummary } from "../../types/billingParty";
-import type { OwnerPayment } from "../../types/ownerPayment";
+import type { DashboardActivity, DashboardData, DashboardPeriod } from "../../types/dashboard";
 import type { AppSettings } from "../../types/settings";
-import { buildDashboardData, buildMonthlyBillingTrend, dashboardDateLabel, type DashboardActivity, type DashboardPeriod } from "../../utils/dashboard";
+import { dashboardDateLabel } from "../../utils/dashboard";
 import { currency } from "../../utils/formatters";
 import { Button } from "../ui/Button";
 import { Card, CardContent, CardHeader } from "../ui/Card";
@@ -11,20 +8,18 @@ import { cn } from "../ui/cn";
 import { BillingTrendChart } from "./BillingTrendChart";
 
 type Props = {
-  bills: Bill[];
-  billingParties: BillingParty[];
-  ownerSummaries: BillingPartySummary[];
-  ownerPayments: OwnerPayment[];
+  data: DashboardData | null;
+  period: DashboardPeriod;
   settings: AppSettings;
   loading: boolean;
   error: string;
-  billError: string;
+  onPeriodChange: (period: DashboardPeriod) => void;
   onCreateBill: () => void;
   onRecordPayment: () => void;
   onViewHistory: () => void;
   onViewOwners: () => void;
   onOpenOwner: (billingPartyId: string) => void;
-  onOpenBill: (bill: Bill) => void;
+  onOpenBill: (billId: string) => void;
   onRetry: () => void;
 };
 
@@ -100,14 +95,12 @@ function ActivityIcon({ type }: { type: DashboardActivity["type"] }) {
 }
 
 export function DashboardPage({
-  bills,
-  billingParties,
-  ownerSummaries,
-  ownerPayments,
+  data,
+  period,
   settings,
   loading,
   error,
-  billError,
+  onPeriodChange,
   onCreateBill,
   onRecordPayment,
   onViewHistory,
@@ -116,24 +109,16 @@ export function DashboardPage({
   onOpenBill,
   onRetry
 }: Props) {
-  const [period, setPeriod] = useState<DashboardPeriod>("today");
-  const data = useMemo(
-    () => buildDashboardData(bills, ownerPayments, billingParties, ownerSummaries, period),
-    [bills, ownerPayments, billingParties, ownerSummaries, period]
-  );
-  const billById = useMemo(() => new Map(bills.map((bill) => [bill.id, bill])), [bills]);
-  const monthlyBilling = useMemo(() => buildMonthlyBillingTrend(bills), [bills]);
-
   function openActivity(activity: DashboardActivity) {
     if (activity.type === "bill") {
-      const bill = billById.get(activity.recordId);
-      if (bill) onOpenBill(bill);
+      onOpenBill(activity.recordId);
       return;
     }
     onViewOwners();
   }
 
   if (loading) return <DashboardSkeleton />;
+  if (!data) return <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">Unable to load Dashboard data. <Button type="button" variant="danger" className="ml-3" onClick={onRetry}>Try Again</Button></div>;
 
   return (
     <div className="space-y-3">
@@ -151,7 +136,7 @@ export function DashboardPage({
             <span className="sr-only">Dashboard period</span>
             <select
               value={period}
-              onChange={(event) => setPeriod(event.target.value as DashboardPeriod)}
+              onChange={(event) => onPeriodChange(event.target.value as DashboardPeriod)}
               className="min-h-11 w-full cursor-pointer rounded-lg border border-white/25 bg-white/10 px-3 pr-8 text-sm font-bold text-white outline-none hover:bg-white/15 focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[#1E3A8A] dark:focus:ring-offset-[#172554]"
             >
               {periods.map((option) => <option key={option.id} value={option.id} className="text-slate-900">{option.label}</option>)}
@@ -258,7 +243,7 @@ export function DashboardPage({
           </CardContent>
         </Card>
 
-        <BillingTrendChart data={monthlyBilling} currencySymbol={settings.currencySymbol} loading={loading} error={billError} />
+        <BillingTrendChart data={data.monthlyTrend} currencySymbol={settings.currencySymbol} loading={loading} error={error} />
       </div>
     </div>
   );

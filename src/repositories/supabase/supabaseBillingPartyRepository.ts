@@ -1,65 +1,31 @@
 import type { BillingParty, BillingPartyDraft, BillingPartyStatement, BillingPartySummary, LedgerEntry, StatementEntry } from "../../types/billingParty";
+import type { OrganizationScope } from "../../types/organization";
 import { logDevError } from "../../utils/errors";
 import type { BillingPartyRepository } from "../billingPartyRepository";
+import type { Database } from "./database.types";
 import { getSupabaseClient } from "./supabaseClient";
+import { mapSupabaseError } from "./supabaseError";
 
-type BillingPartyRow = {
-  id: string;
-  user_id: string;
-  name: string;
+type BillingPartyRow = Database["public"]["Tables"]["billing_parties"]["Row"];
+type BillingPartyWriteRow = Database["public"]["Tables"]["billing_parties"]["Insert"];
+type BillingPartyUpdateRow = Database["public"]["Tables"]["billing_parties"]["Update"];
+type GeneratedBillingPartySummaryRow = Database["public"]["Functions"]["get_billing_party_summaries"]["Returns"][number];
+type BillingPartySummaryRow = Omit<GeneratedBillingPartySummaryRow, "company_name" | "latest_bill_date" | "latest_payment_date"> & {
   company_name: string | null;
-  phone: string | null;
-  email: string | null;
-  address: string | null;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-type BillingPartySummaryRow = {
-  billing_party_id: string;
-  display_name: string;
-  company_name: string | null;
-  total_billed: number | string | null;
-  total_received: number | string | null;
-  net_balance: number | string | null;
-  outstanding_amount: number | string | null;
-  advance_credit: number | string | null;
-  bill_count: number | string | null;
-  payment_count: number | string | null;
   latest_bill_date: string | null;
   latest_payment_date: string | null;
 };
-
-type LedgerEntryRow = {
-  entry_date: string;
-  entry_type: "bill" | "payment_received" | "advance_received";
-  reference_id: string;
-  description: string | null;
-  debit_amount: number | string | null;
-  credit_amount: number | string | null;
-  running_balance: number | string | null;
-};
-
-type StatementRow = {
-  billing_party_id: string;
-  display_name: string;
+type LedgerEntryRow = Database["public"]["Functions"]["get_billing_party_ledger"]["Returns"][number];
+type GeneratedStatementRow = Database["public"]["Functions"]["get_billing_party_statement"]["Returns"][number];
+type StatementRow = Omit<GeneratedStatementRow, "company_name" | "entry_date" | "entry_type" | "reference_id" | "description" | "debit_amount" | "credit_amount" | "running_balance"> & {
   company_name: string | null;
-  from_date: string;
-  to_date: string;
-  opening_balance: number | string | null;
-  total_billed: number | string | null;
-  total_received: number | string | null;
-  closing_balance: number | string | null;
-  closing_outstanding: number | string | null;
-  advance_available: number | string | null;
   entry_date: string | null;
-  entry_type: "bill" | "payment_received" | "advance_received" | null;
+  entry_type: string | null;
   reference_id: string | null;
   description: string | null;
-  debit_amount: number | string | null;
-  credit_amount: number | string | null;
-  running_balance: number | string | null;
+  debit_amount: number | null;
+  credit_amount: number | null;
+  running_balance: number | null;
 };
 
 function numeric(value: number | string | null | undefined): number {
@@ -70,9 +36,15 @@ function text(value: string | null | undefined): string {
   return value ?? "";
 }
 
+function ledgerEntryType(value: string): LedgerEntry["entryType"] {
+  if (value === "bill" || value === "payment_received" || value === "advance_received") return value;
+  throw new Error("Unsupported owner ledger entry type.");
+}
+
 function toBillingParty(row: BillingPartyRow): BillingParty {
   return {
     id: row.id,
+    organizationId: row.organization_id,
     userId: row.user_id,
     name: row.name,
     companyName: text(row.company_name),
@@ -85,9 +57,21 @@ function toBillingParty(row: BillingPartyRow): BillingParty {
   };
 }
 
-function toWriteRow(userId: string, draft: BillingPartyDraft): Partial<BillingPartyRow> {
+function toWriteRow(scope: OrganizationScope, draft: BillingPartyDraft): BillingPartyWriteRow {
   return {
-    user_id: userId,
+    organization_id: scope.organizationId,
+    user_id: scope.userId,
+    name: draft.name.trim(),
+    company_name: draft.companyName.trim() || null,
+    phone: draft.phone.trim() || null,
+    email: draft.email.trim() || null,
+    address: draft.address.trim() || null,
+    notes: draft.notes.trim() || null
+  };
+}
+
+function toUpdateRow(draft: BillingPartyDraft): BillingPartyUpdateRow {
+  return {
     name: draft.name.trim(),
     company_name: draft.companyName.trim() || null,
     phone: draft.phone.trim() || null,
@@ -117,7 +101,7 @@ function toSummary(row: BillingPartySummaryRow): BillingPartySummary {
 function toLedgerEntry(row: LedgerEntryRow): LedgerEntry {
   return {
     entryDate: row.entry_date,
-    entryType: row.entry_type,
+    entryType: ledgerEntryType(row.entry_type),
     referenceId: row.reference_id,
     description: text(row.description),
     debitAmount: numeric(row.debit_amount),
@@ -134,7 +118,7 @@ function toStatement(rows: StatementRow[], billingPartyId: string, fromDate: str
     .filter((row) => row.entry_date && row.entry_type)
     .map<StatementEntry>((row) => ({
       entryDate: row.entry_date!,
-      entryType: row.entry_type!,
+      entryType: ledgerEntryType(row.entry_type!),
       description: text(row.description),
       debitAmount: numeric(row.debit_amount),
       creditAmount: numeric(row.credit_amount),
@@ -160,42 +144,46 @@ function toStatement(rows: StatementRow[], billingPartyId: string, fromDate: str
 }
 
 export const supabaseBillingPartyRepository: BillingPartyRepository = {
-  async listBillingParties(userId) {
+  async listBillingParties(scope) {
     const { data, error } = await getSupabaseClient()
       .from("billing_parties")
       .select("*")
-      .eq("user_id", userId)
+      .eq("organization_id", scope.organizationId)
       .order("name", { ascending: true });
 
     if (error) {
       logDevError("Supabase billing party list failed", error);
-      throw error;
+      throw mapSupabaseError(error);
     }
-    return ((data ?? []) as BillingPartyRow[]).map(toBillingParty);
+    return (data ?? []).map(toBillingParty);
   },
 
-  async listBillingPartySummaries() {
-    const { data, error } = await getSupabaseClient().rpc("get_billing_party_summaries");
+  async listBillingPartySummaries(scope) {
+    const { data, error } = await getSupabaseClient().rpc("get_billing_party_summaries", { p_organization_id: scope.organizationId });
 
     if (error) {
       logDevError("Supabase billing party summaries failed", error);
-      throw error;
+      throw mapSupabaseError(error);
     }
-    return ((data ?? []) as BillingPartySummaryRow[]).map(toSummary);
+    return (data ?? []).map(toSummary);
   },
 
-  async listBillingPartyLedger(billingPartyId) {
-    const { data, error } = await getSupabaseClient().rpc("get_billing_party_ledger", { p_billing_party_id: billingPartyId });
+  async listBillingPartyLedger(scope, billingPartyId) {
+    const { data, error } = await getSupabaseClient().rpc("get_billing_party_ledger", {
+      p_organization_id: scope.organizationId,
+      p_billing_party_id: billingPartyId
+    });
 
     if (error) {
       logDevError("Supabase billing party ledger failed", error);
-      throw error;
+      throw mapSupabaseError(error);
     }
-    return ((data ?? []) as LedgerEntryRow[]).map(toLedgerEntry);
+    return (data ?? []).map(toLedgerEntry);
   },
 
-  async getBillingPartyStatement(billingPartyId, fromDate, toDate) {
+  async getBillingPartyStatement(scope, billingPartyId, fromDate, toDate) {
     const { data, error } = await getSupabaseClient().rpc("get_billing_party_statement", {
+      p_organization_id: scope.organizationId,
       p_billing_party_id: billingPartyId,
       p_from_date: fromDate,
       p_to_date: toDate
@@ -203,51 +191,51 @@ export const supabaseBillingPartyRepository: BillingPartyRepository = {
 
     if (error) {
       logDevError("Supabase billing party statement failed", error);
-      throw error;
+      throw mapSupabaseError(error);
     }
-    return toStatement((data ?? []) as StatementRow[], billingPartyId, fromDate, toDate);
+    return toStatement(data ?? [], billingPartyId, fromDate, toDate);
   },
 
-  async saveBillingParty(userId, draft) {
+  async saveBillingParty(scope, draft) {
     const { data, error } = await getSupabaseClient()
       .from("billing_parties")
-      .insert(toWriteRow(userId, draft))
+      .insert(toWriteRow(scope, draft))
       .select("*")
       .single();
 
     if (error) {
       logDevError("Supabase billing party save failed", error);
-      throw error;
+      throw mapSupabaseError(error);
     }
-    return toBillingParty(data as BillingPartyRow);
+    return toBillingParty(data);
   },
 
-  async updateBillingParty(userId, party) {
+  async updateBillingParty(scope, party) {
     const { data, error } = await getSupabaseClient()
       .from("billing_parties")
-      .update(toWriteRow(userId, party))
+      .update(toUpdateRow(party))
       .eq("id", party.id)
-      .eq("user_id", userId)
+      .eq("organization_id", scope.organizationId)
       .select("*")
       .single();
 
     if (error) {
       logDevError("Supabase billing party update failed", error);
-      throw error;
+      throw mapSupabaseError(error);
     }
-    return toBillingParty(data as BillingPartyRow);
+    return toBillingParty(data);
   },
 
-  async deleteBillingParty(userId, id) {
+  async deleteBillingParty(scope, id) {
     const { error } = await getSupabaseClient()
       .from("billing_parties")
       .delete()
       .eq("id", id)
-      .eq("user_id", userId);
+      .eq("organization_id", scope.organizationId);
 
     if (error) {
       logDevError("Supabase billing party delete failed", error);
-      throw error;
+      throw mapSupabaseError(error);
     }
   }
 };

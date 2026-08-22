@@ -7,6 +7,11 @@ import type {
   ExtraLoginVerificationStatus
 } from "../../types/auth";
 import { getSupabaseClient } from "./supabaseClient";
+import { mapSupabaseAuthError } from "./supabaseError";
+
+function fail(error: unknown): never {
+  throw mapSupabaseAuthError(error);
+}
 
 function mapUser(user: User | null): AuthUser | null {
   if (!user?.email) return null;
@@ -29,8 +34,8 @@ async function getExtraLoginVerificationStatus(): Promise<ExtraLoginVerification
     client.auth.mfa.getAuthenticatorAssuranceLevel()
   ]);
 
-  if (factorsError) throw factorsError;
-  if (assuranceError) throw assuranceError;
+  if (factorsError) fail(factorsError);
+  if (assuranceError) fail(assuranceError);
 
   const factor = factors.totp[0];
   const enabled = Boolean(factor);
@@ -60,14 +65,14 @@ async function buildSessionState(user: User | null): Promise<AuthSessionState> {
 export const supabaseAuthRepository: AuthRepository = {
   async getSessionState() {
     const { data, error } = await getSupabaseClient().auth.getSession();
-    if (error) throw error;
+    if (error) fail(error);
     return buildSessionState(data.session?.user ?? null);
   },
 
   async signIn(credentials: AuthCredentials) {
     const { data, error } = await getSupabaseClient().auth.signInWithPassword(credentials);
-    if (error) throw error;
-    if (!data.user) throw new Error("Login succeeded but no user session was returned.");
+    if (error) fail(error);
+    if (!data.user) fail(new Error("Login succeeded but no user session was returned."));
     return buildSessionState(data.user);
   },
 
@@ -76,7 +81,7 @@ export const supabaseAuthRepository: AuthRepository = {
       ...credentials,
       options: { emailRedirectTo }
     });
-    if (error) throw error;
+    if (error) fail(error);
     return mapUser(data.session?.user ?? null);
   },
 
@@ -86,35 +91,35 @@ export const supabaseAuthRepository: AuthRepository = {
       email,
       options: { emailRedirectTo }
     });
-    if (error) throw error;
+    if (error) fail(error);
   },
 
   async sendPasswordReset(email: string, redirectTo: string) {
     const { error } = await getSupabaseClient().auth.resetPasswordForEmail(email, { redirectTo });
-    if (error) throw error;
+    if (error) fail(error);
   },
 
   async hasActiveSession() {
     const { data, error } = await getSupabaseClient().auth.getSession();
-    if (error) throw error;
+    if (error) fail(error);
     return Boolean(data.session?.user);
   },
 
   async updatePassword(password: string) {
     const { error } = await getSupabaseClient().auth.updateUser({ password });
-    if (error) throw error;
+    if (error) fail(error);
   },
 
   async completeEmailVerification(callbackUrl: string) {
     const client = getSupabaseClient();
     const url = new URL(callbackUrl);
     const errorMessage = callbackError(url);
-    if (errorMessage) throw new Error(errorMessage);
+    if (errorMessage) fail({ code: "otp_expired", message: errorMessage });
 
     const code = url.searchParams.get("code");
     if (code) {
       const { data, error } = await client.auth.exchangeCodeForSession(code);
-      if (error) throw error;
+      if (error) fail(error);
       return buildSessionState(data.session.user);
     }
 
@@ -126,21 +131,21 @@ export const supabaseAuthRepository: AuthRepository = {
         access_token: accessToken,
         refresh_token: refreshToken
       });
-      if (error) throw error;
+      if (error) fail(error);
       return buildSessionState(data.session?.user ?? null);
     }
 
     const { data, error } = await client.auth.getSession();
-    if (error) throw error;
+    if (error) fail(error);
     if (!data.session?.user) {
-      throw new Error("This verification link is invalid or has expired. Please request a new verification email.");
+      fail({ code: "otp_expired" });
     }
     return buildSessionState(data.session.user);
   },
 
   async signOut() {
     const { error } = await getSupabaseClient().auth.signOut();
-    if (error) throw error;
+    if (error) fail(error);
   },
 
   getExtraLoginVerificationStatus,
@@ -148,12 +153,12 @@ export const supabaseAuthRepository: AuthRepository = {
   async enrollExtraLoginVerification() {
     const client = getSupabaseClient();
     const { data: factors, error: factorsError } = await client.auth.mfa.listFactors();
-    if (factorsError) throw factorsError;
+    if (factorsError) fail(factorsError);
 
     const unfinishedFactors = factors.all.filter((factor) => factor.factor_type === "totp" && factor.status === "unverified");
     await Promise.all(unfinishedFactors.map(async (factor) => {
       const { error } = await client.auth.mfa.unenroll({ factorId: factor.id });
-      if (error) throw error;
+      if (error) fail(error);
     }));
 
     const { data, error } = await client.auth.mfa.enroll({
@@ -161,7 +166,7 @@ export const supabaseAuthRepository: AuthRepository = {
       friendlyName: "TripLedger Extra Login Verification",
       issuer: "TripLedger"
     });
-    if (error) throw error;
+    if (error) fail(error);
 
     const qrCode = data.totp.qr_code.startsWith("data:")
       ? data.totp.qr_code
@@ -180,23 +185,23 @@ export const supabaseAuthRepository: AuthRepository = {
       factorId,
       code
     });
-    if (error) throw error;
+    if (error) fail(error);
     return buildSessionState(data.user);
   },
 
   async cancelExtraLoginVerificationEnrollment(factorId: string) {
     const { error } = await getSupabaseClient().auth.mfa.unenroll({ factorId });
-    if (error) throw error;
+    if (error) fail(error);
   },
 
   async disableExtraLoginVerification() {
     const client = getSupabaseClient();
     const { data, error } = await client.auth.mfa.listFactors();
-    if (error) throw error;
+    if (error) fail(error);
 
     for (const factor of data.totp) {
       const { error: unenrollError } = await client.auth.mfa.unenroll({ factorId: factor.id });
-      if (unenrollError) throw unenrollError;
+      if (unenrollError) fail(unenrollError);
     }
 
     return getExtraLoginVerificationStatus();

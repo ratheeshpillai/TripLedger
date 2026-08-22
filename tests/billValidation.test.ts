@@ -71,7 +71,8 @@ test("normalizes text and time without shifting local dates", () => {
 test("the service blocks invalid payloads and normalizes valid payloads", async () => {
   let saved: Bill | undefined;
   const repository: BillRepository = {
-    async listBills() { return []; },
+    async queryBills() { return { items: [], totalCount: 0, totalAmount: 0 }; },
+    async getBill() { throw new Error("not used"); },
     async saveBill(_userId, bill) { saved = bill; return bill; },
     async updateBill(_userId, bill) { return bill; },
     async deleteBill() {},
@@ -79,9 +80,10 @@ test("the service blocks invalid payloads and normalizes valid payloads", async 
   };
   const service = createBillService(repository);
   const bill = { ...validDraft(), id: "bill-1", createdAt: "", updatedAt: "" } as Bill;
+  const scope = { organizationId: "org-1", userId: "user-1" };
 
-  assert.throws(() => service.saveBill("user-1", { ...bill, baseAmount: Number.NaN }, "request-1"), BillValidationError);
-  await service.saveBill("user-1", { ...bill, guestName: "  Guest  ", reportingTime: "9am" }, "request-2");
+  assert.throws(() => service.saveBill(scope, { ...bill, baseAmount: Number.NaN }, "request-1"), BillValidationError);
+  await service.saveBill(scope, { ...bill, guestName: "  Guest  ", reportingTime: "9am" }, "request-2");
   assert.equal(saved?.guestName, "Guest");
   assert.equal(saved?.reportingTime, "09:00");
 });

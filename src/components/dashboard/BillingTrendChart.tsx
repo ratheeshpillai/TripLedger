@@ -8,7 +8,8 @@ import {
   YAxis,
   type TooltipContentProps
 } from "recharts";
-import { compareMonthlyBilling, type MonthlyBillingPoint } from "../../utils/dashboard";
+import type { MonthlyBillingPoint } from "../../types/dashboard";
+import { compareMonthlyBilling } from "../../utils/dashboard";
 import { compactCurrency, currency } from "../../utils/formatters";
 import { Card, CardContent, CardHeader } from "../ui/Card";
 import { cn } from "../ui/cn";

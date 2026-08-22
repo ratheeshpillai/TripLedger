@@ -1,14 +1,15 @@
-import type { Bill } from "../types/bill";
+import type { Bill, BillQuery, PagedBills } from "../types/bill";
 import type { BillRepository } from "../repositories/billRepository";
-import { supabaseBillRepository } from "../repositories/supabase/supabaseBillRepository";
+import type { OrganizationScope } from "../types/organization";
 import { BillValidationError, normalizeBillDraft, validateBillDraft } from "../utils/billValidation";
 
 export interface BillService {
-  listBills(userId: string): Promise<Bill[]>;
-  saveBill(userId: string, bill: Bill, requestId: string): Promise<Bill>;
-  updateBill(userId: string, bill: Bill): Promise<Bill>;
-  deleteBill(userId: string, id: string): Promise<void>;
-  deleteBills(userId: string, ids: string[]): Promise<void>;
+  queryBills(scope: OrganizationScope, query: BillQuery): Promise<PagedBills>;
+  getBill(scope: OrganizationScope, id: string): Promise<Bill>;
+  saveBill(scope: OrganizationScope, bill: Bill, requestId: string): Promise<Bill>;
+  updateBill(scope: OrganizationScope, bill: Bill): Promise<Bill>;
+  deleteBill(scope: OrganizationScope, id: string): Promise<void>;
+  deleteBills(scope: OrganizationScope, ids: string[]): Promise<void>;
 }
 
 export function createBillService(repository: BillRepository): BillService {
@@ -22,22 +23,23 @@ export function createBillService(repository: BillRepository): BillService {
   }
 
   return {
-    listBills(userId) {
-      return repository.listBills(userId);
+    queryBills(scope, query) {
+      return repository.queryBills(scope, query);
     },
-    saveBill(userId, bill, requestId) {
-      return repository.saveBill(userId, validBill(bill), requestId);
+    getBill(scope, id) {
+      return repository.getBill(scope, id);
     },
-    updateBill(userId, bill) {
-      return repository.updateBill(userId, validBill(bill));
+    saveBill(scope, bill, requestId) {
+      return repository.saveBill(scope, validBill(bill), requestId);
     },
-    deleteBill(userId, id) {
-      return repository.deleteBill(userId, id);
+    updateBill(scope, bill) {
+      return repository.updateBill(scope, validBill(bill));
     },
-    deleteBills(userId, ids) {
-      return repository.deleteBills(userId, ids);
+    deleteBill(scope, id) {
+      return repository.deleteBill(scope, id);
+    },
+    deleteBills(scope, ids) {
+      return repository.deleteBills(scope, ids);
     }
   };
 }
-
-export const billService = createBillService(supabaseBillRepository);

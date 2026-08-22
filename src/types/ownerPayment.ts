@@ -3,6 +3,7 @@ export type OwnerPaymentMethod = "cash" | "bank_transfer" | "upi" | "cheque" | "
 
 export interface OwnerPayment {
   id: string;
+  organizationId?: string;
   userId?: string;
   billingPartyId: string;
   paymentDate: string;
