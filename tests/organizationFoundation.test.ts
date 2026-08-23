@@ -9,9 +9,9 @@ const migration = readFileSync(
 );
 
 test("organization resolution remains behind a repository boundary", async () => {
-  const expected = { id: "org-1", name: "My Organization", createdAt: "created", updatedAt: "updated" };
+  const expected = { id: "org-1", name: "My Organization", role: "owner" as const, createdAt: "created", updatedAt: "updated" };
   const service = createOrganizationService({ async getDefaultOrganization() { return expected; } });
-  assert.equal(await service.getDefaultOrganization(), expected);
+  assert.equal(await service.getDefaultOrganization("user-1"), expected);
 });
 
 test("existing records are backfilled before organization ownership becomes mandatory", () => {

@@ -26,6 +26,9 @@ export type SafeErrorContext =
   | "owner.save"
   | "owner.update"
   | "owner.delete"
+  | "driver.load"
+  | "driver.save"
+  | "driver.update"
   | "payment.save"
   | "payment.update"
   | "payment.delete"
@@ -72,6 +75,9 @@ const CONTEXT_MESSAGES: Record<SafeErrorContext, string> = {
   "owner.save": "Unable to add the Owner / Company.",
   "owner.update": "Unable to update the Owner / Company.",
   "owner.delete": "Unable to delete the Owner / Company.",
+  "driver.load": "Unable to load drivers.",
+  "driver.save": "Unable to add the driver.",
+  "driver.update": "Unable to update the driver.",
   "payment.save": "Unable to record the payment.",
   "payment.update": "Unable to update the payment.",
   "payment.delete": "Unable to delete the payment.",

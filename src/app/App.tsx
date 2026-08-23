@@ -8,6 +8,8 @@ import { DashboardPage } from "../components/dashboard/DashboardPage";
 import { LoggerPage, type SaveBillResult } from "../components/logger/LoggerPage";
 import { HistoryPage } from "../components/history/HistoryPage";
 import { OwnerCompanyPage } from "../components/owners/OwnerCompanyPage";
+import { DriversPage } from "../components/drivers/DriversPage";
+import { canManageDrivers } from "../components/drivers/driverPageModel";
 import { SettingsPage } from "../components/settings/SettingsPage";
 import { ConfirmationDialog } from "../components/shared/ConfirmationDialog";
 import { Toast, type ToastNotification, type ToastTone } from "../components/shared/Toast";
@@ -20,6 +22,7 @@ import { useDashboard } from "../hooks/useDashboard";
 import { useSettings } from "../hooks/useSettings";
 import { useOwnerPayments } from "../hooks/useOwnerPayments";
 import { useOrganization } from "../hooks/useOrganization";
+import { useDrivers } from "../hooks/useDrivers";
 import { clearLegacyLocalBillData } from "../services/privacyMigrationService";
 import { DuplicateBillError, getSafeErrorMessage, logDevError } from "../utils/errors";
 
@@ -27,6 +30,7 @@ function pageFromPath(pathname: string): AppPage {
   const normalized = pathname.replace(/\/+$/, "") || "/";
   if (normalized === "/history") return "history";
   if (normalized === "/owners" || normalized === "/owner-company") return "owners";
+  if (normalized === "/drivers") return "drivers";
   if (normalized === "/logger" || normalized === "/create-bill") return "logger";
   if (normalized === "/settings" || normalized === "/more") return "settings";
   return "dashboard";
@@ -35,6 +39,7 @@ function pageFromPath(pathname: string): AppPage {
 function pagePath(page: AppPage): string {
   if (page === "history") return "/history";
   if (page === "owners") return "/owners";
+  if (page === "drivers") return "/drivers";
   if (page === "logger") return "/create-bill";
   if (page === "settings") return "/more";
   return "/dashboard";
@@ -55,6 +60,7 @@ export default function App() {
   const billingPartiesApi = useBillingParties(billingPartiesEnabled ? organization.scope : null, page === "owners");
   const ownerPaymentsApi = useOwnerPayments(organization.scope);
   const dashboardApi = useDashboard(organization.scope, page === "dashboard");
+  const driversApi = useDrivers(organization.scope, page === "drivers");
   const form = useBillForm(settings);
   const [notifications, setNotifications] = useState<ToastNotification[]>([]);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
@@ -298,7 +304,7 @@ export default function App() {
       isDarkMode={theme.isDarkMode}
       mobileTitle={page === "logger" && form.editingBillId ? "Edit Bill" : page === "owners" ? mobileOwnerHeader?.title : undefined}
       mobileSubtitle={page === "logger" && form.editingBillId ? "Update trip and billing details" : page === "owners" && mobileOwnerHeader ? "Owner Account" : undefined}
-      mobileBack={page === "logger" && form.editingBillId ? () => navigateToPage("history") : page === "owners" ? mobileOwnerHeader?.onBack : undefined}
+      mobileBack={page === "logger" && form.editingBillId ? () => navigateToPage("history") : page === "owners" ? mobileOwnerHeader?.onBack : page === "drivers" ? () => navigateToPage("settings") : undefined}
       onToggleDarkMode={theme.toggleDarkMode}
       onLogout={() => setLogoutConfirmOpen(true)}
     >
@@ -494,6 +500,38 @@ export default function App() {
         />
       )}
 
+      {page === "drivers" && (
+        <DriversPage
+          drivers={driversApi.drivers}
+          canManage={canManageDrivers(organization.scope.role)}
+          loading={driversApi.loading}
+          error={driversApi.error}
+          savingId={driversApi.savingId}
+          onSave={async (draft, id) => {
+            try {
+              const saved = await driversApi.saveDriver(draft, id);
+              showToast(id ? "Driver updated" : "Driver added", "success");
+              return saved;
+            } catch (error) {
+              logDevError("Driver save action failed", error);
+              showToast(getSafeErrorMessage(error, id ? "driver.update" : "driver.save"), "error");
+              throw error;
+            }
+          }}
+          onStatusChange={async (driver, status) => {
+            try {
+              const saved = await driversApi.setDriverStatus(driver, status);
+              showToast(status === "active" ? "Driver activated" : "Driver marked inactive", "success");
+              return saved;
+            } catch (error) {
+              logDevError("Driver status action failed", error);
+              showToast(getSafeErrorMessage(error, "driver.update"), "error");
+              throw error;
+            }
+          }}
+        />
+      )}
+
       {page === "settings" && (
         <SettingsPage
           settings={settings}
@@ -501,6 +539,7 @@ export default function App() {
           isDarkMode={theme.isDarkMode}
           onToggleDarkMode={theme.toggleDarkMode}
           onLogout={() => setLogoutConfirmOpen(true)}
+          onOpenDrivers={() => navigateToPage("drivers")}
           onSave={async (next) => {
             try {
               const saved = await saveSettings(next);

@@ -16,9 +16,9 @@ export function useOrganization(userId: string | null, service: OrganizationServ
     setLoading(Boolean(userId));
     if (!userId) return () => { active = false; };
 
-    void service.getDefaultOrganization().then(
+    void service.getDefaultOrganization(userId).then(
       (organization) => {
-        if (active) setScope({ organizationId: organization.id, userId });
+        if (active) setScope({ organizationId: organization.id, userId, role: organization.role });
       },
       (loadError) => {
         if (!active) return;
