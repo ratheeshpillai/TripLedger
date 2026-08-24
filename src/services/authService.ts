@@ -5,13 +5,14 @@ import type {
   AuthSessionState,
   AuthUser,
   ExtraLoginVerificationEnrollment,
-  ExtraLoginVerificationStatus
+  ExtraLoginVerificationStatus,
+  SignupCredentials
 } from "../types/auth";
 
 export interface AuthService {
   getSessionState(): Promise<AuthSessionState>;
   login(credentials: AuthCredentials): Promise<AuthSessionState>;
-  signup(credentials: AuthCredentials, emailRedirectTo: string): Promise<AuthUser | null>;
+  signup(credentials: SignupCredentials, emailRedirectTo: string): Promise<AuthUser | null>;
   resendSignupConfirmation(email: string, emailRedirectTo: string): Promise<void>;
   sendPasswordReset(email: string, redirectTo: string): Promise<void>;
   hasActiveSession(): Promise<boolean>;

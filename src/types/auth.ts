@@ -1,3 +1,5 @@
+import type { OrganizationBusinessType } from "./organization";
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -6,6 +8,10 @@ export interface AuthUser {
 export interface AuthCredentials {
   email: string;
   password: string;
+}
+
+export interface SignupCredentials extends AuthCredentials {
+  businessType: OrganizationBusinessType;
 }
 
 export interface AuthSessionState {

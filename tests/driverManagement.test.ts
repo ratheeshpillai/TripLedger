@@ -9,7 +9,7 @@ import type { Driver, DriverDraft } from "../src/types/driver";
 import type { OrganizationScope } from "../src/types/organization";
 import { AppError } from "../src/utils/errors";
 
-const scope: OrganizationScope = { organizationId: "org-1", userId: "user-1", role: "owner" };
+const scope: OrganizationScope = { organizationId: "org-1", userId: "user-1", businessType: "vendor", role: "owner" };
 const now = "2026-08-23T00:00:00Z";
 
 function driver(overrides: Partial<Driver> = {}): Driver {
@@ -51,9 +51,11 @@ test("Driver Management search, status and role state stay focused", () => {
   const drivers = [driver(), driver({ id: "driver-2", name: "Suresh", phone: "", status: "inactive" })];
   assert.deepEqual(filterDrivers(drivers, "inactive").map((item) => item.id), ["driver-2"]);
   assert.deepEqual(filterDrivers(drivers, "9000").map((item) => item.id), ["driver-1"]);
-  assert.equal(canManageDrivers("owner"), true);
-  assert.equal(canManageDrivers("admin"), true);
-  assert.equal(canManageDrivers("member"), false);
+  assert.equal(canManageDrivers("individual_driver", "owner"), false);
+  assert.equal(canManageDrivers("individual_driver", "admin"), false);
+  assert.equal(canManageDrivers("vendor", "owner"), true);
+  assert.equal(canManageDrivers("vendor", "admin"), true);
+  assert.equal(canManageDrivers("vendor", "member"), false);
 });
 
 test("Phase 6A migration is additive and does not connect drivers to bills", () => {
@@ -65,4 +67,30 @@ test("Phase 6A migration is additive and does not connect drivers to bills", () 
   assert.match(migration, /public\.is_mfa_requirement_satisfied\(\)/);
   assert.doesNotMatch(migration, /alter table public\.bills/);
   assert.doesNotMatch(migration, /driver_id/);
+});
+
+test("Phase 6A.1 gates Driver Management by the active organization role", () => {
+  const migration = readFileSync(new URL("../supabase/migrations/20260824145921_restrict_driver_management_by_organization_role.sql", import.meta.url), "utf8");
+  const app = readFileSync(new URL("../src/app/App.tsx", import.meta.url), "utf8");
+  const shell = readFileSync(new URL("../src/components/layout/AppShell.tsx", import.meta.url), "utf8");
+  const settings = readFileSync(new URL("../src/components/settings/SettingsPage.tsx", import.meta.url), "utf8");
+
+  assert.match(migration, /om\.role in \('owner', 'admin'\)/);
+  assert.match(migration, /private\.can_manage_drivers\(organization_id\)/);
+  assert.match(migration, /public\.is_mfa_requirement_satisfied\(\)/);
+  assert.doesNotMatch(migration, /alter table public\.(bills|vehicles)/);
+  assert.match(app, /page === "drivers" && organization\.scope && !canManageActiveDrivers/);
+  assert.match(app, /page === "drivers" && canManageActiveDrivers/);
+  assert.match(shell, /item\.id !== "drivers" \|\| canManageDrivers/);
+  assert.match(settings, /onOpenDrivers && <Button/);
+});
+
+test("Phase 6A.2 requires a vendor workspace and owner or admin membership", () => {
+  const migration = readFileSync(new URL("../supabase/migrations/20260824190340_workspace_business_type_foundation.sql", import.meta.url), "utf8");
+  const app = readFileSync(new URL("../src/app/App.tsx", import.meta.url), "utf8");
+
+  assert.match(migration, /organization_business_type as enum \('individual_driver', 'vendor'\)/);
+  assert.match(migration, /business_type public\.organization_business_type not null default 'individual_driver'/);
+  assert.match(migration, /o\.business_type = 'vendor'/);
+  assert.match(app, /canManageDrivers\(organization\.scope\.businessType, organization\.scope\.role\)/);
 });

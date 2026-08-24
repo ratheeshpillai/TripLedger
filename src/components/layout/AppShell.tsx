@@ -92,7 +92,7 @@ function NavIcon({ icon }: { icon: "dashboard" | "logger" | "history" | "owners"
   );
 }
 
-export function AppShell({ page, setPage, userEmail, isDarkMode, mobileTitle, mobileSubtitle, mobileBack, onToggleDarkMode, onLogout, children }: { page: AppPage; setPage: (page: AppPage) => void; userEmail?: string; isDarkMode: boolean; mobileTitle?: string; mobileSubtitle?: string; mobileBack?: () => void; onToggleDarkMode: () => void; onLogout: () => void; children: ReactNode }) {
+export function AppShell({ page, setPage, userEmail, isDarkMode, canManageDrivers, mobileTitle, mobileSubtitle, mobileBack, onToggleDarkMode, onLogout, children }: { page: AppPage; setPage: (page: AppPage) => void; userEmail?: string; isDarkMode: boolean; canManageDrivers: boolean; mobileTitle?: string; mobileSubtitle?: string; mobileBack?: () => void; onToggleDarkMode: () => void; onLogout: () => void; children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(getInitialSidebarCollapsed);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -144,7 +144,7 @@ export function AppShell({ page, setPage, userEmail, isDarkMode, mobileTitle, mo
           </button>
         </div>
         <nav className="mt-8 grid gap-2">
-          {navItems.map((item) => (
+          {navItems.filter((item) => item.id !== "drivers" || canManageDrivers).map((item) => (
             <button
               key={item.id}
               type="button"

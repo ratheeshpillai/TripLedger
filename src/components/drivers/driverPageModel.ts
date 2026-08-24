@@ -1,8 +1,8 @@
 import type { Driver } from "../../types/driver";
-import type { OrganizationRole } from "../../types/organization";
+import type { OrganizationBusinessType, OrganizationRole } from "../../types/organization";
 
-export function canManageDrivers(role: OrganizationRole): boolean {
-  return role === "owner" || role === "admin";
+export function canManageDrivers(businessType: OrganizationBusinessType, role: OrganizationRole): boolean {
+  return businessType === "vendor" && (role === "owner" || role === "admin");
 }
 
 export function filterDrivers(drivers: Driver[], search: string): Driver[] {

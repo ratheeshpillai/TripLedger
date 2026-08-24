@@ -16,7 +16,7 @@ type Props = {
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
   onLogout: () => void;
-  onOpenDrivers: () => void;
+  onOpenDrivers?: () => void;
   onSave: (settings: AppSettings) => Promise<AppSettings>;
 };
 
@@ -88,7 +88,7 @@ export function SettingsPage({ settings, userEmail, isDarkMode, onToggleDarkMode
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-4">
-      <Button type="button" variant="secondary" className="min-h-11 w-full justify-start lg:hidden" onClick={onOpenDrivers}>Driver Management</Button>
+      {onOpenDrivers && <Button type="button" variant="secondary" className="min-h-11 w-full justify-start lg:hidden" onClick={onOpenDrivers}>Driver Management</Button>}
       <SettingsSection id="account" title={<><span className="lg:hidden">User Information</span><span className="hidden lg:inline">Account Settings</span></>} openSection={openSection} setOpenSection={setOpenSection}>
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-[#111827]">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Signed-in email</p>

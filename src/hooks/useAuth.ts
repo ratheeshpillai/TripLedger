@@ -3,6 +3,7 @@ import { appServices } from "../app/appDependencies";
 import type { AuthService } from "../services/authService";
 import type { AuthSessionState, AuthUser } from "../types/auth";
 import { getSafeErrorMessage, logDevError } from "../utils/errors";
+import type { OrganizationBusinessType } from "../types/organization";
 
 const RECOVERY_FLAG = "tripledger:password-recovery";
 
@@ -95,10 +96,10 @@ export function useAuth(service: AuthService = appServices.auth) {
     return applySessionState(await service.login({ email, password }));
   }
 
-  async function signup(email: string, password: string) {
+  async function signup(email: string, password: string, businessType: OrganizationBusinessType) {
     setError("");
     const emailRedirectTo = new URL("/auth/callback", window.location.origin).toString();
-    const nextUser = await service.signup({ email, password }, emailRedirectTo);
+    const nextUser = await service.signup({ email, password, businessType }, emailRedirectTo);
     if (nextUser) {
       applySessionState(await service.getSessionState());
     }

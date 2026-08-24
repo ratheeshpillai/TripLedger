@@ -80,7 +80,7 @@ test("the service blocks invalid payloads and normalizes valid payloads", async 
   };
   const service = createBillService(repository);
   const bill = { ...validDraft(), id: "bill-1", createdAt: "", updatedAt: "" } as Bill;
-  const scope = { organizationId: "org-1", userId: "user-1" };
+  const scope = { organizationId: "org-1", userId: "user-1", businessType: "individual_driver" as const, role: "owner" as const };
 
   assert.throws(() => service.saveBill(scope, { ...bill, baseAmount: Number.NaN }, "request-1"), BillValidationError);
   await service.saveBill(scope, { ...bill, guestName: "  Guest  ", reportingTime: "9am" }, "request-2");

@@ -9,7 +9,7 @@ const migration = readFileSync(
 );
 
 test("organization resolution remains behind a repository boundary", async () => {
-  const expected = { id: "org-1", name: "My Organization", role: "owner" as const, createdAt: "created", updatedAt: "updated" };
+  const expected = { id: "org-1", name: "My Organization", businessType: "individual_driver" as const, role: "owner" as const, createdAt: "created", updatedAt: "updated" };
   const service = createOrganizationService({ async getDefaultOrganization() { return expected; } });
   assert.equal(await service.getDefaultOrganization("user-1"), expected);
 });

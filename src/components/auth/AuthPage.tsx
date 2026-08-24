@@ -3,7 +3,9 @@ import { useEffect, useId, useState, type FormEvent } from "react";
 import { Button } from "../ui/Button";
 import { Card, CardContent, CardHeader } from "../ui/Card";
 import { Input } from "../ui/Input";
+import { Select } from "../ui/Select";
 import { getSafeErrorMessage, logDevError } from "../../utils/errors";
+import type { OrganizationBusinessType } from "../../types/organization";
 
 type AuthMode = "login" | "signup" | "forgot";
 
@@ -11,7 +13,7 @@ type Props = {
   authError?: string;
   initialMode?: AuthMode;
   onLogin: (email: string, password: string) => Promise<void>;
-  onSignup: (email: string, password: string) => Promise<void>;
+  onSignup: (email: string, password: string, businessType: OrganizationBusinessType) => Promise<void>;
   onResendActivation: (email: string) => Promise<void>;
   onPasswordReset: (email: string) => Promise<void>;
   onRouteChange?: (path: string) => void;
@@ -36,6 +38,7 @@ export function AuthPage({ authError, initialMode = "login", onLogin, onSignup, 
   const [email, setEmail] = useState("");
   const [submittedEmail, setSubmittedEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [businessType, setBusinessType] = useState<OrganizationBusinessType>("individual_driver");
   const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
   const [resetSent, setResetSent] = useState(false);
@@ -95,7 +98,7 @@ export function AuthPage({ authError, initialMode = "login", onLogin, onSignup, 
       if (isLogin) {
         await onLogin(nextEmail, password);
       } else if (isSignup) {
-        await onSignup(nextEmail, password);
+        await onSignup(nextEmail, password, businessType);
         setSubmittedEmail(nextEmail);
         setPassword("");
         setSignupComplete(true);
@@ -252,6 +255,15 @@ export function AuthPage({ authError, initialMode = "login", onLogin, onSignup, 
                         )}
                       </span>
                       <Input autoComplete={isLogin ? "current-password" : "new-password"} placeholder={`At least ${PASSWORD_MIN_LENGTH} characters`} type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={PASSWORD_MIN_LENGTH} />
+                    </label>
+                  )}
+                  {isSignup && (
+                    <label className="field-label">
+                      How will you use TripLoggy?
+                      <Select value={businessType} onChange={(event) => setBusinessType(event.target.value as OrganizationBusinessType)}>
+                        <option value="individual_driver">Individual Driver</option>
+                        <option value="vendor">Transport Business</option>
+                      </Select>
                     </label>
                   )}
 

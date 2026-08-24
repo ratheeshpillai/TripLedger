@@ -5,7 +5,7 @@ import { createDashboardService } from "../src/services/dashboardService.ts";
 import type { DashboardData, DashboardQuery } from "../src/types/dashboard.ts";
 import type { OrganizationScope } from "../src/types/organization.ts";
 
-const scope: OrganizationScope = { organizationId: "org-1", userId: "user-1" };
+const scope: OrganizationScope = { organizationId: "org-1", userId: "user-1", businessType: "individual_driver", role: "owner" };
 const query: DashboardQuery = {
   periodStart: "2026-08-01",
   periodEnd: "2026-08-31",

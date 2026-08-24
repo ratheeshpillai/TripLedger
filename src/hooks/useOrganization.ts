@@ -18,7 +18,7 @@ export function useOrganization(userId: string | null, service: OrganizationServ
 
     void service.getDefaultOrganization(userId).then(
       (organization) => {
-        if (active) setScope({ organizationId: organization.id, userId, role: organization.role });
+        if (active) setScope({ organizationId: organization.id, userId, businessType: organization.businessType, role: organization.role });
       },
       (loadError) => {
         if (!active) return;

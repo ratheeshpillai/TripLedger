@@ -4,7 +4,8 @@ import type {
   AuthCredentials,
   AuthSessionState,
   AuthUser,
-  ExtraLoginVerificationStatus
+  ExtraLoginVerificationStatus,
+  SignupCredentials
 } from "../../types/auth";
 import { getSupabaseClient } from "./supabaseClient";
 import { mapSupabaseAuthError } from "./supabaseError";
@@ -76,10 +77,12 @@ export const supabaseAuthRepository: AuthRepository = {
     return buildSessionState(data.user);
   },
 
-  async signUp(credentials: AuthCredentials, emailRedirectTo: string) {
+  async signUp(credentials: SignupCredentials, emailRedirectTo: string) {
+    const { email, password, businessType } = credentials;
     const { data, error } = await getSupabaseClient().auth.signUp({
-      ...credentials,
-      options: { emailRedirectTo }
+      email,
+      password,
+      options: { emailRedirectTo, data: { business_type: businessType } }
     });
     if (error) fail(error);
     return mapUser(data.session?.user ?? null);

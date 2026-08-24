@@ -11,6 +11,7 @@ function toOrganization(row: OrganizationRow, role: OrganizationRole): Organizat
   return {
     id: row.id,
     name: row.name,
+    businessType: row.business_type,
     role,
     createdAt: row.created_at,
     updatedAt: row.updated_at

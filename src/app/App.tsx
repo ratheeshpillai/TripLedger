@@ -54,13 +54,14 @@ export default function App() {
   const auth = useAuth();
   const theme = useDarkMode();
   const organization = useOrganization(auth.user?.id ?? null);
+  const canManageActiveDrivers = organization.scope ? canManageDrivers(organization.scope.businessType, organization.scope.role) : false;
   const { settings, saveSettings } = useSettings(auth.user?.id ?? null);
   const billsApi = useBills(organization.scope);
   const billingPartiesEnabled = page === "logger" || page === "history" || page === "owners";
   const billingPartiesApi = useBillingParties(billingPartiesEnabled ? organization.scope : null, page === "owners");
   const ownerPaymentsApi = useOwnerPayments(organization.scope);
   const dashboardApi = useDashboard(organization.scope, page === "dashboard");
-  const driversApi = useDrivers(organization.scope, page === "drivers");
+  const driversApi = useDrivers(organization.scope, page === "drivers" && canManageActiveDrivers);
   const form = useBillForm(settings);
   const [notifications, setNotifications] = useState<ToastNotification[]>([]);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
@@ -99,6 +100,12 @@ export default function App() {
     window.addEventListener("popstate", syncPageFromHistory);
     return () => window.removeEventListener("popstate", syncPageFromHistory);
   }, []);
+
+  useLayoutEffect(() => {
+    if (page === "drivers" && organization.scope && !canManageActiveDrivers) {
+      navigateToPage("dashboard", true);
+    }
+  }, [page, organization.scope?.organizationId, canManageActiveDrivers]);
 
   function navigateToPage(nextPage: AppPage, replace = false) {
     const nextPath = pagePath(nextPage);
@@ -274,8 +281,8 @@ export default function App() {
           const result = await auth.login(email, password);
           if (!result.extraVerificationRequired) showToast("Logged in", "success");
         }}
-        onSignup={async (email, password) => {
-          await auth.signup(email, password);
+        onSignup={async (email, password, businessType) => {
+          await auth.signup(email, password, businessType);
         }}
         onResendActivation={auth.resendSignupConfirmation}
         onPasswordReset={auth.sendPasswordReset}
@@ -302,6 +309,7 @@ export default function App() {
       setPage={navigateToPage}
       userEmail={auth.user.email}
       isDarkMode={theme.isDarkMode}
+      canManageDrivers={canManageActiveDrivers}
       mobileTitle={page === "logger" && form.editingBillId ? "Edit Bill" : page === "owners" ? mobileOwnerHeader?.title : undefined}
       mobileSubtitle={page === "logger" && form.editingBillId ? "Update trip and billing details" : page === "owners" && mobileOwnerHeader ? "Owner Account" : undefined}
       mobileBack={page === "logger" && form.editingBillId ? () => navigateToPage("history") : page === "owners" ? mobileOwnerHeader?.onBack : page === "drivers" ? () => navigateToPage("settings") : undefined}
@@ -500,10 +508,10 @@ export default function App() {
         />
       )}
 
-      {page === "drivers" && (
+      {page === "drivers" && canManageActiveDrivers && (
         <DriversPage
           drivers={driversApi.drivers}
-          canManage={canManageDrivers(organization.scope.role)}
+          canManage={canManageDrivers(organization.scope.businessType, organization.scope.role)}
           loading={driversApi.loading}
           error={driversApi.error}
           savingId={driversApi.savingId}
@@ -539,7 +547,7 @@ export default function App() {
           isDarkMode={theme.isDarkMode}
           onToggleDarkMode={theme.toggleDarkMode}
           onLogout={() => setLogoutConfirmOpen(true)}
-          onOpenDrivers={() => navigateToPage("drivers")}
+          onOpenDrivers={canManageActiveDrivers ? () => navigateToPage("drivers") : undefined}
           onSave={async (next) => {
             try {
               const saved = await saveSettings(next);

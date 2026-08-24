@@ -389,18 +389,21 @@ export type Database = {
       }
       organizations: {
         Row: {
+          business_type: Database["public"]["Enums"]["organization_business_type"]
           created_at: string
           id: string
           name: string
           updated_at: string
         }
         Insert: {
+          business_type?: Database["public"]["Enums"]["organization_business_type"]
           created_at?: string
           id?: string
           name: string
           updated_at?: string
         }
         Update: {
+          business_type?: Database["public"]["Enums"]["organization_business_type"]
           created_at?: string
           id?: string
           name?: string
@@ -977,6 +980,7 @@ export type Database = {
       }
     }
     Enums: {
+      organization_business_type: "individual_driver" | "vendor"
       organization_role: "owner" | "admin" | "member"
     }
     CompositeTypes: {
@@ -1105,6 +1109,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      organization_business_type: ["individual_driver", "vendor"],
       organization_role: ["owner", "admin", "member"],
     },
   },
