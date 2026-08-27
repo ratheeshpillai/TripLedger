@@ -8,6 +8,7 @@ test("database errors map to stable application codes", () => {
   assert.equal(mapSupabaseError({ code: "42501", message: "row-level security policy" }).code, "FORBIDDEN");
   assert.equal(mapSupabaseError({ code: "23514", message: "You have reached the current record limit." }).code, "LIMIT_REACHED");
   assert.equal(mapSupabaseError({ code: "insufficient_aal" }).code, "FORBIDDEN");
+  assert.equal(mapSupabaseError({ code: "40001", message: "The driver and vehicle assignment changed." }).userMessage, "This driver and vehicle assignment changed. Refresh and select the current assignment.");
 });
 
 test("auth mapping preserves safe messages without exposing provider details", () => {

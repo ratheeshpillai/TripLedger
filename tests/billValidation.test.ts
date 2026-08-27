@@ -37,6 +37,15 @@ test("requires the approved customer, reporting, driver, and vehicle fields", ()
   for (const field of fields) assert.ok(validateBillDraft({ ...draft, [field]: "   " })[field]);
 });
 
+test("Fleet Owner bills require managed driver and vehicle references", () => {
+  const draft = validDraft();
+  const errors = validateBillDraft(draft, { requireManagedFleetResources: true });
+  assert.ok(errors.driverId);
+  assert.ok(errors.vehicleId);
+  assert.deepEqual(validateBillDraft({ ...draft, driverId: "driver-1", vehicleId: "vehicle-1" }, { requireManagedFleetResources: true }), {});
+  assert.equal(validateBillDraft(draft).driverId, undefined);
+});
+
 test("requires complete times without making dates compulsory", () => {
   const draft = validDraft();
   assert.ok(validateBillDraft({ ...draft, reportingTime: "" }).reportingTime);
@@ -86,4 +95,23 @@ test("the service blocks invalid payloads and normalizes valid payloads", async 
   await service.saveBill(scope, { ...bill, guestName: "  Guest  ", reportingTime: "9am" }, "request-2");
   assert.equal(saved?.guestName, "Guest");
   assert.equal(saved?.reportingTime, "09:00");
+});
+
+test("the service enforces managed references only for Fleet Owner workspaces", async () => {
+  const repository: BillRepository = {
+    async queryBills() { return { items: [], totalCount: 0, totalAmount: 0 }; },
+    async getBill() { throw new Error("not used"); },
+    async saveBill(_scope, bill) { return bill; },
+    async updateBill(_scope, bill) { return bill; },
+    async deleteBill() {},
+    async deleteBills() {}
+  };
+  const service = createBillService(repository);
+  const bill = { ...validDraft(), id: "bill-1", createdAt: "", updatedAt: "" } as Bill;
+  const fleetScope = { organizationId: "org-1", userId: "user-1", businessType: "vendor" as const, role: "member" as const };
+
+  assert.throws(() => service.saveBill(fleetScope, bill, "request-1"), BillValidationError);
+  await service.saveBill(fleetScope, { ...bill, driverId: "driver-1", vehicleId: "vehicle-1" }, "request-2");
+  await service.updateBill(fleetScope, bill);
+  assert.throws(() => service.updateBill(fleetScope, { ...bill, driverId: "driver-1" }), BillValidationError);
 });

@@ -1,6 +1,9 @@
 import type { Bill, BillDraft } from "../../types/bill";
 import type { BillingParty } from "../../types/billingParty";
+import type { Driver } from "../../types/driver";
+import type { DriverVehicleAssignment } from "../../types/driverVehicleAssignment";
 import type { AppSettings } from "../../types/settings";
+import type { Vehicle } from "../../types/vehicle";
 import {
   BILL_FIELD_STEPS,
   firstInvalidBillField,
@@ -11,6 +14,7 @@ import {
   type BillValidationErrors
 } from "../../utils/billValidation";
 import { currency } from "../../utils/formatters";
+import { assignedVehiclesForDriver, fleetVehicleName } from "../../utils/fleetBillSelection";
 import { formatDuration } from "../../utils/timeUtils";
 import { BillPreview } from "./BillPreview";
 import { CollapsibleSection } from "../shared/CollapsibleSection";
@@ -34,6 +38,12 @@ type Props = {
   saving: boolean;
   settings: AppSettings;
   billingParties: BillingParty[];
+  isFleetOwner: boolean;
+  drivers: Driver[];
+  vehicles: Vehicle[];
+  assignments: DriverVehicleAssignment[];
+  fleetResourcesLoading: boolean;
+  fleetResourcesError: string;
   onFieldChange: <K extends keyof BillDraft>(field: K, value: BillDraft[K]) => void;
   onGarageTimeChange: (value: string) => void;
   onSave: () => Promise<SaveBillResult>;
@@ -77,10 +87,72 @@ function Field({ label, field, error, onTouched, children }: { label: string; fi
   );
 }
 
-function useBillValidation(draft: BillDraft, billingParties: BillingParty[]) {
+function FleetDriverVehicleFields({ draft, editingBillId, drivers, vehicles, assignments, loading, loadError, errors, onTouched, onFieldChange }: {
+  draft: BillDraft;
+  editingBillId: string | null;
+  drivers: Driver[];
+  vehicles: Vehicle[];
+  assignments: DriverVehicleAssignment[];
+  loading: boolean;
+  loadError: string;
+  errors: BillValidationErrors;
+  onTouched: (field: BillField) => void;
+  onFieldChange: Props["onFieldChange"];
+}) {
+  const activeDrivers = drivers.filter((driver) => driver.status === "active");
+  const eligibleVehicles = assignedVehiclesForDriver(draft.driverId, vehicles, assignments);
+  const selectedDriver = drivers.find((driver) => driver.id === draft.driverId);
+  const selectedVehicle = vehicles.find((vehicle) => vehicle.id === draft.vehicleId);
+  const historicalDriver = Boolean(editingBillId && draft.driverId && !activeDrivers.some((driver) => driver.id === draft.driverId));
+  const historicalVehicle = Boolean(editingBillId && draft.vehicleId && !eligibleVehicles.some((vehicle) => vehicle.id === draft.vehicleId));
+
+  function applyVehicle(vehicle?: Vehicle) {
+    onFieldChange("vehicleId", vehicle?.id);
+    onFieldChange("vehicleName", vehicle ? fleetVehicleName(vehicle) : "");
+    onFieldChange("vehicleNumber", vehicle?.registrationNumber ?? "");
+  }
+
+  function selectVehicle(vehicleId: string) {
+    applyVehicle(eligibleVehicles.find((candidate) => candidate.id === vehicleId));
+  }
+
+  function selectDriver(driverId: string) {
+    const driver = activeDrivers.find((candidate) => candidate.id === driverId);
+    const nextVehicles = assignedVehiclesForDriver(driver?.id, vehicles, assignments);
+    onFieldChange("driverId", driver?.id);
+    onFieldChange("driverName", driver?.name ?? "");
+    if (nextVehicles.some((vehicle) => vehicle.id === draft.vehicleId)) return;
+    applyVehicle(nextVehicles.length === 1 ? nextVehicles[0] : undefined);
+  }
+
+  return (
+    <>
+      <Field label="Driver" field="driverId" error={errors.driverId} onTouched={onTouched}>
+        <Select {...validationProps("driverId", errors.driverId)} value={draft.driverId ?? ""} disabled={loading} onChange={(event) => selectDriver(event.target.value)}>
+          <option value="">{loading ? "Loading drivers..." : "Select driver"}</option>
+          {historicalDriver && <option value={draft.driverId}>Saved: {draft.driverName || selectedDriver?.name || "Driver"}</option>}
+          {activeDrivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name}</option>)}
+        </Select>
+      </Field>
+      <Field label="Vehicle" field="vehicleId" error={errors.vehicleId} onTouched={onTouched}>
+        <Select {...validationProps("vehicleId", errors.vehicleId)} value={draft.vehicleId ?? ""} disabled={loading || !draft.driverId} onChange={(event) => selectVehicle(event.target.value)}>
+          <option value="">{loading ? "Loading vehicles..." : !draft.driverId ? "Select a driver first" : "Select assigned vehicle"}</option>
+          {historicalVehicle && <option value={draft.vehicleId}>Saved: {draft.vehicleNumber || selectedVehicle?.registrationNumber || "Vehicle"}</option>}
+          {eligibleVehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.registrationNumber} · {fleetVehicleName(vehicle)}</option>)}
+        </Select>
+      </Field>
+      {loadError && <p role="alert" className="text-sm font-semibold text-red-600 dark:text-red-300">{loadError}</p>}
+      {!loading && !loadError && draft.driverId && eligibleVehicles.length === 0 && !historicalVehicle && <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">No active vehicle is assigned to this driver.</p>}
+      {(historicalDriver || historicalVehicle) && <p className="text-sm text-slate-500 dark:text-slate-400">This saved bill keeps its historical driver and vehicle. Choose a current driver to change them.</p>}
+    </>
+  );
+}
+
+function useBillValidation(draft: BillDraft, billingParties: BillingParty[], isFleetOwner: boolean, editingBillId: string | null) {
   const [errors, setErrors] = useState<BillValidationErrors>({});
   const validBillingPartyIds = useMemo(() => new Set(billingParties.map((party) => party.id)), [billingParties]);
-  const options = { validBillingPartyIds };
+  const requireManagedFleetResources = isFleetOwner && (!editingBillId || Boolean(draft.driverId || draft.vehicleId));
+  const options = { validBillingPartyIds, requireManagedFleetResources };
 
   useEffect(() => {
     setErrors((current) => {
@@ -92,7 +164,7 @@ function useBillValidation(draft: BillDraft, billingParties: BillingParty[]) {
       }
       return next;
     });
-  }, [draft, validBillingPartyIds]);
+  }, [draft, validBillingPartyIds, requireManagedFleetResources]);
 
   function touch(field: BillField) {
     const message = validateBillDraft(draft, options)[field];
@@ -251,7 +323,7 @@ function CreateBillStepActions({ step, canContinue, saving, saveLabel, keyboardO
   </motion.div>;
 }
 
-function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParties, onFieldChange, onGarageTimeChange, onSave, onCreateNew, onReset, onCancel, onCopy, onPdf, displayDraft }: Props & { displayDraft: BillDraft }) {
+function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParties, isFleetOwner, drivers, vehicles, assignments, fleetResourcesLoading, fleetResourcesError, onFieldChange, onGarageTimeChange, onSave, onCreateNew, onReset, onCancel, onCopy, onPdf, displayDraft }: Props & { displayDraft: BillDraft }) {
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
   const [saveSucceeded, setSaveSucceeded] = useState(false);
@@ -259,7 +331,7 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
   const [activeDateField, setActiveDateField] = useState<"tripDate" | "closingDate" | null>(null);
   const keyboardOpen = useSoftwareKeyboardOpen();
   const reduceMotion = useReducedMotion() ?? false;
-  const validation = useBillValidation(draft, billingParties);
+  const validation = useBillValidation(draft, billingParties, isFleetOwner, editingBillId);
   const canContinue = step === 0 ? validation.ownerIsValid : true;
 
   useEffect(() => {
@@ -359,9 +431,15 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
       {step === 1 && (
         <MobileSection title="Driver and vehicle">
           <div className="grid gap-4">
-            <Field label="Driver" field="driverName" error={validation.errors.driverName} onTouched={validation.touch}><Input {...validationProps("driverName", validation.errors.driverName)} value={draft.driverName} onChange={(event) => onFieldChange("driverName", event.target.value)} placeholder="Driver name" /></Field>
-            <Field label="Vehicle" field="vehicleName" error={validation.errors.vehicleName} onTouched={validation.touch}><Input {...validationProps("vehicleName", validation.errors.vehicleName)} value={draft.vehicleName} onChange={(event) => onFieldChange("vehicleName", event.target.value)} placeholder="Vehicle model" /></Field>
-            <Field label="Vehicle Number" field="vehicleNumber" error={validation.errors.vehicleNumber} onTouched={validation.touch}><Input {...validationProps("vehicleNumber", validation.errors.vehicleNumber)} value={draft.vehicleNumber} onChange={(event) => onFieldChange("vehicleNumber", event.target.value)} placeholder="Registration number" /></Field>
+            {isFleetOwner ? (
+              <FleetDriverVehicleFields draft={draft} editingBillId={editingBillId} drivers={drivers} vehicles={vehicles} assignments={assignments} loading={fleetResourcesLoading} loadError={fleetResourcesError} errors={validation.errors} onTouched={validation.touch} onFieldChange={onFieldChange} />
+            ) : (
+              <>
+                <Field label="Driver" field="driverName" error={validation.errors.driverName} onTouched={validation.touch}><Input {...validationProps("driverName", validation.errors.driverName)} value={draft.driverName} onChange={(event) => onFieldChange("driverName", event.target.value)} placeholder="Driver name" /></Field>
+                <Field label="Vehicle" field="vehicleName" error={validation.errors.vehicleName} onTouched={validation.touch}><Input {...validationProps("vehicleName", validation.errors.vehicleName)} value={draft.vehicleName} onChange={(event) => onFieldChange("vehicleName", event.target.value)} placeholder="Vehicle model" /></Field>
+                <Field label="Vehicle Number" field="vehicleNumber" error={validation.errors.vehicleNumber} onTouched={validation.touch}><Input {...validationProps("vehicleNumber", validation.errors.vehicleNumber)} value={draft.vehicleNumber} onChange={(event) => onFieldChange("vehicleNumber", event.target.value)} placeholder="Registration number" /></Field>
+              </>
+            )}
           </div>
         </MobileSection>
       )}
@@ -422,6 +500,7 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
             <dl className="grid grid-cols-2 gap-x-3 gap-y-4 text-sm">
               <div><dt className="text-slate-500 dark:text-slate-400">Owner</dt><dd className="mt-1 truncate font-bold text-slate-950 dark:text-slate-50">{displayDraft.billingPartyCompanyName || displayDraft.billingPartyName || "Not selected"}</dd></div>
               <div><dt className="text-slate-500 dark:text-slate-400">Customer</dt><dd className="mt-1 truncate font-bold text-slate-950 dark:text-slate-50">{draft.guestName || "Not added"}</dd></div>
+              <div><dt className="text-slate-500 dark:text-slate-400">Driver</dt><dd className="mt-1 truncate font-bold text-slate-950 dark:text-slate-50">{draft.driverName || "Not added"}</dd></div>
               <div><dt className="text-slate-500 dark:text-slate-400">Vehicle</dt><dd className="mt-1 truncate font-bold text-slate-950 dark:text-slate-50">{[draft.vehicleName, draft.vehicleNumber].filter(Boolean).join(" · ") || "Not added"}</dd></div>
               <div><dt className="text-slate-500 dark:text-slate-400">Trip</dt><dd className="mt-1 font-bold text-slate-950 dark:text-slate-50">{draft.tripDate || "No date"}</dd></div>
               <div className="col-span-2 rounded-xl bg-blue-50 p-3 dark:bg-blue-950/30"><dt className="font-bold text-[#1E3A8A] dark:text-blue-200">Trip total</dt><dd className="mt-1 text-2xl font-black text-[#1E3A8A] dark:text-blue-200">{currency(draft.totalAmount, settings.currencySymbol)}</dd></div>
@@ -450,7 +529,7 @@ function MobileLoggerPage({ draft, editingBillId, saving, settings, billingParti
   );
 }
 
-export function LoggerPage({ draft, editingBillId, saving, settings, billingParties, onFieldChange, onGarageTimeChange, onSave, onCreateNew, onReset, onCancel, onCopy, onPdf }: Props) {
+export function LoggerPage({ draft, editingBillId, saving, settings, billingParties, isFleetOwner, drivers, vehicles, assignments, fleetResourcesLoading, fleetResourcesError, onFieldChange, onGarageTimeChange, onSave, onCreateNew, onReset, onCancel, onCopy, onPdf }: Props) {
   const [openSections, setOpenSections] = useState(() => {
     return ["tripDetails"];
   });
@@ -464,7 +543,7 @@ export function LoggerPage({ draft, editingBillId, saving, settings, billingPart
   };
   const isMobile = useIsMobile();
   const reduceMotion = useReducedMotion() ?? false;
-  const validation = useBillValidation(draft, billingParties);
+  const validation = useBillValidation(draft, billingParties, isFleetOwner, editingBillId);
 
   useEffect(() => {
     if (!editingBillId) setSaveSucceeded(false);
@@ -507,7 +586,7 @@ export function LoggerPage({ draft, editingBillId, saving, settings, billingPart
   }
 
   if (isMobile) {
-    return <MobileLoggerPage draft={draft} editingBillId={editingBillId} saving={saving} settings={settings} billingParties={billingParties} onFieldChange={onFieldChange} onGarageTimeChange={onGarageTimeChange} onSave={onSave} onCreateNew={onCreateNew} onReset={onReset} onCancel={onCancel} onCopy={onCopy} onPdf={onPdf} displayDraft={displayDraft} />;
+    return <MobileLoggerPage draft={draft} editingBillId={editingBillId} saving={saving} settings={settings} billingParties={billingParties} isFleetOwner={isFleetOwner} drivers={drivers} vehicles={vehicles} assignments={assignments} fleetResourcesLoading={fleetResourcesLoading} fleetResourcesError={fleetResourcesError} onFieldChange={onFieldChange} onGarageTimeChange={onGarageTimeChange} onSave={onSave} onCreateNew={onCreateNew} onReset={onReset} onCancel={onCancel} onCopy={onCopy} onPdf={onPdf} displayDraft={displayDraft} />;
   }
 
   return (
@@ -516,7 +595,7 @@ export function LoggerPage({ draft, editingBillId, saving, settings, billingPart
         <h1 className="text-xl font-black text-slate-950 dark:text-slate-50">Create Bill</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">Enter trip and billing details</p>
       </header>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
         <div className="space-y-4">
 
         <Card>
@@ -551,9 +630,15 @@ export function LoggerPage({ draft, editingBillId, saving, settings, billingPart
                     ))}
                   </Select>
                 </Field>
-                <Field label="Driver" field="driverName" error={validation.errors.driverName} onTouched={validation.touch}><Input {...validationProps("driverName", validation.errors.driverName)} placeholder="e.g. Radha" value={draft.driverName} onChange={(e) => onFieldChange("driverName", e.target.value)} /></Field>
-                <Field label="Vehicle" field="vehicleName" error={validation.errors.vehicleName} onTouched={validation.touch}><Input {...validationProps("vehicleName", validation.errors.vehicleName)} placeholder="e.g. Innova Crysta" value={draft.vehicleName} onChange={(e) => onFieldChange("vehicleName", e.target.value)} /></Field>
-                <Field label="Vehicle Number" field="vehicleNumber" error={validation.errors.vehicleNumber} onTouched={validation.touch}><Input {...validationProps("vehicleNumber", validation.errors.vehicleNumber)} placeholder="e.g. MH03CV4312" value={draft.vehicleNumber} onChange={(e) => onFieldChange("vehicleNumber", e.target.value)} /></Field>
+                {isFleetOwner ? (
+                  <FleetDriverVehicleFields draft={draft} editingBillId={editingBillId} drivers={drivers} vehicles={vehicles} assignments={assignments} loading={fleetResourcesLoading} loadError={fleetResourcesError} errors={validation.errors} onTouched={validation.touch} onFieldChange={onFieldChange} />
+                ) : (
+                  <>
+                    <Field label="Driver" field="driverName" error={validation.errors.driverName} onTouched={validation.touch}><Input {...validationProps("driverName", validation.errors.driverName)} placeholder="e.g. Radha" value={draft.driverName} onChange={(e) => onFieldChange("driverName", e.target.value)} /></Field>
+                    <Field label="Vehicle" field="vehicleName" error={validation.errors.vehicleName} onTouched={validation.touch}><Input {...validationProps("vehicleName", validation.errors.vehicleName)} placeholder="e.g. Innova Crysta" value={draft.vehicleName} onChange={(e) => onFieldChange("vehicleName", e.target.value)} /></Field>
+                    <Field label="Vehicle Number" field="vehicleNumber" error={validation.errors.vehicleNumber} onTouched={validation.touch}><Input {...validationProps("vehicleNumber", validation.errors.vehicleNumber)} placeholder="e.g. MH03CV4312" value={draft.vehicleNumber} onChange={(e) => onFieldChange("vehicleNumber", e.target.value)} /></Field>
+                  </>
+                )}
                 <Field label="Guest" field="guestName" error={validation.errors.guestName} onTouched={validation.touch}>
                   <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
                     <Select value={draft.guestSalutation === "Miss" ? "Miss." : draft.guestSalutation || "Mr."} onChange={(e) => onFieldChange("guestSalutation", e.target.value as BillDraft["guestSalutation"])}>
@@ -603,7 +688,7 @@ export function LoggerPage({ draft, editingBillId, saving, settings, billingPart
               </div>
             </AccordionSection>
 
-            <div className="lg:hidden">
+            <div className="xl:hidden">
               <AccordionSection id="preview" title="Preview & Share" openSections={openSections} setOpenSections={setOpenSections}>
                 <BillPreview draft={displayDraft} settings={settings} onCopy={onCopy} onPdf={onPdf} compact />
               </AccordionSection>
@@ -629,7 +714,7 @@ export function LoggerPage({ draft, editingBillId, saving, settings, billingPart
         </div>
       </div>
 
-        <div className="hidden space-y-4 lg:block">
+        <div className="hidden space-y-4 xl:block">
           <BillPreview draft={displayDraft} settings={settings} onCopy={onCopy} onPdf={onPdf} />
         </div>
 

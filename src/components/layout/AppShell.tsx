@@ -3,14 +3,15 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { MobileBottomNav, MobilePageHeader } from "../mobile/MobilePrimitives";
 import { cn } from "../ui/cn";
 
-export type AppPage = "dashboard" | "logger" | "history" | "owners" | "drivers" | "settings";
+export type AppPage = "dashboard" | "logger" | "history" | "owners" | "drivers" | "vehicles" | "settings";
 
-const navItems: Array<{ id: Exclude<AppPage, "settings">; label: string; icon: "dashboard" | "logger" | "history" | "owners" | "drivers" }> = [
+const navItems: Array<{ id: Exclude<AppPage, "settings">; label: string; icon: "dashboard" | "logger" | "history" | "owners" | "drivers" | "vehicles" }> = [
   { id: "dashboard", label: "Dashboard", icon: "dashboard" },
   { id: "logger", label: "Create Bill", icon: "logger" },
   { id: "history", label: "History", icon: "history" },
   { id: "owners", label: "Owners", icon: "owners" },
-  { id: "drivers", label: "Drivers", icon: "drivers" }
+  { id: "drivers", label: "Drivers", icon: "drivers" },
+  { id: "vehicles", label: "Vehicles", icon: "vehicles" }
 ];
 
 const mobileNavItems: Array<{ id: AppPage; label: string; icon: "dashboard" | "logger" | "history" | "owners" | "more" | "plus"; primary?: boolean }> = [
@@ -27,6 +28,7 @@ const pageTitles: Record<AppPage, { eyebrow: string; title?: string; description
   history: { eyebrow: "", title: "Bill History", description: "Search, review and manage saved bills" },
   owners: { eyebrow: "", title: "Owners & Payments", description: "Track owner balances, bills and payments" },
   drivers: { eyebrow: "", title: "Drivers", description: "Manage driver records and availability" },
+  vehicles: { eyebrow: "", title: "Vehicles", description: "Manage fleet vehicles and availability" },
   settings: { eyebrow: "Settings", title: "Account & App Settings" }
 };
 
@@ -40,7 +42,7 @@ function getInitialSidebarCollapsed(): boolean {
   return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
 }
 
-function NavIcon({ icon }: { icon: "dashboard" | "logger" | "history" | "owners" | "drivers" | "more" | "plus" }) {
+function NavIcon({ icon }: { icon: "dashboard" | "logger" | "history" | "owners" | "drivers" | "vehicles" | "more" | "plus" }) {
   if (icon === "plus") {
     return <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" /></svg>;
   }
@@ -84,6 +86,15 @@ function NavIcon({ icon }: { icon: "dashboard" | "logger" | "history" | "owners"
     );
   }
 
+  if (icon === "vehicles") {
+    return (
+      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M5 16h14l-1.5-6h-11L5 16Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+        <path d="M7 10 8.5 6h7L17 10M6 16v2M18 16v2M8 13h.01M16 13h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M7 3h10a2 2 0 0 1 2 2v14l-3-2-3 2-3-2-3 2-3-2V5a2 2 0 0 1 2-2Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
@@ -92,7 +103,7 @@ function NavIcon({ icon }: { icon: "dashboard" | "logger" | "history" | "owners"
   );
 }
 
-export function AppShell({ page, setPage, userEmail, isDarkMode, canManageDrivers, mobileTitle, mobileSubtitle, mobileBack, onToggleDarkMode, onLogout, children }: { page: AppPage; setPage: (page: AppPage) => void; userEmail?: string; isDarkMode: boolean; canManageDrivers: boolean; mobileTitle?: string; mobileSubtitle?: string; mobileBack?: () => void; onToggleDarkMode: () => void; onLogout: () => void; children: ReactNode }) {
+export function AppShell({ page, setPage, userEmail, isDarkMode, canManageDrivers, canManageVehicles, mobileTitle, mobileSubtitle, mobileBack, onToggleDarkMode, onLogout, children }: { page: AppPage; setPage: (page: AppPage) => void; userEmail?: string; isDarkMode: boolean; canManageDrivers: boolean; canManageVehicles: boolean; mobileTitle?: string; mobileSubtitle?: string; mobileBack?: () => void; onToggleDarkMode: () => void; onLogout: () => void; children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(getInitialSidebarCollapsed);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -144,7 +155,7 @@ export function AppShell({ page, setPage, userEmail, isDarkMode, canManageDriver
           </button>
         </div>
         <nav className="mt-8 grid gap-2">
-          {navItems.filter((item) => item.id !== "drivers" || canManageDrivers).map((item) => (
+          {navItems.filter((item) => (item.id !== "drivers" || canManageDrivers) && (item.id !== "vehicles" || canManageVehicles)).map((item) => (
             <button
               key={item.id}
               type="button"
@@ -172,8 +183,8 @@ export function AppShell({ page, setPage, userEmail, isDarkMode, canManageDriver
           <div className="min-w-0">
             <div className="lg:hidden">
               <MobilePageHeader
-                title={mobileTitle || (page === "dashboard" ? "TripLedger" : page === "history" ? "History" : page === "logger" ? "Create Bill" : page === "owners" ? "Owners" : page === "drivers" ? "Drivers" : "More")}
-                subtitle={mobileSubtitle || (page === "dashboard" ? "Today's business at a glance" : page === "history" ? "Search and manage bills" : page === "logger" ? "Enter trip and billing details" : page === "owners" ? "Balances and payments" : page === "drivers" ? "Driver records and availability" : "Account and app settings")}
+                title={mobileTitle || (page === "dashboard" ? "TripLedger" : page === "history" ? "History" : page === "logger" ? "Create Bill" : page === "owners" ? "Owners" : page === "drivers" ? "Drivers" : page === "vehicles" ? "Vehicles" : "More")}
+                subtitle={mobileSubtitle || (page === "dashboard" ? "Today's business at a glance" : page === "history" ? "Search and manage bills" : page === "logger" ? "Enter trip and billing details" : page === "owners" ? "Balances and payments" : page === "drivers" ? "Driver records and availability" : page === "vehicles" ? "Fleet vehicles and availability" : "Account and app settings")}
                 onBack={mobileBack}
               />
             </div>
@@ -256,7 +267,7 @@ export function AppShell({ page, setPage, userEmail, isDarkMode, canManageDriver
       </motion.main>
       <MobileBottomNav
         items={mobileNavItems.map((item) => ({ ...item, icon: <NavIcon icon={item.icon} /> }))}
-        current={page === "drivers" ? "settings" : page}
+        current={page === "drivers" || page === "vehicles" ? "settings" : page}
         onChange={setPage}
       />
       </div>

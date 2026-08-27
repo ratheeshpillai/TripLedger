@@ -63,12 +63,22 @@ export function useBillForm(settings: AppSettings) {
     setDraft(billDraft);
   }
 
-  function duplicateBill(bill: Bill) {
+  function duplicateBill(bill: Bill, clearManagedFleetResources = false) {
     acceptsDefaultsRef.current = false;
     const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...billDraft } = bill;
     setEditingBillId(null);
     setGarageAutoMode(true);
-    setDraft({ ...billDraft, guestName: `${billDraft.guestName} Copy`.trim() });
+    setDraft({
+      ...billDraft,
+      ...(clearManagedFleetResources ? {
+        driverId: undefined,
+        vehicleId: undefined,
+        driverName: "",
+        vehicleName: "",
+        vehicleNumber: ""
+      } : {}),
+      guestName: `${billDraft.guestName} Copy`.trim()
+    });
   }
 
   function resetLogger() {

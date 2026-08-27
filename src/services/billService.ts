@@ -13,11 +13,12 @@ export interface BillService {
 }
 
 export function createBillService(repository: BillRepository): BillService {
-  function validBill(bill: Bill): Bill {
-    const rawErrors = validateBillDraft(bill);
+  function validBill(scope: OrganizationScope, bill: Bill, requireFleetResources: boolean): Bill {
+    const options = { requireManagedFleetResources: scope.businessType === "vendor" && requireFleetResources };
+    const rawErrors = validateBillDraft(bill, options);
     if (Object.keys(rawErrors).length > 0) throw new BillValidationError(rawErrors);
     const normalized = normalizeBillDraft(bill);
-    const errors = validateBillDraft(normalized);
+    const errors = validateBillDraft(normalized, options);
     if (Object.keys(errors).length > 0) throw new BillValidationError(errors);
     return { ...bill, ...normalized };
   }
@@ -30,10 +31,10 @@ export function createBillService(repository: BillRepository): BillService {
       return repository.getBill(scope, id);
     },
     saveBill(scope, bill, requestId) {
-      return repository.saveBill(scope, validBill(bill), requestId);
+      return repository.saveBill(scope, validBill(scope, bill, true), requestId);
     },
     updateBill(scope, bill) {
-      return repository.updateBill(scope, validBill(bill));
+      return repository.updateBill(scope, validBill(scope, bill, Boolean(bill.driverId || bill.vehicleId)));
     },
     deleteBill(scope, id) {
       return repository.deleteBill(scope, id);

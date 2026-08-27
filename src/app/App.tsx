@@ -10,6 +10,7 @@ import { HistoryPage } from "../components/history/HistoryPage";
 import { OwnerCompanyPage } from "../components/owners/OwnerCompanyPage";
 import { DriversPage } from "../components/drivers/DriversPage";
 import { canManageDrivers } from "../components/drivers/driverPageModel";
+import { VehiclesPage } from "../components/vehicles/VehiclesPage";
 import { SettingsPage } from "../components/settings/SettingsPage";
 import { ConfirmationDialog } from "../components/shared/ConfirmationDialog";
 import { Toast, type ToastNotification, type ToastTone } from "../components/shared/Toast";
@@ -23,6 +24,8 @@ import { useSettings } from "../hooks/useSettings";
 import { useOwnerPayments } from "../hooks/useOwnerPayments";
 import { useOrganization } from "../hooks/useOrganization";
 import { useDrivers } from "../hooks/useDrivers";
+import { useDriverVehicleAssignments } from "../hooks/useDriverVehicleAssignments";
+import { useVehicles } from "../hooks/useVehicles";
 import { clearLegacyLocalBillData } from "../services/privacyMigrationService";
 import { DuplicateBillError, getSafeErrorMessage, logDevError } from "../utils/errors";
 
@@ -31,6 +34,7 @@ function pageFromPath(pathname: string): AppPage {
   if (normalized === "/history") return "history";
   if (normalized === "/owners" || normalized === "/owner-company") return "owners";
   if (normalized === "/drivers") return "drivers";
+  if (normalized === "/vehicles") return "vehicles";
   if (normalized === "/logger" || normalized === "/create-bill") return "logger";
   if (normalized === "/settings" || normalized === "/more") return "settings";
   return "dashboard";
@@ -40,6 +44,7 @@ function pagePath(page: AppPage): string {
   if (page === "history") return "/history";
   if (page === "owners") return "/owners";
   if (page === "drivers") return "/drivers";
+  if (page === "vehicles") return "/vehicles";
   if (page === "logger") return "/create-bill";
   if (page === "settings") return "/more";
   return "/dashboard";
@@ -54,14 +59,18 @@ export default function App() {
   const auth = useAuth();
   const theme = useDarkMode();
   const organization = useOrganization(auth.user?.id ?? null);
-  const canManageActiveDrivers = organization.scope ? canManageDrivers(organization.scope.businessType, organization.scope.role) : false;
+  const isFleetOwner = organization.scope?.businessType === "vendor";
+  const canManageFleetResources = organization.scope ? canManageDrivers(organization.scope.businessType, organization.scope.role) : false;
   const { settings, saveSettings } = useSettings(auth.user?.id ?? null);
   const billsApi = useBills(organization.scope);
   const billingPartiesEnabled = page === "logger" || page === "history" || page === "owners";
   const billingPartiesApi = useBillingParties(billingPartiesEnabled ? organization.scope : null, page === "owners");
   const ownerPaymentsApi = useOwnerPayments(organization.scope);
   const dashboardApi = useDashboard(organization.scope, page === "dashboard");
-  const driversApi = useDrivers(organization.scope, page === "drivers" && canManageActiveDrivers);
+  const fleetBillEnabled = isFleetOwner && page === "logger";
+  const driversApi = useDrivers(organization.scope, fleetBillEnabled || (page === "drivers" || page === "vehicles") && canManageFleetResources);
+  const vehiclesApi = useVehicles(organization.scope, fleetBillEnabled || page === "vehicles" && canManageFleetResources);
+  const driverVehicleAssignmentsApi = useDriverVehicleAssignments(organization.scope, fleetBillEnabled || page === "vehicles" && canManageFleetResources);
   const form = useBillForm(settings);
   const [notifications, setNotifications] = useState<ToastNotification[]>([]);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
@@ -102,10 +111,10 @@ export default function App() {
   }, []);
 
   useLayoutEffect(() => {
-    if (page === "drivers" && organization.scope && !canManageActiveDrivers) {
+    if ((page === "drivers" || page === "vehicles") && organization.scope && !canManageFleetResources) {
       navigateToPage("dashboard", true);
     }
-  }, [page, organization.scope?.organizationId, canManageActiveDrivers]);
+  }, [page, organization.scope?.organizationId, canManageFleetResources]);
 
   function navigateToPage(nextPage: AppPage, replace = false) {
     const nextPath = pagePath(nextPage);
@@ -309,10 +318,11 @@ export default function App() {
       setPage={navigateToPage}
       userEmail={auth.user.email}
       isDarkMode={theme.isDarkMode}
-      canManageDrivers={canManageActiveDrivers}
+      canManageDrivers={canManageFleetResources}
+      canManageVehicles={canManageFleetResources}
       mobileTitle={page === "logger" && form.editingBillId ? "Edit Bill" : page === "owners" ? mobileOwnerHeader?.title : undefined}
       mobileSubtitle={page === "logger" && form.editingBillId ? "Update trip and billing details" : page === "owners" && mobileOwnerHeader ? "Owner Account" : undefined}
-      mobileBack={page === "logger" && form.editingBillId ? () => navigateToPage("history") : page === "owners" ? mobileOwnerHeader?.onBack : page === "drivers" ? () => navigateToPage("settings") : undefined}
+      mobileBack={page === "logger" && form.editingBillId ? () => navigateToPage("history") : page === "owners" ? mobileOwnerHeader?.onBack : page === "drivers" || page === "vehicles" ? () => navigateToPage("settings") : undefined}
       onToggleDarkMode={theme.toggleDarkMode}
       onLogout={() => setLogoutConfirmOpen(true)}
     >
@@ -361,6 +371,12 @@ export default function App() {
           saving={billsApi.saving}
           settings={settings}
           billingParties={billingPartiesApi.parties}
+          isFleetOwner={isFleetOwner}
+          drivers={driversApi.drivers}
+          vehicles={vehiclesApi.vehicles}
+          assignments={driverVehicleAssignmentsApi.assignments}
+          fleetResourcesLoading={driversApi.loading || vehiclesApi.loading || driverVehicleAssignmentsApi.loading}
+          fleetResourcesError={[driversApi.error, vehiclesApi.error, driverVehicleAssignmentsApi.error].filter(Boolean).join(" ")}
           onFieldChange={form.updateField}
           onGarageTimeChange={form.setGarageTime}
           onSave={handleSave}
@@ -408,7 +424,7 @@ export default function App() {
             showToast("Bill loaded for edit");
           }}
           onDuplicate={(bill) => {
-            form.duplicateBill(bill);
+            form.duplicateBill(bill, isFleetOwner);
             navigateToPage("logger");
             showToast("Similar bill ready");
           }}
@@ -508,7 +524,7 @@ export default function App() {
         />
       )}
 
-      {page === "drivers" && canManageActiveDrivers && (
+      {page === "drivers" && canManageFleetResources && (
         <DriversPage
           drivers={driversApi.drivers}
           canManage={canManageDrivers(organization.scope.businessType, organization.scope.role)}
@@ -540,6 +556,63 @@ export default function App() {
         />
       )}
 
+      {page === "vehicles" && canManageFleetResources && (
+        <VehiclesPage
+          vehicles={vehiclesApi.vehicles}
+          drivers={driversApi.drivers}
+          assignments={driverVehicleAssignmentsApi.assignments}
+          canManage={canManageFleetResources}
+          loading={vehiclesApi.loading || driversApi.loading || driverVehicleAssignmentsApi.loading}
+          error={[vehiclesApi.error, driversApi.error, driverVehicleAssignmentsApi.error].filter(Boolean).join(" ")}
+          savingId={vehiclesApi.savingId}
+          assignmentSavingVehicleId={driverVehicleAssignmentsApi.savingVehicleId}
+          onSave={async (draft, id) => {
+            try {
+              const saved = await vehiclesApi.saveVehicle(draft, id);
+              showToast(id ? "Vehicle updated" : "Vehicle added", "success");
+              return saved;
+            } catch (error) {
+              logDevError("Vehicle save action failed", error);
+              showToast(getSafeErrorMessage(error, id ? "vehicle.update" : "vehicle.save"), "error");
+              throw error;
+            }
+          }}
+          onStatusChange={async (vehicle, status) => {
+            try {
+              const saved = await vehiclesApi.setVehicleStatus(vehicle, status);
+              showToast(status === "active" ? "Vehicle activated" : "Vehicle marked inactive", "success");
+              return saved;
+            } catch (error) {
+              logDevError("Vehicle status action failed", error);
+              showToast(getSafeErrorMessage(error, "vehicle.update"), "error");
+              throw error;
+            }
+          }}
+          onAssignDriver={async (vehicleId, driverId) => {
+            try {
+              const saved = await driverVehicleAssignmentsApi.assignDriver(vehicleId, driverId);
+              showToast("Driver assignment updated", "success");
+              return saved;
+            } catch (error) {
+              logDevError("Driver assignment action failed", error);
+              showToast(getSafeErrorMessage(error, "assignment.save"), "error");
+              throw error;
+            }
+          }}
+          onEndAssignment={async (vehicleId) => {
+            try {
+              const saved = await driverVehicleAssignmentsApi.endAssignment(vehicleId);
+              showToast("Driver assignment ended", "success");
+              return saved;
+            } catch (error) {
+              logDevError("Driver assignment end action failed", error);
+              showToast(getSafeErrorMessage(error, "assignment.end"), "error");
+              throw error;
+            }
+          }}
+        />
+      )}
+
       {page === "settings" && (
         <SettingsPage
           settings={settings}
@@ -547,7 +620,8 @@ export default function App() {
           isDarkMode={theme.isDarkMode}
           onToggleDarkMode={theme.toggleDarkMode}
           onLogout={() => setLogoutConfirmOpen(true)}
-          onOpenDrivers={canManageActiveDrivers ? () => navigateToPage("drivers") : undefined}
+          onOpenDrivers={canManageFleetResources ? () => navigateToPage("drivers") : undefined}
+          onOpenVehicles={canManageFleetResources ? () => navigateToPage("vehicles") : undefined}
           onSave={async (next) => {
             try {
               const saved = await saveSettings(next);

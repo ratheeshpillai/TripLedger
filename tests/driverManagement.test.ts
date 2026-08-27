@@ -79,8 +79,8 @@ test("Phase 6A.1 gates Driver Management by the active organization role", () =>
   assert.match(migration, /private\.can_manage_drivers\(organization_id\)/);
   assert.match(migration, /public\.is_mfa_requirement_satisfied\(\)/);
   assert.doesNotMatch(migration, /alter table public\.(bills|vehicles)/);
-  assert.match(app, /page === "drivers" && organization\.scope && !canManageActiveDrivers/);
-  assert.match(app, /page === "drivers" && canManageActiveDrivers/);
+  assert.match(app, /page === "drivers" \|\| page === "vehicles"/);
+  assert.match(app, /page === "drivers" && canManageFleetResources/);
   assert.match(shell, /item\.id !== "drivers" \|\| canManageDrivers/);
   assert.match(settings, /onOpenDrivers && <Button/);
 });

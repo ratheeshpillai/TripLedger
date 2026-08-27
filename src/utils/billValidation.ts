@@ -9,6 +9,8 @@ export const BILL_FIELD_STEPS: Partial<Record<BillField, number>> = {
   billingPartyId: 0,
   guestName: 0,
   reportingPlace: 0,
+  driverId: 1,
+  vehicleId: 1,
   driverName: 1,
   vehicleName: 1,
   vehicleNumber: 1,
@@ -39,6 +41,7 @@ export const BILL_FIELD_ORDER = Object.keys(BILL_FIELD_STEPS) as BillField[];
 
 type ValidationOptions = {
   validBillingPartyIds?: ReadonlySet<string>;
+  requireManagedFleetResources?: boolean;
 };
 
 const textLimits: Partial<Record<BillField, number>> = {
@@ -128,6 +131,11 @@ export function validateBillDraft(draft: BillDraft, options: ValidationOptions =
     errors.billingPartyId = "Select a company or owner.";
   }
 
+  if (options.requireManagedFleetResources) {
+    if (!draft.driverId) errors.driverId = "Select an active driver.";
+    if (!draft.vehicleId) errors.vehicleId = "Select a vehicle currently assigned to this driver.";
+  }
+
   for (const [field, message] of Object.entries(requiredText) as Array<[BillField, string]>) {
     if (!String(draft[field] ?? "").trim()) errors[field] = message;
   }
@@ -164,6 +172,8 @@ export function normalizeBillDraft(draft: BillDraft): BillDraft {
   return calculateBillDraft({
     ...draft,
     billingPartyId: draft.billingPartyId?.trim() || undefined,
+    driverId: draft.driverId?.trim() || undefined,
+    vehicleId: draft.vehicleId?.trim() || undefined,
     driverName: draft.driverName.trim(),
     vehicleName: draft.vehicleName.trim(),
     vehicleNumber: draft.vehicleNumber.trim(),
