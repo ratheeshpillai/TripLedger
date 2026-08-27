@@ -474,6 +474,53 @@ export type Database = {
           },
         ]
       }
+      vehicles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          make_model: string | null
+          organization_id: string
+          registration_number: string
+          registration_number_normalized: string | null
+          status: string
+          updated_at: string
+          year: number | null
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          make_model?: string | null
+          organization_id: string
+          registration_number: string
+          registration_number_normalized?: string | null
+          status?: string
+          updated_at?: string
+          year?: number | null
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          make_model?: string | null
+          organization_id?: string
+          registration_number?: string
+          registration_number_normalized?: string | null
+          status?: string
+          updated_at?: string
+          year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

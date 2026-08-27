@@ -33,7 +33,7 @@ test("signup UI and Supabase adapter map only the approved business-type values"
 
   assert.match(authPage, /How will you use TripLoggy\?/);
   assert.match(authPage, /value="individual_driver">Individual Driver/);
-  assert.match(authPage, /value="vendor">Transport Business/);
+  assert.match(authPage, /value="vendor">Fleet Owner/);
   assert.match(repository, /data: \{ business_type: businessType \}/);
   assert.doesNotMatch(repository, /data: \{[^}]*role:/s);
 });

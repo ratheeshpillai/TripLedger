@@ -262,7 +262,7 @@ export function AuthPage({ authError, initialMode = "login", onLogin, onSignup, 
                       How will you use TripLoggy?
                       <Select value={businessType} onChange={(event) => setBusinessType(event.target.value as OrganizationBusinessType)}>
                         <option value="individual_driver">Individual Driver</option>
-                        <option value="vendor">Transport Business</option>
+                        <option value="vendor">Fleet Owner</option>
                       </Select>
                     </label>
                   )}
