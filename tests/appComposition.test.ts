@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const services = ["auth", "bill", "billingParty", "dashboard", "driver", "organization", "ownerPayment", "settings"];
+const services = ["auth", "bill", "billingParty", "dashboard", "driver", "driverVehicleAssignment", "organization", "ownerPayment", "settings", "vehicle"];
 
 test("Supabase construction is isolated to the application composition root", async () => {
   const root = readFileSync(new URL("../src/app/appDependencies.ts", import.meta.url), "utf8");
@@ -19,4 +19,6 @@ test("Supabase construction is isolated to the application composition root", as
   assert.equal(typeof appServices.bills.queryBills, "function");
   assert.equal(typeof appServices.dashboard.getDashboard, "function");
   assert.equal(typeof appServices.drivers.listDrivers, "function");
+  assert.equal(typeof appServices.driverVehicleAssignments.assignDriver, "function");
+  assert.equal(typeof appServices.vehicles.listVehicles, "function");
 });

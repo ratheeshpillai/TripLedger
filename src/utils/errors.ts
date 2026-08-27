@@ -29,6 +29,12 @@ export type SafeErrorContext =
   | "driver.load"
   | "driver.save"
   | "driver.update"
+  | "assignment.load"
+  | "assignment.save"
+  | "assignment.end"
+  | "vehicle.load"
+  | "vehicle.save"
+  | "vehicle.update"
   | "payment.save"
   | "payment.update"
   | "payment.delete"
@@ -78,6 +84,12 @@ const CONTEXT_MESSAGES: Record<SafeErrorContext, string> = {
   "driver.load": "Unable to load drivers.",
   "driver.save": "Unable to add the driver.",
   "driver.update": "Unable to update the driver.",
+  "assignment.load": "Unable to load driver assignments.",
+  "assignment.save": "Unable to assign the driver.",
+  "assignment.end": "Unable to end the driver assignment.",
+  "vehicle.load": "Unable to load vehicles.",
+  "vehicle.save": "Unable to add the vehicle.",
+  "vehicle.update": "Unable to update the vehicle.",
   "payment.save": "Unable to record the payment.",
   "payment.update": "Unable to update the payment.",
   "payment.delete": "Unable to delete the payment.",

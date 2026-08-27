@@ -317,6 +317,61 @@ export type Database = {
           },
         ]
       }
+      driver_vehicle_assignments: {
+        Row: {
+          created_at: string
+          driver_id: string
+          ended_at: string | null
+          id: string
+          organization_id: string
+          status: string
+          updated_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          created_at?: string
+          driver_id: string
+          ended_at?: string | null
+          id?: string
+          organization_id: string
+          status?: string
+          updated_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          created_at?: string
+          driver_id?: string
+          ended_at?: string | null
+          id?: string
+          organization_id?: string
+          status?: string
+          updated_at?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_vehicle_assignments_driver_fk"
+            columns: ["driver_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "driver_vehicle_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_vehicle_assignments_vehicle_fk"
+            columns: ["vehicle_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       drivers: {
         Row: {
           created_at: string
@@ -526,6 +581,29 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      assign_driver_to_vehicle: {
+        Args: {
+          p_driver_id: string
+          p_organization_id: string
+          p_vehicle_id: string
+        }
+        Returns: {
+          created_at: string
+          driver_id: string
+          ended_at: string | null
+          id: string
+          organization_id: string
+          status: string
+          updated_at: string
+          vehicle_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "driver_vehicle_assignments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       calculate_bill_values: {
         Args: {
           p_airport_parking: number
@@ -791,6 +869,25 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "owner_payments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      end_driver_vehicle_assignment: {
+        Args: { p_organization_id: string; p_vehicle_id: string }
+        Returns: {
+          created_at: string
+          driver_id: string
+          ended_at: string | null
+          id: string
+          organization_id: string
+          status: string
+          updated_at: string
+          vehicle_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "driver_vehicle_assignments"
           isOneToOne: true
           isSetofReturn: false
         }

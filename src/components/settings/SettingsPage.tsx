@@ -17,6 +17,7 @@ type Props = {
   onToggleDarkMode: () => void;
   onLogout: () => void;
   onOpenDrivers?: () => void;
+  onOpenVehicles?: () => void;
   onSave: (settings: AppSettings) => Promise<AppSettings>;
 };
 
@@ -48,7 +49,7 @@ function SettingsSection({ id, title, openSection, setOpenSection, children }: {
   );
 }
 
-export function SettingsPage({ settings, userEmail, isDarkMode, onToggleDarkMode, onLogout, onOpenDrivers, onSave }: Props) {
+export function SettingsPage({ settings, userEmail, isDarkMode, onToggleDarkMode, onLogout, onOpenDrivers, onOpenVehicles, onSave }: Props) {
   const [draft, setDraft] = useState<AppSettings>(settings);
   const [savedSettings, setSavedSettings] = useState<AppSettings>(settings);
   const [openSection, setOpenSection] = useState<SettingsSectionId | null>(null);
@@ -88,7 +89,10 @@ export function SettingsPage({ settings, userEmail, isDarkMode, onToggleDarkMode
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-4">
-      {onOpenDrivers && <Button type="button" variant="secondary" className="min-h-11 w-full justify-start lg:hidden" onClick={onOpenDrivers}>Driver Management</Button>}
+      {(onOpenDrivers || onOpenVehicles) && <div className="grid gap-2 lg:hidden">
+        {onOpenDrivers && <Button type="button" variant="secondary" className="min-h-11 w-full justify-start" onClick={onOpenDrivers}>Driver Management</Button>}
+        {onOpenVehicles && <Button type="button" variant="secondary" className="min-h-11 w-full justify-start" onClick={onOpenVehicles}>Vehicle Management</Button>}
+      </div>}
       <SettingsSection id="account" title={<><span className="lg:hidden">User Information</span><span className="hidden lg:inline">Account Settings</span></>} openSection={openSection} setOpenSection={setOpenSection}>
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-[#111827]">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Signed-in email</p>

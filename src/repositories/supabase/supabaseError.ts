@@ -27,6 +27,14 @@ export function mapSupabaseError(error: unknown): AppError {
   if (message.includes("already being processed") || message.includes("already saved")) {
     return new AppError("CONFLICT", "This request is already being processed.", error);
   }
+  if (message.includes("driver must be active") || message.includes("selected driver is inactive")) return new AppError("VALIDATION", "Select an active driver from this Fleet Owner workspace.", error);
+  if (message.includes("vehicle must be active")) return new AppError("VALIDATION", "Activate this vehicle before assigning a driver.", error);
+  if (message.includes("selected vehicle is inactive")) return new AppError("VALIDATION", "Select an active vehicle from this Fleet Owner workspace.", error);
+  if (message.includes("select an assigned driver and vehicle")) return new AppError("VALIDATION", "Select a driver and an assigned vehicle before saving.", error);
+  if (message.includes("does not belong to this fleet owner workspace")) return new AppError("VALIDATION", "The selected driver or vehicle is unavailable in this workspace.", error);
+  if (message.includes("assignment has already changed") || message.includes("assignment changed") || code === "40001") {
+    return new AppError("CONFLICT", "This driver and vehicle assignment changed. Refresh and select the current assignment.", error);
+  }
   if (code === "23505") return new AppError("CONFLICT", undefined, error);
   if (code === "23503" || code === "23514" || code === "22023") return new AppError("VALIDATION", undefined, error);
   if (code === "pgrst116") return new AppError("NOT_FOUND", undefined, error);
