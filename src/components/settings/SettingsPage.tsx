@@ -96,7 +96,7 @@ export function SettingsPage({ settings, userEmail, isDarkMode, onToggleDarkMode
       <SettingsSection id="account" title={<><span className="lg:hidden">User Information</span><span className="hidden lg:inline">Account Settings</span></>} openSection={openSection} setOpenSection={setOpenSection}>
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-[#111827]">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Signed-in email</p>
-          <p className="mt-1 break-all text-sm font-bold text-slate-900 dark:text-slate-100">{userEmail || "TripLedger user"}</p>
+          <p className="mt-1 break-all text-sm font-bold text-slate-900 dark:text-slate-100">{userEmail || "TripLoggy user"}</p>
         </div>
       </SettingsSection>
 
@@ -108,7 +108,7 @@ export function SettingsPage({ settings, userEmail, isDarkMode, onToggleDarkMode
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-[#111827]">
           <div>
             <p className="text-sm font-black text-slate-900 dark:text-slate-100">Color theme</p>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Use {isDarkMode ? "light" : "dark"} mode across TripLedger.</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Use {isDarkMode ? "light" : "dark"} mode across TripLoggy.</p>
           </div>
           <button
             type="button"

@@ -9,6 +9,7 @@ import { LoggerPage, type SaveBillResult } from "../components/logger/LoggerPage
 import { HistoryPage } from "../components/history/HistoryPage";
 import { OwnerCompanyPage } from "../components/owners/OwnerCompanyPage";
 import { DriversPage } from "../components/drivers/DriversPage";
+import { DriverInvitationPage } from "../components/drivers/DriverInvitationPage";
 import { canManageDrivers } from "../components/drivers/driverPageModel";
 import { VehiclesPage } from "../components/vehicles/VehiclesPage";
 import { SettingsPage } from "../components/settings/SettingsPage";
@@ -24,10 +25,12 @@ import { useSettings } from "../hooks/useSettings";
 import { useOwnerPayments } from "../hooks/useOwnerPayments";
 import { useOrganization } from "../hooks/useOrganization";
 import { useDrivers } from "../hooks/useDrivers";
+import { useDriverInvitations } from "../hooks/useDriverInvitations";
 import { useDriverVehicleAssignments } from "../hooks/useDriverVehicleAssignments";
 import { useVehicles } from "../hooks/useVehicles";
 import { clearLegacyLocalBillData } from "../services/privacyMigrationService";
 import { DuplicateBillError, getSafeErrorMessage, logDevError } from "../utils/errors";
+import { appServices } from "./appDependencies";
 
 function pageFromPath(pathname: string): AppPage {
   const normalized = pathname.replace(/\/+$/, "") || "/";
@@ -54,6 +57,23 @@ function authPath(pathname: string): string {
   return pathname.replace(/\/+$/, "") || "/";
 }
 
+function invitationToken(): string {
+  if (authPath(window.location.pathname) !== "/driver-invitation") return "";
+  const token = new URLSearchParams(window.location.search).get("token") ?? "";
+  return /^[a-f0-9]{64}$/i.test(token) ? token : "";
+}
+
+function invitationReturnPath(value = `${window.location.pathname}${window.location.search}`): string | null {
+  try {
+    const url = new URL(value, window.location.origin);
+    if (url.origin !== window.location.origin || authPath(url.pathname) !== "/driver-invitation") return null;
+    const token = url.searchParams.get("token") ?? "";
+    return /^[a-f0-9]{64}$/i.test(token) ? `${url.pathname}?token=${token}` : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function App() {
   const [page, setPage] = useState<AppPage>(() => pageFromPath(window.location.pathname));
   const auth = useAuth();
@@ -69,6 +89,7 @@ export default function App() {
   const dashboardApi = useDashboard(organization.scope, page === "dashboard");
   const fleetBillEnabled = isFleetOwner && page === "logger";
   const driversApi = useDrivers(organization.scope, fleetBillEnabled || (page === "drivers" || page === "vehicles") && canManageFleetResources);
+  const driverInvitationsApi = useDriverInvitations(organization.scope, page === "drivers" && canManageFleetResources);
   const vehiclesApi = useVehicles(organization.scope, fleetBillEnabled || page === "vehicles" && canManageFleetResources);
   const driverVehicleAssignmentsApi = useDriverVehicleAssignments(organization.scope, fleetBillEnabled || page === "vehicles" && canManageFleetResources);
   const form = useBillForm(settings);
@@ -92,7 +113,7 @@ export default function App() {
       form.resetLogger();
       billsApi.clearSelection();
       setNotifications([]);
-      if (currentPath !== "/auth/callback" && currentPath !== "/reset-password") {
+      if (currentPath !== "/auth/callback" && currentPath !== "/reset-password" && currentPath !== "/driver-invitation") {
         navigateToPage("dashboard", true);
       }
       previousUserIdRef.current = nextUserId;
@@ -222,7 +243,7 @@ export default function App() {
   if (auth.loading) {
     return (
       <main className="grid min-h-screen place-items-center bg-slate-50 px-4 dark:bg-[#0b1120]">
-        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-bold text-slate-600 shadow-soft dark:border-slate-700 dark:bg-[#111827] dark:text-slate-200 dark:shadow-black/20">Loading TripLedger...</div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-bold text-slate-600 shadow-soft dark:border-slate-700 dark:bg-[#111827] dark:text-slate-200 dark:shadow-black/20">Loading TripLoggy...</div>
       </main>
     );
   }
@@ -231,19 +252,23 @@ export default function App() {
   const isAuthCallback = currentAuthPath === "/auth/callback" && !authCallbackHandled;
   const isForgotPassword = currentAuthPath === "/forgot-password";
   const isResetPassword = currentAuthPath === "/reset-password";
+  const isDriverInvitation = currentAuthPath === "/driver-invitation";
+  const currentInvitationPath = invitationReturnPath();
 
   if (isAuthCallback) {
     return (
       <AuthCallbackPage
         onVerify={auth.completeEmailVerification}
         onContinue={() => {
-          window.history.replaceState({}, "", "/");
+          const next = invitationReturnPath(new URLSearchParams(window.location.search).get("next") ?? "") ?? "/";
+          window.history.replaceState({}, "", next);
           setAuthCallbackHandled(true);
           showToast("Email verified successfully", "success");
         }}
         onReturnToLogin={async () => {
           await auth.logout();
-          window.history.replaceState({}, "", "/");
+          const next = invitationReturnPath(new URLSearchParams(window.location.search).get("next") ?? "") ?? "/";
+          window.history.replaceState({}, "", next);
           setAuthCallbackHandled(true);
         }}
       />
@@ -291,12 +316,31 @@ export default function App() {
           if (!result.extraVerificationRequired) showToast("Logged in", "success");
         }}
         onSignup={async (email, password, businessType) => {
-          await auth.signup(email, password, businessType);
+          await auth.signup(email, password, businessType, currentInvitationPath ?? undefined);
         }}
-        onResendActivation={auth.resendSignupConfirmation}
+        onResendActivation={(email) => auth.resendSignupConfirmation(email, currentInvitationPath ?? undefined)}
         onPasswordReset={auth.sendPasswordReset}
         onRouteChange={(path) => {
-          window.history.pushState({}, "", path);
+          window.history.pushState({}, "", currentInvitationPath && path === "/" ? currentInvitationPath : path);
+        }}
+        notice={isDriverInvitation ? "Sign in or create an account with the invited email address to continue." : undefined}
+      />
+    );
+  }
+
+  if (isDriverInvitation) {
+    return (
+      <DriverInvitationPage
+        token={invitationToken()}
+        userEmail={auth.user.email}
+        onLoad={appServices.driverInvitations.getInvitation}
+        onAccept={appServices.driverInvitations.acceptInvitation}
+        onContinue={() => {
+          window.history.replaceState({}, "", "/dashboard");
+          setPage("dashboard");
+        }}
+        onSignOut={async () => {
+          await auth.logout();
         }}
       />
     );
@@ -306,7 +350,7 @@ export default function App() {
     return (
       <main className="grid min-h-screen place-items-center bg-slate-50 px-4 dark:bg-[#0b1120]">
         <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-bold text-slate-600 shadow-soft dark:border-slate-700 dark:bg-[#111827] dark:text-slate-200 dark:shadow-black/20">
-          {organization.error || "Loading TripLedger..."}
+          {organization.error || "Loading TripLoggy..."}
         </div>
       </main>
     );
@@ -528,9 +572,11 @@ export default function App() {
         <DriversPage
           drivers={driversApi.drivers}
           canManage={canManageDrivers(organization.scope.businessType, organization.scope.role)}
-          loading={driversApi.loading}
-          error={driversApi.error}
+          loading={driversApi.loading || driverInvitationsApi.loading}
+          error={[driversApi.error, driverInvitationsApi.error].filter(Boolean).join(" ")}
           savingId={driversApi.savingId}
+          invitations={driverInvitationsApi.invitations}
+          invitationSavingId={driverInvitationsApi.savingId}
           onSave={async (draft, id) => {
             try {
               const saved = await driversApi.saveDriver(draft, id);
@@ -550,6 +596,29 @@ export default function App() {
             } catch (error) {
               logDevError("Driver status action failed", error);
               showToast(getSafeErrorMessage(error, "driver.update"), "error");
+              throw error;
+            }
+          }}
+          onInvite={async (driver, email) => {
+            try {
+              const invitation = await driverInvitationsApi.createInvitation(driver.id, email);
+              const link = new URL("/driver-invitation", window.location.origin);
+              link.searchParams.set("token", invitation.token);
+              showToast("Driver invitation created", "success");
+              return link.toString();
+            } catch (error) {
+              logDevError("Driver invitation action failed", error);
+              showToast(getSafeErrorMessage(error, "invitation.create"), "error");
+              throw error;
+            }
+          }}
+          onCancelInvitation={async (invitation) => {
+            try {
+              await driverInvitationsApi.cancelInvitation(invitation.id);
+              showToast("Driver invitation cancelled", "success");
+            } catch (error) {
+              logDevError("Driver invitation cancellation failed", error);
+              showToast(getSafeErrorMessage(error, "invitation.cancel"), "error");
               throw error;
             }
           }}

@@ -34,7 +34,7 @@ export function ExtraLoginVerificationPage({ email, onVerify, onCancel }: Props)
     <main className="grid min-h-screen place-items-center bg-slate-50 px-4 py-10 dark:bg-[#0b1120]">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A] dark:text-blue-300">TripLedger</p>
+          <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A] dark:text-blue-300">TripLoggy</p>
           <h1 className="mt-2 text-2xl font-black text-slate-950 dark:text-slate-50">Extra Login Verification</h1>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Enter the current code from your authenticator app.</p>
         </div>

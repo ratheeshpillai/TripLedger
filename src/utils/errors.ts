@@ -29,6 +29,10 @@ export type SafeErrorContext =
   | "driver.load"
   | "driver.save"
   | "driver.update"
+  | "invitation.load"
+  | "invitation.create"
+  | "invitation.cancel"
+  | "invitation.accept"
   | "assignment.load"
   | "assignment.save"
   | "assignment.end"
@@ -84,6 +88,10 @@ const CONTEXT_MESSAGES: Record<SafeErrorContext, string> = {
   "driver.load": "Unable to load drivers.",
   "driver.save": "Unable to add the driver.",
   "driver.update": "Unable to update the driver.",
+  "invitation.load": "Unable to load driver invitations.",
+  "invitation.create": "Unable to create the driver invitation.",
+  "invitation.cancel": "Unable to cancel the driver invitation.",
+  "invitation.accept": "Unable to accept this driver invitation.",
   "assignment.load": "Unable to load driver assignments.",
   "assignment.save": "Unable to assign the driver.",
   "assignment.end": "Unable to end the driver assignment.",
@@ -144,6 +152,6 @@ export function logDevError(context: string, error: unknown): void {
     const name = typeof metadata.name === "string" && /^(Error|TypeError|AuthApiError|AuthSessionMissingError|PostgrestError)$/.test(metadata.name)
       ? metadata.name
       : "Error";
-    console.error(`[TripLedger] ${context}`, { name, code, status });
+    console.error(`[TripLoggy] ${context}`, { name, code, status });
   }
 }

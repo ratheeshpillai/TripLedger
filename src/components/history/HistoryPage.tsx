@@ -1143,7 +1143,7 @@ export function HistoryPage({ bills, totalCount, totalAmount, selectedBills, sel
       )}
 
       {multiOwnerChoiceOpen && (
-        <Modal title="Selected bills belong to multiple Owners / Companies" description="Choose how TripLedger should prepare this summary." maxWidth="max-w-lg" onClose={() => setMultiOwnerChoiceOpen(false)}>
+        <Modal title="Selected bills belong to multiple Owners / Companies" description="Choose how TripLoggy should prepare this summary." maxWidth="max-w-lg" onClose={() => setMultiOwnerChoiceOpen(false)}>
           <div className="grid gap-3">
             <Button type="button" variant="primary" onClick={() => { setSummaryMode("grouped"); setMultiOwnerChoiceOpen(false); }}>Create separate summaries grouped by Owner / Company</Button>
             <Button type="button" onClick={() => { setSummaryMode("combined"); setMultiOwnerChoiceOpen(false); }}>Create one general combined summary</Button>

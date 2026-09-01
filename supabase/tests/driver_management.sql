@@ -110,6 +110,29 @@ select pg_temp.assert_true(
   (select count(*) = 1 from public.drivers where id = '6a000000-0000-0000-0000-000000000001' and name = 'Updated driver' and status = 'inactive'),
   'owner must update a driver and inactive drivers must remain readable'
 );
+do $$
+begin
+  begin
+    insert into public.drivers (organization_id, user_id, name)
+    values ((select id from test_driver_organizations where label = 'a'), '65000000-0000-0000-0000-000000000005', 'Direct linked driver');
+    raise exception 'manager directly linked a driver during insert';
+  exception when insufficient_privilege then null;
+  end;
+end;
+$$;
+do $$
+begin
+  begin
+    update public.drivers
+    set user_id = '65000000-0000-0000-0000-000000000005'
+    where id = '6a000000-0000-0000-0000-000000000001';
+    raise exception 'manager directly linked an existing driver';
+  exception when insufficient_privilege then null;
+  end;
+end;
+$$;
+reset role;
+
 insert into public.drivers (id, organization_id, user_id, name)
 values ('6a000000-0000-0000-0000-000000000002', (select id from test_driver_organizations where label = 'a'), '65000000-0000-0000-0000-000000000005', 'Linked driver');
 do $$
@@ -118,23 +141,10 @@ begin
     insert into public.drivers (organization_id, user_id, name)
     values ((select id from test_driver_organizations where label = 'a'), '65000000-0000-0000-0000-000000000005', 'Duplicate linked driver');
     raise exception 'duplicate organization driver login link was accepted';
-  exception when unique_violation then
-    null;
+  exception when unique_violation then null;
   end;
 end;
 $$;
-do $$
-begin
-  begin
-    insert into public.drivers (organization_id, user_id, name)
-    values ((select id from test_driver_organizations where label = 'a'), '62000000-0000-0000-0000-000000000002', 'Invalid linked user');
-    raise exception 'driver was linked to a user outside the organization';
-  exception when sqlstate '42501' then
-    null;
-  end;
-end;
-$$;
-reset role;
 
 select set_config('request.jwt.claims', '{"sub":"63000000-0000-0000-0000-000000000003","role":"authenticated","aal":"aal1"}', true);
 set local role authenticated;
@@ -308,8 +318,10 @@ reset role;
 select pg_temp.assert_true(not has_table_privilege('anon', 'public.drivers', 'select'), 'anonymous driver reads must be blocked');
 select pg_temp.assert_true(not has_table_privilege('anon', 'public.drivers', 'insert'), 'anonymous driver writes must be blocked');
 select pg_temp.assert_true(has_table_privilege('authenticated', 'public.drivers', 'select'), 'authenticated driver reads require a table grant');
-select pg_temp.assert_true(has_table_privilege('authenticated', 'public.drivers', 'insert'), 'authenticated driver creates require a table grant');
-select pg_temp.assert_true(has_table_privilege('authenticated', 'public.drivers', 'update'), 'authenticated driver updates require a table grant');
+select pg_temp.assert_true(has_column_privilege('authenticated', 'public.drivers', 'name', 'insert'), 'authenticated driver creates require allowed-column grants');
+select pg_temp.assert_true(not has_column_privilege('authenticated', 'public.drivers', 'user_id', 'insert'), 'authenticated users must not link accounts during driver creation');
+select pg_temp.assert_true(has_column_privilege('authenticated', 'public.drivers', 'status', 'update'), 'authenticated driver lifecycle updates require an allowed-column grant');
+select pg_temp.assert_true(not has_column_privilege('authenticated', 'public.drivers', 'user_id', 'update'), 'authenticated users must not update driver account links directly');
 select pg_temp.assert_true(not has_table_privilege('authenticated', 'public.drivers', 'delete'), 'driver deletion must remain unavailable');
 select pg_temp.assert_true(not has_function_privilege('anon', 'public.set_drivers_updated_at()', 'execute'), 'driver trigger helper must not be anonymous');
 select pg_temp.assert_true(not has_function_privilege('authenticated', 'public.protect_drivers_organization()', 'execute'), 'driver organization guard must not be client-executable');

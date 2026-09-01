@@ -42,7 +42,7 @@ export function AuthCallbackPage({ onVerify, onContinue, onReturnToLogin }: Prop
     <main className="grid min-h-screen place-items-center bg-slate-50 px-4 py-10 dark:bg-[#0b1120]">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A] dark:text-blue-300">TripLedger</p>
+          <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A] dark:text-blue-300">TripLoggy</p>
           <h1 className="mt-2 text-2xl font-black text-slate-950 dark:text-slate-50">Email Verification</h1>
         </div>
 
@@ -56,15 +56,15 @@ export function AuthCallbackPage({ onVerify, onContinue, onReturnToLogin }: Prop
           </CardHeader>
           <CardContent className="space-y-4">
             {state === "verifying" && (
-              <p className="text-sm text-slate-600 dark:text-slate-300">Please wait while TripLedger confirms your verification link.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-300">Please wait while TripLoggy confirms your verification link.</p>
             )}
 
             {state === "success" && (
               <>
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm font-semibold text-emerald-800 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-200">
-                  Your email has been verified successfully. You can now continue to TripLedger.
+                  Your email has been verified successfully. You can now continue to TripLoggy.
                 </div>
-                <Button className="w-full" type="button" variant="primary" onClick={onContinue}>Continue to TripLedger</Button>
+                <Button className="w-full" type="button" variant="primary" onClick={onContinue}>Continue to TripLoggy</Button>
               </>
             )}
 

@@ -166,8 +166,8 @@ export const supabaseAuthRepository: AuthRepository = {
 
     const { data, error } = await client.auth.mfa.enroll({
       factorType: "totp",
-      friendlyName: "TripLedger Extra Login Verification",
-      issuer: "TripLedger"
+      friendlyName: "TripLoggy Extra Login Verification",
+      issuer: "TripLoggy"
     });
     if (error) fail(error);
 

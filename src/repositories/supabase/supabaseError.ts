@@ -27,6 +27,16 @@ export function mapSupabaseError(error: unknown): AppError {
   if (message.includes("already being processed") || message.includes("already saved")) {
     return new AppError("CONFLICT", "This request is already being processed.", error);
   }
+  if (message.includes("invitation_already_pending")) return new AppError("CONFLICT", "An active invitation already exists for this driver.", error);
+  if (message.includes("invitation_driver_already_linked") || message.includes("invitation_user_already_linked")) return new AppError("CONFLICT", "This driver account is already linked.", error);
+  if (message.includes("invitation_expired")) return new AppError("VALIDATION", "This driver invitation has expired.", error);
+  if (message.includes("invitation_cancelled") || message.includes("invitation_already_cancelled")) return new AppError("VALIDATION", "This driver invitation was cancelled.", error);
+  if (message.includes("invitation_already_accepted")) return new AppError("CONFLICT", "This driver invitation has already been accepted.", error);
+  if (message.includes("invitation_email_mismatch")) return new AppError("FORBIDDEN", "Sign in with the email address that received this invitation.", error);
+  if (message.includes("invitation_email_unverified")) return new AppError("FORBIDDEN", "Verify your email address before accepting this invitation.", error);
+  if (message.includes("invitation_not_found")) return new AppError("NOT_FOUND", "This driver invitation could not be found.", error);
+  if (message.includes("invitation_driver_unavailable")) return new AppError("VALIDATION", "This driver is no longer available for linking.", error);
+  if (message.includes("invitation_email_invalid")) return new AppError("VALIDATION", "Enter a valid email address.", error);
   if (message.includes("driver must be active") || message.includes("selected driver is inactive")) return new AppError("VALIDATION", "Select an active driver from this Fleet Owner workspace.", error);
   if (message.includes("vehicle must be active")) return new AppError("VALIDATION", "Activate this vehicle before assigning a driver.", error);
   if (message.includes("selected vehicle is inactive")) return new AppError("VALIDATION", "Select an active vehicle from this Fleet Owner workspace.", error);

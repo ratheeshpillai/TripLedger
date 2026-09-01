@@ -317,6 +317,69 @@ export type Database = {
           },
         ]
       }
+      driver_invitations: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          cancelled_at: string | null
+          created_at: string
+          driver_id: string
+          expires_at: string
+          id: string
+          invited_by: string | null
+          invited_email: string
+          organization_id: string
+          status: string
+          token_hash: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          driver_id: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          invited_email: string
+          organization_id: string
+          status?: string
+          token_hash: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          driver_id?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          invited_email?: string
+          organization_id?: string
+          status?: string
+          token_hash?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_invitations_driver_fk"
+            columns: ["driver_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "driver_invitations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       driver_vehicle_assignments: {
         Row: {
           created_at: string
@@ -581,6 +644,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_driver_invitation: {
+        Args: { p_invitation_token: string }
+        Returns: {
+          accepted_at: string
+          driver_name: string
+          invitation_id: string
+          organization_name: string
+        }[]
+      }
       assign_driver_to_vehicle: {
         Args: {
           p_driver_id: string
@@ -627,6 +699,30 @@ export type Database = {
           total_amount: number
           total_km: number
         }[]
+      }
+      cancel_driver_invitation: {
+        Args: { p_invitation_id: string; p_organization_id: string }
+        Returns: {
+          accepted_at: string | null
+          accepted_by: string | null
+          cancelled_at: string | null
+          created_at: string
+          driver_id: string
+          expires_at: string
+          id: string
+          invited_by: string | null
+          invited_email: string
+          organization_id: string
+          status: string
+          token_hash: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "driver_invitations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       create_bill:
         | {
@@ -840,6 +936,24 @@ export type Database = {
               isSetofReturn: false
             }
           }
+      create_driver_invitation: {
+        Args: {
+          p_driver_id: string
+          p_invited_email: string
+          p_organization_id: string
+        }
+        Returns: {
+          created_at: string
+          driver_id: string
+          expires_at: string
+          invitation_id: string
+          invitation_token: string
+          invited_by: string
+          invited_email: string
+          organization_id: string
+          status: string
+        }[]
+      }
       create_owner_payment: {
         Args: {
           p_amount: number
@@ -994,6 +1108,17 @@ export type Database = {
           billing_party_id: string
           display_name: string
           outstanding_amount: number
+        }[]
+      }
+      get_driver_invitation: {
+        Args: { p_invitation_token: string }
+        Returns: {
+          driver_name: string
+          expires_at: string
+          invitation_id: string
+          invited_email: string
+          organization_name: string
+          status: string
         }[]
       }
       is_mfa_requirement_satisfied: { Args: never; Returns: boolean }

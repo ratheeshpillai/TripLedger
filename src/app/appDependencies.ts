@@ -3,6 +3,7 @@ import { supabaseBillRepository } from "../repositories/supabase/supabaseBillRep
 import { supabaseBillingPartyRepository } from "../repositories/supabase/supabaseBillingPartyRepository";
 import { supabaseDashboardRepository } from "../repositories/supabase/supabaseDashboardRepository";
 import { supabaseDriverRepository } from "../repositories/supabase/supabaseDriverRepository";
+import { supabaseDriverInvitationRepository } from "../repositories/supabase/supabaseDriverInvitationRepository";
 import { supabaseDriverVehicleAssignmentRepository } from "../repositories/supabase/supabaseDriverVehicleAssignmentRepository";
 import { supabaseOrganizationRepository } from "../repositories/supabase/supabaseOrganizationRepository";
 import { supabaseOwnerPaymentRepository } from "../repositories/supabase/supabaseOwnerPaymentRepository";
@@ -13,6 +14,7 @@ import { createBillService } from "../services/billService";
 import { createBillingPartyService } from "../services/billingPartyService";
 import { createDashboardService } from "../services/dashboardService";
 import { createDriverService } from "../services/driverService";
+import { createDriverInvitationService } from "../services/driverInvitationService";
 import { createDriverVehicleAssignmentService } from "../services/driverVehicleAssignmentService";
 import { createOrganizationService } from "../services/organizationService";
 import { createOwnerPaymentService } from "../services/ownerPaymentService";
@@ -25,6 +27,7 @@ export const appServices = {
   billingParties: createBillingPartyService(supabaseBillingPartyRepository),
   dashboard: createDashboardService(supabaseDashboardRepository),
   drivers: createDriverService(supabaseDriverRepository),
+  driverInvitations: createDriverInvitationService(supabaseDriverInvitationRepository),
   driverVehicleAssignments: createDriverVehicleAssignmentService(supabaseDriverVehicleAssignmentRepository),
   organization: createOrganizationService(supabaseOrganizationRepository),
   ownerPayments: createOwnerPaymentService(supabaseOwnerPaymentRepository),

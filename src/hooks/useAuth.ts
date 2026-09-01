@@ -14,6 +14,12 @@ function hasRecoveryUrlHint(): boolean {
   return search.has("code") || search.get("type") === "recovery" || hash.get("type") === "recovery";
 }
 
+function emailVerificationRedirect(returnPath?: string): string {
+  const redirect = new URL("/auth/callback", window.location.origin);
+  if (returnPath) redirect.searchParams.set("next", returnPath);
+  return redirect.toString();
+}
+
 export function useAuth(service: AuthService = appServices.auth) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [pendingUser, setPendingUser] = useState<AuthUser | null>(null);
@@ -96,9 +102,9 @@ export function useAuth(service: AuthService = appServices.auth) {
     return applySessionState(await service.login({ email, password }));
   }
 
-  async function signup(email: string, password: string, businessType: OrganizationBusinessType) {
+  async function signup(email: string, password: string, businessType: OrganizationBusinessType, returnPath?: string) {
     setError("");
-    const emailRedirectTo = new URL("/auth/callback", window.location.origin).toString();
+    const emailRedirectTo = emailVerificationRedirect(returnPath);
     const nextUser = await service.signup({ email, password, businessType }, emailRedirectTo);
     if (nextUser) {
       applySessionState(await service.getSessionState());
@@ -106,8 +112,8 @@ export function useAuth(service: AuthService = appServices.auth) {
     return nextUser;
   }
 
-  async function resendSignupConfirmation(email: string) {
-    const emailRedirectTo = new URL("/auth/callback", window.location.origin).toString();
+  async function resendSignupConfirmation(email: string, returnPath?: string) {
+    const emailRedirectTo = emailVerificationRedirect(returnPath);
     await service.resendSignupConfirmation(email, emailRedirectTo);
   }
 

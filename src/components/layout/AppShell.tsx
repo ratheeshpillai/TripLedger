@@ -138,7 +138,7 @@ export function AppShell({ page, setPage, userEmail, isDarkMode, canManageDriver
       >
         <div className={cn("flex min-h-14", sidebarCollapsed ? "items-center justify-center gap-0 px-0" : "items-start justify-between gap-2 px-1")}>
           <div className={cn("min-w-0 overflow-hidden transition-[opacity,width] duration-150", sidebarCollapsed && "pointer-events-none w-0 opacity-0")}>
-            <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A] dark:text-blue-300">TripLedger</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A] dark:text-blue-300">TripLoggy</p>
             <h1 className="mt-1 whitespace-nowrap text-lg font-black leading-tight text-slate-950 dark:text-slate-50">Fleet & Billing</h1>
           </div>
           <button
@@ -183,7 +183,7 @@ export function AppShell({ page, setPage, userEmail, isDarkMode, canManageDriver
           <div className="min-w-0">
             <div className="lg:hidden">
               <MobilePageHeader
-                title={mobileTitle || (page === "dashboard" ? "TripLedger" : page === "history" ? "History" : page === "logger" ? "Create Bill" : page === "owners" ? "Owners" : page === "drivers" ? "Drivers" : page === "vehicles" ? "Vehicles" : "More")}
+                title={mobileTitle || (page === "dashboard" ? "TripLoggy" : page === "history" ? "History" : page === "logger" ? "Create Bill" : page === "owners" ? "Owners" : page === "drivers" ? "Drivers" : page === "vehicles" ? "Vehicles" : "More")}
                 subtitle={mobileSubtitle || (page === "dashboard" ? "Today's business at a glance" : page === "history" ? "Search and manage bills" : page === "logger" ? "Enter trip and billing details" : page === "owners" ? "Balances and payments" : page === "drivers" ? "Driver records and availability" : page === "vehicles" ? "Fleet vehicles and availability" : "Account and app settings")}
                 onBack={mobileBack}
               />
@@ -212,7 +212,7 @@ export function AppShell({ page, setPage, userEmail, isDarkMode, canManageDriver
               <div className="absolute right-0 mt-3 w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10 dark:border-slate-700 dark:bg-[#111827] dark:shadow-black/30">
                 <div className="border-b border-slate-100 px-3 py-3 dark:border-slate-700">
                   <p className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Signed in</p>
-                  <p className="mt-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">{userEmail || "TripLedger user"}</p>
+                  <p className="mt-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">{userEmail || "TripLoggy user"}</p>
                 </div>
 
                 <button

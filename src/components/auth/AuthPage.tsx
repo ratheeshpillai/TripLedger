@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader } from "../ui/Card";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { getSafeErrorMessage, logDevError } from "../../utils/errors";
+import { emailValidationMessage, normalizeEmail } from "../../utils/email";
 import type { OrganizationBusinessType } from "../../types/organization";
 
 type AuthMode = "login" | "signup" | "forgot";
@@ -17,23 +18,13 @@ type Props = {
   onResendActivation: (email: string) => Promise<void>;
   onPasswordReset: (email: string) => Promise<void>;
   onRouteChange?: (path: string) => void;
+  notice?: string;
 };
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_MIN_LENGTH = 6;
 const RESEND_COOLDOWN_MS = 30000;
 
-function normalizeEmail(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-function emailValidationMessage(value: string): string {
-  const email = normalizeEmail(value);
-  if (!email) return "Email address is required.";
-  return EMAIL_PATTERN.test(email) ? "" : "Enter a valid email address.";
-}
-
-export function AuthPage({ authError, initialMode = "login", onLogin, onSignup, onResendActivation, onPasswordReset, onRouteChange }: Props) {
+export function AuthPage({ authError, initialMode = "login", onLogin, onSignup, onResendActivation, onPasswordReset, onRouteChange, notice }: Props) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState("");
   const [submittedEmail, setSubmittedEmail] = useState("");
@@ -176,7 +167,7 @@ export function AuthPage({ authError, initialMode = "login", onLogin, onSignup, 
     >
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A]">TripLedger</p>
+          <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A]">TripLoggy</p>
           <h1 className="mt-2 text-2xl font-black text-slate-950 dark:text-slate-50">Fleet & Billing Platform</h1>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Sign in to save bills securely and access history across devices.</p>
         </div>
@@ -197,6 +188,7 @@ export function AuthPage({ authError, initialMode = "login", onLogin, onSignup, 
             </p>
           </CardHeader>
           <CardContent>
+            {notice && <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-[#1E3A8A] dark:border-blue-900/60 dark:bg-blue-950/50 dark:text-blue-200">{notice}</div>}
             {signupComplete ? (
               <div className="space-y-3">
                 {(message || error) && (
@@ -294,7 +286,7 @@ export function AuthPage({ authError, initialMode = "login", onLogin, onSignup, 
                     <button className="cursor-pointer font-bold text-[#1E3A8A] hover:underline dark:text-blue-300" type="button" onClick={() => go("login")}>Back to Login</button>
                   ) : (
                     <>
-                      {isLogin ? "New to TripLedger?" : "Already have an account?"}{" "}
+                      {isLogin ? "New to TripLoggy?" : "Already have an account?"}{" "}
                       <button
                         className="cursor-pointer font-bold text-[#1E3A8A] hover:underline dark:text-blue-300"
                         type="button"

@@ -82,7 +82,7 @@ export function ResetPasswordPage({ recoveryReady, onCheckRecovery, onUpdatePass
     >
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A]">TripLedger</p>
+          <p className="text-xs font-bold uppercase tracking-wide text-[#1E3A8A]">TripLoggy</p>
           <h1 className="mt-2 text-2xl font-black text-slate-950 dark:text-slate-50">Fleet & Billing Platform</h1>
         </div>
 
@@ -96,7 +96,7 @@ export function ResetPasswordPage({ recoveryReady, onCheckRecovery, onUpdatePass
                 ? "This password-reset link is invalid or has expired."
                 : state === "success"
                   ? "Please sign in again using your new password."
-                  : "Choose a new password for your TripLedger account."}
+                  : "Choose a new password for your TripLoggy account."}
             </p>
           </CardHeader>
           <CardContent>
